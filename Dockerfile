@@ -18,5 +18,4 @@ RUN cd client && npm run build
 
 # Start the server
 EXPOSE 3000
-EXPOSE 3001
 CMD [ "node", "server/server.js" ]

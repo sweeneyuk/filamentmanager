@@ -5,10 +5,13 @@ const { connectMqtt, getAmsStatus } = require('./mqtt');
 const path = require('path');
 
 const app = express();
-const port = 3001;
+const port = 3000;
 
 app.use(cors());
 app.use(express.json());
+
+// Serve React static files in production
+app.use(express.static(path.join(__dirname, '../client/dist')));
 
 // Initialize DB and connect MQTT
 initDb().then(() => {
@@ -120,6 +123,11 @@ app.post('/api/archives', (req, res) => {
 // GET /api/ams
 app.get('/api/ams', (req, res) => {
   res.json(getAmsStatus());
+});
+
+// React Router fallback
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/dist/index.html'));
 });
 
 app.listen(port, () => {
