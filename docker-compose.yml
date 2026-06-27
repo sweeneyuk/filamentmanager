@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   app:
-    build: .
+    image: ghcr.io/sweeneyuk/filamentmanager:latest
     ports:
       - "4545:3000"
     volumes:
