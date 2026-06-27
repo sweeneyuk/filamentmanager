@@ -11,6 +11,14 @@ let printState = {
   startEnergy: 0,
   predictedWeights: [], // Extracted from 3MF
   activeTrays: [], // Tray IDs being used (e.g., '0-0')
+  progress: 0,
+  remainingTime: 0,
+  nozzleTemp: 0,
+  nozzleTarget: 0,
+  bedTemp: 0,
+  bedTarget: 0,
+  layerNum: 0,
+  totalLayerNum: 0,
 };
 
 // Helper to get settings
@@ -77,6 +85,16 @@ const handlePrintStatus = async (printData) => {
   // Handle print lifecycle
   const newStatus = printData.gcode_state;
   const subTaskName = printData.subtask_name;
+
+  // Live Telemetry
+  if (printData.mc_percent !== undefined) printState.progress = printData.mc_percent;
+  if (printData.mc_remaining_time !== undefined) printState.remainingTime = printData.mc_remaining_time;
+  if (printData.nozzle_temper !== undefined) printState.nozzleTemp = printData.nozzle_temper;
+  if (printData.nozzle_target_temper !== undefined) printState.nozzleTarget = printData.nozzle_target_temper;
+  if (printData.bed_temper !== undefined) printState.bedTemp = printData.bed_temper;
+  if (printData.bed_target_temper !== undefined) printState.bedTarget = printData.bed_target_temper;
+  if (printData.layer_num !== undefined) printState.layerNum = printData.layer_num;
+  if (printData.total_layer_num !== undefined) printState.totalLayerNum = printData.total_layer_num;
 
   if (newStatus && newStatus !== printState.status) {
     console.log(`Print status changed from ${printState.status} to ${newStatus}`);
@@ -182,7 +200,7 @@ const handlePrintStatus = async (printData) => {
         });
 
         // Reset state
-        printState = { status: 'IDLE', name: '', startTime: null, startEnergy: 0, predictedWeights: [], activeTrays: [] };
+        printState = { status: 'IDLE', name: '', startTime: null, startEnergy: 0, predictedWeights: [], activeTrays: [], progress: 0, remainingTime: 0, nozzleTemp: 0, nozzleTarget: 0, bedTemp: 0, bedTarget: 0, layerNum: 0, totalLayerNum: 0 };
       });
     } else {
       printState.status = newStatus;
