@@ -155,6 +155,12 @@ app.get('/api/ams', (req, res) => {
   res.json(getAmsStatus());
 });
 
+// GET /api/print_status
+app.get('/api/print_status', (req, res) => {
+  const { getPrintState } = require('./mqtt');
+  res.json(getPrintState());
+});
+
 // GET /api/ams/assignments
 app.get('/api/ams/assignments', (req, res) => {
   db.all('SELECT tray_id, spool_id FROM ams_assignments', [], (err, rows) => {

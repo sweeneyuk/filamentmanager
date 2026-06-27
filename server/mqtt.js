@@ -194,7 +194,12 @@ const getAmsStatus = () => {
   return currentAmsData;
 };
 
+const getPrintState = () => {
+  return printState;
+};
+
 module.exports = {
   connectMqtt,
-  getAmsStatus
+  getAmsStatus,
+  getPrintState
 };

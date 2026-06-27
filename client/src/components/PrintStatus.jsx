@@ -5,6 +5,7 @@ function PrintStatus() {
   const [amsData, setAmsData] = useState(null);
   const [amsAssignments, setAmsAssignments] = useState({});
   const [spools, setSpools] = useState([]);
+  const [printState, setPrintState] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -14,14 +15,16 @@ function PrintStatus() {
 
   const fetchData = async () => {
     try {
-      const [amsRes, assignRes, spoolsRes] = await Promise.all([
+      const [amsRes, assignRes, spoolsRes, printRes] = await Promise.all([
         axios.get('/api/ams'),
         axios.get('/api/ams/assignments'),
-        axios.get('/api/spools')
+        axios.get('/api/spools'),
+        axios.get('/api/print_status')
       ]);
       setAmsData(amsRes.data);
       setAmsAssignments(assignRes.data);
       setSpools(spoolsRes.data.filter(s => !s.archived));
+      setPrintState(printRes.data);
     } catch (err) {}
   };
 
@@ -42,6 +45,14 @@ function PrintStatus() {
           <p style={{margin: 0, color: '#888', fontSize: '0.9rem'}}>Live AMS tracking</p>
         </div>
       </div>
+
+      {printState && printState.status !== 'IDLE' && (
+        <div className="stat-card" style={{ marginBottom: '20px', backgroundColor: 'rgba(0, 200, 83, 0.05)', borderColor: 'var(--primary-color)' }}>
+          <div className="stat-title" style={{ color: 'var(--primary-color)' }}>CURRENT PRINT ({printState.status})</div>
+          <div className="stat-value">{printState.name || 'Unknown Print'}</div>
+          <div className="stat-subtitle">Started: {printState.startTime ? new Date(printState.startTime).toLocaleTimeString() : 'N/A'}</div>
+        </div>
+      )}
 
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
@@ -88,7 +99,7 @@ function PrintStatus() {
                             const rem = s.total_weight - s.used_weight;
                             return (
                               <option key={s.id} value={s.id}>
-                                {s.brand_name} {s.material_name} ({rem.toFixed(0)}g)
+                                {s.brand_name} {s.material_name} {s.subtype ? `(${s.subtype})` : `(${s.color})`} - {rem.toFixed(0)}g
                               </option>
                             );
                           })}

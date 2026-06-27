@@ -11,11 +11,11 @@ function App() {
       <div className="app-container">
         <nav className="sidebar">
           <h1>Filament Manager</h1>
-          <NavLink to="/" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-            <Database size={20} /> Spool Inventory
-          </NavLink>
           <NavLink to="/print-status" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
             <Printer size={20} /> Print Status
+          </NavLink>
+          <NavLink to="/" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+            <Database size={20} /> Spool Inventory
           </NavLink>
           <NavLink to="/archive" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
             <ArchiveIcon size={20} /> Print Archive
