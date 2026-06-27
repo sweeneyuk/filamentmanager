@@ -103,6 +103,7 @@ const importBambuddyDb = (filePath) => {
       });
     });
   });
+});
 };
 
 module.exports = { importBambuddyDb };
