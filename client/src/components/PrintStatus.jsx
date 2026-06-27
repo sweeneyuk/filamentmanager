@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import namer from 'color-namer';
 
 function PrintStatus() {
   const [amsData, setAmsData] = useState(null);
@@ -97,9 +98,21 @@ function PrintStatus() {
                           <option value="">-- Assign --</option>
                           {spools.map(s => {
                             const rem = s.total_weight - s.used_weight;
+                            let colorText = '';
+                            try {
+                              if (s.color) {
+                                const names = namer(s.color);
+                                colorText = names.basic[0].name; // e.g. "red", "black"
+                                colorText = colorText.charAt(0).toUpperCase() + colorText.slice(1);
+                              }
+                            } catch (e) {
+                              colorText = 'Unknown';
+                            }
+                            const identifier = s.subtype && s.subtype.toLowerCase() !== 'basic' ? s.subtype : colorText;
+
                             return (
                               <option key={s.id} value={s.id}>
-                                {s.brand_name} {s.material_name} {s.subtype ? `(${s.subtype})` : `(${s.color})`} - {rem.toFixed(0)}g
+                                {s.brand_name} {s.material_name} ({identifier}) - {rem.toFixed(0)}g
                               </option>
                             );
                           })}
