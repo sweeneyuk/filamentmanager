@@ -257,8 +257,10 @@ app.post('/api/import/csv', upload.single('csvFile'), (req, res) => {
         const insertMat = db.prepare('INSERT OR IGNORE INTO materials (name) VALUES (?)');
         
         results.forEach(r => {
-          if (r.Brand) insertBrand.run(r.Brand);
-          if (r.Material) insertMat.run(r.Material);
+          const brand = r.Brand || r.brand || '';
+          const material = r.Material || r.material || '';
+          if (brand) insertBrand.run(brand);
+          if (material) insertMat.run(material);
         });
         insertBrand.finalize();
         insertMat.finalize();
@@ -276,17 +278,27 @@ app.post('/api/import/csv', upload.single('csvFile'), (req, res) => {
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `);
             results.forEach(r => {
+              const brand = r.Brand || r.brand || '';
+              const material = r.Material || r.material || '';
+              
+              // Color mapping
+              let color = r.Color || '#ffffff';
+              if (!r.Color && r.rgba) {
+                let hexMatch = r.rgba.match(/[0-9A-Fa-f]{6}/);
+                if (hexMatch) color = '#' + hexMatch[0];
+              }
+
               insertSpool.run(
-                brandMap[r.Brand] || null,
-                matMap[r.Material] || null,
-                r.Subtype || '',
-                r.Location || '',
-                r.Color || '#ffffff',
-                parseFloat(r.Cost) || 0,
-                parseFloat(r['Label Weight']) || 1000,
-                parseFloat(r['Empty Weight']) || 250,
-                parseFloat(r['Used Weight']) || 0,
-                r.Archived === '1' || r.Archived?.toLowerCase() === 'true' ? 1 : 0
+                brandMap[brand] || null,
+                matMap[material] || null,
+                r.Subtype || r.subtype || '',
+                r.Location || r.storage_location || r.location || '',
+                color,
+                parseFloat(r.Cost || r.cost_per_kg) || 0,
+                parseFloat(r['Label Weight'] || r.label_weight) || 1000,
+                parseFloat(r['Empty Weight'] || r.empty_weight) || 250,
+                parseFloat(r['Used Weight'] || r.weight_used) || 0,
+                (r.Archived === '1' || r.Archived?.toLowerCase() === 'true' || r.archived === '1' || r.archived?.toLowerCase() === 'true') ? 1 : 0
               );
             });
             insertSpool.finalize();
