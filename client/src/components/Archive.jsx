@@ -25,7 +25,15 @@ function Archive() {
 
   return (
     <div>
-      <h2 style={{marginTop: 0}}>Print Archive</h2>
+      <div className="card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--primary-color)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h2 style={{ margin: '0 0 5px 0', color: 'var(--primary-color)' }}>Print Archive</h2>
+            <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>History & Logs</div>
+            <div style={{ fontSize: '0.85rem', color: '#888' }}>View past prints, costs, and timelapse media.</div>
+          </div>
+        </div>
+      </div>
       
       <div className="card">
         <table>

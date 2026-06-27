@@ -123,16 +123,19 @@ function FilamentManager() {
 
   return (
     <div className="filament-manager">
-      <div className="fm-header">
-        <div>
-          <h1 style={{margin: '0 0 5px 0', fontSize: '1.5rem'}}>Spool Inventory</h1>
-          <p style={{margin: 0, color: '#888', fontSize: '0.9rem'}}>Manage your spools</p>
-        </div>
-        <div className="fm-actions">
-          <input type="file" accept=".csv" ref={fileInputRef} style={{display: 'none'}} onChange={handleImportCSV} />
-          <button className="btn-secondary" onClick={() => fileInputRef.current?.click()}>Import CSV</button>
-          <button className="btn-secondary" onClick={handleExportCSV}>Export CSV</button>
-          <button className="btn-primary" onClick={() => { setEditingSpool(null); setIsModalOpen(true); }}>+ Add Spool</button>
+      <div className="card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--primary-color)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h2 style={{ margin: '0 0 5px 0', color: 'var(--primary-color)' }}>Spool Inventory</h2>
+            <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Filament Manager</div>
+            <div style={{ fontSize: '0.85rem', color: '#888' }}>Track your spools, costs, and weights.</div>
+          </div>
+          <div className="fm-actions">
+            <input type="file" accept=".csv" ref={fileInputRef} style={{display: 'none'}} onChange={handleImportCSV} />
+            <button className="btn-secondary" onClick={() => fileInputRef.current?.click()}>Import CSV</button>
+            <button className="btn-secondary" onClick={handleExportCSV}>Export CSV</button>
+            <button className="btn-primary" onClick={() => { setEditingSpool(null); setIsModalOpen(true); }}>+ Add Spool</button>
+          </div>
         </div>
       </div>
 

@@ -7,6 +7,8 @@ function PrintStatus() {
   const [amsAssignments, setAmsAssignments] = useState({});
   const [spools, setSpools] = useState([]);
   const [printState, setPrintState] = useState(null);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [activeTrayId, setActiveTrayId] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -185,40 +187,40 @@ function PrintStatus() {
                         <div style={{ fontSize: '0.75rem', color: '#888', marginBottom: '10px' }}>
                           Slot {tIndex + 1}
                         </div>
-                        <select 
-                          style={{ width: '100%', fontSize: '0.75rem', padding: '4px' }}
-                          value={amsAssignments[`${amsUnit.id}-${tIndex}`] || ''}
-                          onChange={(e) => handleAssignAms(`${amsUnit.id}-${tIndex}`, e.target.value)}
-                        >
-                          <option value="">-- Assign --</option>
-                          {spools.map(s => {
-                            const rem = s.total_weight - s.used_weight;
-                            let colorText = '';
-                            if (s.color_name) {
-                              colorText = s.color_name;
-                            } else {
-                              try {
-                                if (s.color) {
-                                  const names = namer(s.color);
-                                  colorText = names.basic[0].name; // e.g. "red", "black"
-                                  colorText = colorText.charAt(0).toUpperCase() + colorText.slice(1);
-                                }
-                              } catch (e) {
-                                colorText = 'Unknown';
-                              }
-                            }
-                            let subtypeText = '';
-                            if (s.subtype && s.subtype.toLowerCase() !== 'basic') {
-                              subtypeText = `(${s.subtype})`;
-                            }
-
-                            return (
-                              <option key={s.id} value={s.id}>
-                                {s.brand_name} {s.material_name} {colorText} {subtypeText} - {rem.toFixed(0)}g
-                              </option>
-                            );
-                          })}
-                        </select>
+                        {(() => {
+                          const trayId = `${amsUnit.id}-${tIndex}`;
+                          const assignedSpoolId = amsAssignments[trayId];
+                          const assignedSpool = spools.find(s => s.id == assignedSpoolId);
+                          return (
+                            <div>
+                              {assignedSpool ? (
+                                <div style={{ fontSize: '0.75rem', marginBottom: '5px', color: 'var(--primary-color)' }}>
+                                  {assignedSpool.brand_name} {assignedSpool.material_name}
+                                </div>
+                              ) : (
+                                <div style={{ fontSize: '0.75rem', marginBottom: '5px', color: '#666' }}>
+                                  Not Assigned
+                                </div>
+                              )}
+                              <button 
+                                className="btn-secondary" 
+                                style={{ width: '100%', fontSize: '0.7rem', padding: '4px' }}
+                                onClick={() => { setActiveTrayId(trayId); setIsAssignModalOpen(true); }}
+                              >
+                                {assignedSpool ? 'Change' : 'Assign Spool'}
+                              </button>
+                              {assignedSpool && (
+                                <button 
+                                  className="btn-secondary" 
+                                  style={{ width: '100%', fontSize: '0.7rem', padding: '4px', marginTop: '4px', backgroundColor: 'transparent', color: '#ff5555', border: '1px solid #ff5555' }}
+                                  onClick={() => handleAssignAms(trayId, '')}
+                                >
+                                  Clear
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     );
                   })}
@@ -232,6 +234,68 @@ function PrintStatus() {
           <p style={{color: '#888'}}>No AMS data received yet. Ensure your Bambu printer is connected via MQTT in Settings.</p>
         )}
       </div>
+
+      {isAssignModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsAssignModalOpen(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <h2>Assign Spool</h2>
+              <button className="btn-secondary" onClick={() => setIsAssignModalOpen(false)}>Close</button>
+            </div>
+            <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+              <table className="fm-table">
+                <thead>
+                  <tr>
+                    <th>Brand</th>
+                    <th>Material</th>
+                    <th>Color</th>
+                    <th>Remaining</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {spools.map(s => {
+                    const rem = s.total_weight - s.used_weight;
+                    let colorText = s.color_name;
+                    if (!colorText) {
+                      try {
+                        if (s.color) {
+                          const names = namer(s.color);
+                          colorText = names.basic[0].name;
+                          colorText = colorText.charAt(0).toUpperCase() + colorText.slice(1);
+                        }
+                      } catch (e) {
+                        colorText = 'Unknown';
+                      }
+                    }
+                    let subtypeText = s.subtype && s.subtype.toLowerCase() !== 'basic' ? ` (${s.subtype})` : '';
+
+                    return (
+                      <tr key={s.id}>
+                        <td>{s.brand_name}</td>
+                        <td>{s.material_name}</td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{width: '15px', height: '15px', borderRadius: '50%', backgroundColor: s.color || '#333'}}></div>
+                            {colorText}{subtypeText}
+                          </div>
+                        </td>
+                        <td>{rem.toFixed(0)}g</td>
+                        <td>
+                          <button className="btn-primary" onClick={() => {
+                            handleAssignAms(activeTrayId, s.id);
+                            setIsAssignModalOpen(false);
+                          }}>Select</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
