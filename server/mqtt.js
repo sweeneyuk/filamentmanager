@@ -129,14 +129,15 @@ const handlePrintStatus = async (printData) => {
       }
 
       // Start fetching the 3MF weights asynchronously in the background
-      if (printData.gcode_file) {
+      if (printData.gcode_file && printState.lastFetchedGcode !== printData.gcode_file) {
+        printState.lastFetchedGcode = printData.gcode_file;
         const { getPredictedWeights } = require('./ftp');
         getPredictedWeights(printData.gcode_file).then(weights => {
           if (weights && Array.isArray(weights)) {
             printState.predictedWeights = weights;
             console.log('Successfully extracted predicted weights:', weights);
           }
-        });
+        }).catch(err => console.log('Failed to fetch weights via FTP:', err.message));
       }
 
     } else if ((newStatus === 'FINISH' || newStatus === 'FAILED') && printState.status === 'RUNNING') {
@@ -205,7 +206,7 @@ const handlePrintStatus = async (printData) => {
         });
 
         // Reset state
-        printState = { status: 'IDLE', name: '', startTime: null, startEnergy: 0, predictedWeights: [], activeTrays: [], progress: 0, remainingTime: 0, nozzleTemp: 0, nozzleTarget: 0, bedTemp: 0, bedTarget: 0, layerNum: 0, totalLayerNum: 0 };
+        printState = { status: 'IDLE', name: '', startTime: null, startEnergy: 0, predictedWeights: [], activeTrays: [], progress: 0, remainingTime: 0, nozzleTemp: 0, nozzleTarget: 0, bedTemp: 0, bedTarget: 0, layerNum: 0, totalLayerNum: 0, raw: null, lastFetchedGcode: null };
       });
     } else {
       printState.status = newStatus;
