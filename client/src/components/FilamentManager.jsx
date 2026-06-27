@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import SpoolModal from './SpoolModal';
 
 function FilamentManager() {
   const [spools, setSpools] = useState([]);
@@ -7,17 +8,12 @@ function FilamentManager() {
   const [materials, setMaterials] = useState([]);
   const [amsData, setAmsData] = useState(null);
   const [amsAssignments, setAmsAssignments] = useState({});
-  const [editingSpool, setEditingSpool] = useState(null);
   
-  const [newSpool, setNewSpool] = useState({
-    brand_id: '',
-    material_id: '',
-    color: '#ffffff',
-    cost: '',
-    total_weight: 1000,
-    empty_weight: '',
-    used_weight: 0
-  });
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingSpool, setEditingSpool] = useState(null);
+  const [filter, setFilter] = useState('Active'); // Active, Archived, All, Used, New, Low Stock
+  
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     fetchData();
@@ -35,9 +31,6 @@ function FilamentManager() {
       setSpools(spoolsRes.data);
       setBrands(brandsRes.data);
       setMaterials(materialsRes.data);
-      
-      if (brandsRes.data.length > 0) setNewSpool(prev => ({...prev, brand_id: brandsRes.data[0].id, empty_weight: brandsRes.data[0].default_empty_weight}));
-      if (materialsRes.data.length > 0) setNewSpool(prev => ({...prev, material_id: materialsRes.data[0].id}));
     } catch (err) {
       console.error(err);
     }
@@ -64,7 +57,7 @@ function FilamentManager() {
   };
 
   const handleDeleteSpool = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this spool?')) return;
+    if (!window.confirm('Are you sure you want to delete this spool? This cannot be undone.')) return;
     try {
       await axios.delete(`/api/spools/${id}`);
       fetchData();
@@ -73,208 +66,186 @@ function FilamentManager() {
     }
   };
 
-  const handleBrandChange = (e) => {
-    const brandId = e.target.value;
-    const brand = brands.find(b => b.id.toString() === brandId);
-    setNewSpool({
-      ...newSpool,
-      brand_id: brandId,
-      empty_weight: brand ? brand.default_empty_weight : ''
-    });
-  };
-
-  const handleAddSpool = async (e) => {
-    e.preventDefault();
+  const handleArchiveToggle = async (spool) => {
     try {
-      if (editingSpool) {
-        await axios.put(`/api/spools/${editingSpool}`, newSpool);
-        setEditingSpool(null);
-        alert('Spool updated!');
-      } else {
-        await axios.post('/api/spools', newSpool);
-        alert('Spool added!');
-      }
+      await axios.put(`/api/spools/${spool.id}/archive`, { archived: !spool.archived });
       fetchData();
-      setNewSpool({ brand_id: brands[0]?.id || '', material_id: materials[0]?.id || '', color: '#ffffff', cost: '', total_weight: 1000, empty_weight: brands[0]?.default_empty_weight || '', used_weight: 0 });
     } catch (err) {
-      alert('Failed to save spool');
+      alert('Failed to update archive status');
     }
   };
 
-  const startEdit = (spool) => {
-    setEditingSpool(spool.id);
-    setNewSpool({
-      brand_id: spool.brand_id,
-      material_id: spool.material_id,
-      color: spool.color,
-      cost: spool.cost,
-      total_weight: spool.total_weight,
-      empty_weight: spool.empty_weight,
-      used_weight: spool.used_weight
-    });
+  const handleExportCSV = () => {
+    window.location.href = '/api/export/csv';
   };
 
+  const handleImportCSV = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('csvFile', file);
+
+    try {
+      await axios.post('/api/import/csv', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      alert('CSV imported successfully!');
+      fetchData();
+    } catch (err) {
+      alert('Failed to import CSV: ' + (err.response?.data?.error || err.message));
+    }
+    
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // Stats Calculations
+  const activeSpools = spools.filter(s => !s.archived);
+  const totalInventoryWeight = activeSpools.reduce((acc, s) => acc + (s.total_weight - s.used_weight), 0);
+  const totalConsumedWeight = spools.reduce((acc, s) => acc + s.used_weight, 0);
+  const lowStockCount = activeSpools.filter(s => ((s.total_weight - s.used_weight) / (s.total_weight || 1)) < 0.2).length;
+  
+  // Material breakdown
+  const materialStats = {};
+  activeSpools.forEach(s => {
+    const matName = s.material_name || 'Unknown';
+    if (!materialStats[matName]) materialStats[matName] = { weight: 0, color: s.color };
+    materialStats[matName].weight += (s.total_weight - s.used_weight);
+  });
+
+  // Filtering Logic
+  let filteredSpools = spools;
+  if (filter === 'Active') filteredSpools = spools.filter(s => !s.archived);
+  else if (filter === 'Archived') filteredSpools = spools.filter(s => s.archived);
+  else if (filter === 'Used') filteredSpools = spools.filter(s => !s.archived && s.used_weight > 0);
+  else if (filter === 'New') filteredSpools = spools.filter(s => !s.archived && s.used_weight === 0);
+  else if (filter === 'Low Stock') filteredSpools = activeSpools.filter(s => ((s.total_weight - s.used_weight) / (s.total_weight || 1)) < 0.2);
+
   return (
-    <div>
-      <h2 style={{marginTop: 0}}>Filament Manager</h2>
-      
-      {amsData && Object.keys(amsData).length > 0 && (
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2>AMS Status</h2>
-            <button onClick={fetchAms} style={{ padding: '4px 8px', fontSize: '0.8rem' }}>Refresh AMS</button>
-          </div>
-          <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', marginTop: '10px' }}>
-            {Array.isArray(amsData) ? amsData.map((amsUnit, index) => (
-              <div key={index} style={{ border: '1px solid #444', borderRadius: '8px', padding: '10px', minWidth: '250px' }}>
-                <h3 style={{ margin: '0 0 10px 0', fontSize: '1rem' }}>AMS {amsUnit.id || index + 1}</h3>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  {amsUnit.tray && amsUnit.tray.map((tray, tIndex) => {
-                    const hasFilament = tray.tray_type && tray.tray_type !== '';
-                    const hexColor = tray.tray_color ? `#${tray.tray_color.substring(0, 6)}` : '#333';
-                    return (
-                      <div key={tIndex} style={{ 
-                        flex: 1, 
-                        textAlign: 'center',
-                        backgroundColor: hasFilament ? 'rgba(255,255,255,0.05)' : 'transparent',
-                        padding: '10px 5px',
-                        borderRadius: '4px',
-                        border: hasFilament ? `1px solid ${hexColor}` : '1px dashed #555'
-                      }}>
-                        <div style={{
-                          width: '24px', height: '24px', borderRadius: '50%', 
-                          backgroundColor: hasFilament ? hexColor : '#222',
-                          margin: '0 auto 8px auto'
-                        }}></div>
-                        <div style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>
-                          {hasFilament ? tray.tray_type : 'Empty'}
-                        </div>
-                        <div style={{ fontSize: '0.7rem', color: '#888', marginBottom: '8px' }}>
-                          Slot {tIndex + 1}
-                        </div>
-                        <select 
-                          style={{ width: '100%', fontSize: '0.7rem', padding: '2px' }}
-                          value={amsAssignments[`${amsUnit.id}-${tIndex}`] || ''}
-                          onChange={(e) => handleAssignAms(`${amsUnit.id}-${tIndex}`, e.target.value)}
-                        >
-                          <option value="">-- Assign Spool --</option>
-                          {spools.map(s => {
-                            const rem = s.total_weight - s.used_weight;
-                            return (
-                              <option key={s.id} value={s.id}>
-                                {s.brand_name} {s.material_name} ({rem.toFixed(0)}g)
-                              </option>
-                            );
-                          })}
-                        </select>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )) : (
-              <pre style={{fontSize: '12px', color: '#888'}}>Waiting for detailed AMS payload...</pre>
-            )}
-          </div>
+    <div className="filament-manager">
+      <div className="fm-header">
+        <div>
+          <h1 style={{margin: '0 0 5px 0', fontSize: '1.5rem'}}>Spool Inventory</h1>
+          <p style={{margin: 0, color: '#888', fontSize: '0.9rem'}}>Manage your spools</p>
         </div>
-      )}
-
-      <div className="grid">
-        <div className="card">
-          <h2>{editingSpool ? 'Edit Spool' : 'Add New Spool'}</h2>
-          <form onSubmit={handleAddSpool}>
-            <div className="form-group">
-              <label>Brand</label>
-              <select name="brand_id" value={newSpool.brand_id} onChange={handleBrandChange} required>
-                {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-            </div>
-            
-            <div className="form-group">
-              <label>Material</label>
-              <select name="material_id" value={newSpool.material_id} onChange={(e) => setNewSpool({...newSpool, material_id: e.target.value})} required>
-                {materials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-              </select>
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label>Color</label>
-                <input type="color" value={newSpool.color} onChange={(e) => setNewSpool({...newSpool, color: e.target.value})} style={{padding: '0', height: '35px'}} />
-              </div>
-              <div className="form-group">
-                <label>Cost ($/£)</label>
-                <input type="number" step="0.01" value={newSpool.cost} onChange={(e) => setNewSpool({...newSpool, cost: e.target.value})} required />
-              </div>
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label>Total Weight (g)</label>
-                <input type="number" value={newSpool.total_weight} onChange={(e) => setNewSpool({...newSpool, total_weight: e.target.value})} required />
-              </div>
-              <div className="form-group">
-                <label>Empty Spool Weight (g)</label>
-                <input type="number" value={newSpool.empty_weight} onChange={(e) => setNewSpool({...newSpool, empty_weight: e.target.value})} required />
-              </div>
-            </div>
-            
-            {editingSpool && (
-              <div className="form-group">
-                <label>Used Weight (g)</label>
-                <input type="number" value={newSpool.used_weight} onChange={(e) => setNewSpool({...newSpool, used_weight: e.target.value})} required />
-              </div>
-            )}
-
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button type="submit">{editingSpool ? 'Save Changes' : 'Add Spool'}</button>
-              {editingSpool && (
-                <button type="button" onClick={() => {
-                  setEditingSpool(null);
-                  setNewSpool({ brand_id: brands[0]?.id || '', material_id: materials[0]?.id || '', color: '#ffffff', cost: '', total_weight: 1000, empty_weight: brands[0]?.default_empty_weight || '', used_weight: 0 });
-                }} style={{ backgroundColor: '#444' }}>Cancel</button>
-              )}
-            </div>
-          </form>
-        </div>
-
-        <div className="card" style={{gridColumn: '1 / -1'}}>
-          <h2>My Spools</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Color</th>
-                <th>Brand</th>
-                <th>Material</th>
-                <th>Remaining</th>
-                <th>Cost</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {spools.map(spool => {
-                const remaining = spool.total_weight - spool.used_weight;
-                return (
-                  <tr key={spool.id}>
-                    <td>
-                      <span className="color-dot" style={{backgroundColor: spool.color}}></span>
-                    </td>
-                    <td>{spool.brand_name}</td>
-                    <td>{spool.material_name}</td>
-                    <td>{remaining.toFixed(1)}g</td>
-                    <td>{spool.cost}</td>
-                    <td>
-                      <button onClick={() => startEdit(spool)} style={{ padding: '4px 8px', marginRight: '5px', fontSize: '0.8rem', backgroundColor: '#333' }}>Edit</button>
-                      <button onClick={() => handleDeleteSpool(spool.id)} style={{ padding: '4px 8px', fontSize: '0.8rem', backgroundColor: 'var(--danger-color, #c62828)' }}>Delete</button>
-                    </td>
-                  </tr>
-                );
-              })}
-              {spools.length === 0 && <tr><td colSpan="6" style={{textAlign: 'center', color: '#888'}}>No spools added yet.</td></tr>}
-            </tbody>
-          </table>
+        <div className="fm-actions">
+          <input type="file" accept=".csv" ref={fileInputRef} style={{display: 'none'}} onChange={handleImportCSV} />
+          <button className="btn-secondary" onClick={() => fileInputRef.current?.click()}>Import CSV</button>
+          <button className="btn-secondary" onClick={handleExportCSV}>Export CSV</button>
+          <button className="btn-primary" onClick={() => { setEditingSpool(null); setIsModalOpen(true); }}>+ Add Spool</button>
         </div>
       </div>
+
+      <div className="stats-grid">
+        <div className="stat-card">
+          <div className="stat-title">TOTAL INVENTORY</div>
+          <div className="stat-value">{(totalInventoryWeight / 1000).toFixed(1)}kg</div>
+          <div className="stat-subtitle">{activeSpools.length} spools</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-title">TOTAL CONSUMED</div>
+          <div className="stat-value">{(totalConsumedWeight / 1000).toFixed(1)}kg</div>
+          <div className="stat-subtitle">Since tracking started</div>
+        </div>
+        <div className="stat-card" style={{ flex: 2 }}>
+          <div className="stat-title">BY MATERIAL</div>
+          <div className="stat-materials">
+            {Object.entries(materialStats).map(([mat, data]) => (
+              <span key={mat} className="material-badge" style={{borderColor: data.color}}>
+                <span style={{color: data.color, fontWeight: 'bold'}}>{mat}</span> {(data.weight/1000).toFixed(1)}kg
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="stat-card" style={{ borderRight: '3px solid #ff9800' }}>
+          <div className="stat-title" style={{color: '#ff9800'}}>LOW STOCK</div>
+          <div className="stat-value" style={{color: '#ff9800'}}>{lowStockCount}</div>
+          <div className="stat-subtitle">&lt; 20% remaining</div>
+        </div>
+      </div>
+
+      <div className="tabs">
+        {['Active', 'Archived', 'All', 'Used', 'New', 'Low Stock'].map(f => (
+          <button key={f} className={`tab ${filter === f ? 'active' : ''}`} onClick={() => setFilter(f)}>
+            {f}
+          </button>
+        ))}
+      </div>
+
+      <div className="table-container">
+        <table className="fm-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>ADDED</th>
+              <th>LAST USED</th>
+              <th>COLOR</th>
+              <th>MATERIAL</th>
+              <th>SUBTYPE</th>
+              <th>BRAND</th>
+              <th>LOCATION</th>
+              <th>LABEL WEIGHT</th>
+              <th>NET</th>
+              <th>COST PER KG</th>
+              <th>REMAINING</th>
+              <th style={{textAlign: 'right'}}>ACTIONS</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredSpools.map(spool => {
+              const remaining = spool.total_weight - spool.used_weight;
+              const remainingPct = Math.max(0, Math.min(100, (remaining / spool.total_weight) * 100));
+              let pbColor = '#4caf50';
+              if (remainingPct < 20) pbColor = '#f44336';
+              else if (remainingPct < 40) pbColor = '#ff9800';
+
+              return (
+                <tr key={spool.id} className={spool.archived ? 'archived-row' : ''}>
+                  <td>{spool.id}</td>
+                  <td>{new Date(spool.created_at).toLocaleDateString()}</td>
+                  <td title={spool.last_print_name || ''}>
+                    {spool.last_used_at ? new Date(spool.last_used_at).toLocaleDateString() : 'Never'}
+                  </td>
+                  <td><div className="color-dot" style={{backgroundColor: spool.color}}></div></td>
+                  <td>{spool.material_name}</td>
+                  <td>{spool.subtype || 'Basic'}</td>
+                  <td>{spool.brand_name}</td>
+                  <td style={{color: '#b388ff'}}>{spool.location || '-'}</td>
+                  <td>{spool.total_weight}g</td>
+                  <td>{remaining.toFixed(0)}g</td>
+                  <td>£{spool.cost?.toFixed(2) || '0.00'}</td>
+                  <td style={{width: '150px'}}>
+                    <div className="progress-bar-container">
+                      <div className="progress-bar" style={{width: `${remainingPct}%`, backgroundColor: pbColor}}></div>
+                    </div>
+                  </td>
+                  <td style={{textAlign: 'right'}}>
+                    <div className="row-actions">
+                      <button onClick={() => { setEditingSpool(spool); setIsModalOpen(true); }} title="Edit">✎</button>
+                      <button onClick={() => handleArchiveToggle(spool)} title={spool.archived ? "Unarchive" : "Archive"}>
+                        {spool.archived ? '📦↑' : '📦↓'}
+                      </button>
+                      <button onClick={() => handleDeleteSpool(spool.id)} className="danger" title="Delete">🗑</button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+            {filteredSpools.length === 0 && (
+              <tr><td colSpan="13" style={{textAlign: 'center', padding: '20px', color: '#888'}}>No spools found for this filter.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <SpoolModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        editingSpool={editingSpool} 
+        brands={brands} 
+        materials={materials} 
+        onSave={fetchData} 
+      />
     </div>
   );
 }

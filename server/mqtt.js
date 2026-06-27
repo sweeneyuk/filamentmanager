@@ -144,7 +144,7 @@ const handlePrintStatus = async (printData) => {
             filamentUsed += predicted;
             const spoolId = assignMap[trayId];
             if (spoolId) {
-              db.run('UPDATE spools SET used_weight = used_weight + ? WHERE id = ?', [predicted, spoolId]);
+              db.run('UPDATE spools SET used_weight = used_weight + ?, last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?', [predicted, printState.name, spoolId]);
             }
           }
         });

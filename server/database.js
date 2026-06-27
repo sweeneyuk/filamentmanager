@@ -87,7 +87,14 @@ const initDb = () => {
       
       // Attempt to add new columns to an existing archives table (fails silently if they exist)
       db.run("ALTER TABLE archives ADD COLUMN timelapse_path TEXT", () => {});
-      db.run("ALTER TABLE archives ADD COLUMN photo_path TEXT", () => {
+      db.run("ALTER TABLE archives ADD COLUMN photo_path TEXT", () => {});
+
+      // Add new columns to spools table
+      db.run("ALTER TABLE spools ADD COLUMN archived INTEGER DEFAULT 0", () => {});
+      db.run("ALTER TABLE spools ADD COLUMN subtype TEXT", () => {});
+      db.run("ALTER TABLE spools ADD COLUMN location TEXT", () => {});
+      db.run("ALTER TABLE spools ADD COLUMN last_used_at DATETIME", () => {});
+      db.run("ALTER TABLE spools ADD COLUMN last_print_name TEXT", () => {
         resolve(); // Resolve promise after the last query in serialize block finishes
       });
     });
