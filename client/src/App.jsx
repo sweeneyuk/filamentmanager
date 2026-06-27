@@ -10,14 +10,14 @@ function App() {
       <div className="app-container">
         <nav className="sidebar">
           <h1>Filament Manager</h1>
-          <NavLink to="/" className={({ isActive }) => \`nav-link \${isActive ? 'active' : ''}\`}>
+          <NavLink to="/" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
             <Database size={20} /> Spools
           </NavLink>
-          <NavLink to="/archive" className={({ isActive }) => \`nav-link \${isActive ? 'active' : ''}\`}>
+          <NavLink to="/archive" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
             <ArchiveIcon size={20} /> Print Archive
           </NavLink>
           <div style={{ flex: 1 }}></div>
-          <NavLink to="/settings" className={({ isActive }) => \`nav-link \${isActive ? 'active' : ''}\`}>
+          <NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
             <SettingsIcon size={20} /> Settings
           </NavLink>
         </nav>

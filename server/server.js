@@ -131,5 +131,5 @@ app.get('*', (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(\`Backend server running on http://localhost:\${port}\`);
+  console.log(`Backend server running on http://localhost:${port}`);
 });
