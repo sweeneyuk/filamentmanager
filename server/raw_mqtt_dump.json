@@ -39,7 +39,7 @@
   },
   "3D": {
     "enc_type": 0,
-    "layer_num": 24,
+    "layer_num": 25,
     "print_cali_option": 0,
     "total_layer_num": 210,
     "ventobox": {
@@ -238,7 +238,7 @@
     "tray_reading_bits": "0",
     "tray_tar": "2",
     "unbind_ams_stat": 0,
-    "version": 6159
+    "version": 6161
   },
   "ams_rfid_status": 0,
   "ams_status": 768,
@@ -264,7 +264,7 @@
   ],
   "cfg": "4C1001FD2B9",
   "command": "push_status",
-  "cooling_fan_speed": "15",
+  "cooling_fan_speed": "14",
   "design_id": "",
   "device": {
     "airduct": {
@@ -318,8 +318,8 @@
           "func": 2,
           "id": 48,
           "range": 6553600,
-          "state": 80,
-          "tar_state": 80
+          "state": 70,
+          "tar_state": 70
         }
       ],
       "subFunc": 0,
@@ -340,7 +340,7 @@
         "state": 0
       },
       "timelapse_path": "",
-      "tl_external_free_kb": 351654912,
+      "tl_external_free_kb": 351591936,
       "tl_external_total_kb": 482540736,
       "tl_internal_free_kb": 962560,
       "tl_internal_total_kb": 962560
@@ -464,7 +464,7 @@
     "img_id": ""
   },
   "fail_reason": "0",
-  "fan_gear": 12578047,
+  "fan_gear": 12512255,
   "file": "/data/Metadata/plate_1.gcode",
   "force_upgrade": false,
   "fun": "40029FD1930F9CB7",
@@ -499,7 +499,7 @@
     "resolution": "1080p",
     "rtsp_url": "rtsps://10.1.209.27:322/streaming/live/1",
     "timelapse": "enable",
-    "tl_external_free_kb": 351654912,
+    "tl_external_free_kb": 351591936,
     "tl_external_total_kb": 482540736,
     "tl_internal_free_kb": 962560,
     "tl_internal_total_kb": 962560,
@@ -541,7 +541,7 @@
   "job_attr": 18,
   "job_id": "0",
   "lan_task_id": "0",
-  "layer_num": 24,
+  "layer_num": 25,
   "lights_report": [
     {
       "mode": "on",
@@ -559,11 +559,11 @@
   ],
   "mc_action": 0,
   "mc_err": 0,
-  "mc_percent": 45,
+  "mc_percent": 46,
   "mc_print_error_code": "0",
   "mc_print_stage": "2",
   "mc_print_sub_stage": 0,
-  "mc_remaining_time": 194,
+  "mc_remaining_time": 191,
   "mc_stage": 2,
   "model_id": "",
   "msg": 0,
@@ -588,7 +588,7 @@
     "ahb": true,
     "version": 10
   },
-  "percent": 45,
+  "percent": 46,
   "plate_cnt": 1,
   "plate_id": 1,
   "plate_idx": 1,
@@ -604,7 +604,7 @@
   "queue_number": 0,
   "queue_sts": 0,
   "queue_total": 0,
-  "remain_time": 194,
+  "remain_time": 191,
   "s_obj": [],
   "sdcard": true,
   "sequence_id": "2021",
