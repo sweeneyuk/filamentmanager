@@ -134,26 +134,51 @@ const extractWeightsFrom3mf = async (client, remoteFile) => {
   return null;
 };
 
+const extractWeightsFromGcode = async (client, remoteFile) => {
+  const localTemp = path.join(mediaDir, 'temp_print.gcode');
+  try {
+    await client.downloadTo(localTemp, remoteFile);
+    const content = fs.readFileSync(localTemp, 'utf8');
+    fs.unlinkSync(localTemp);
+
+    // Look for lines like: ; filament used [g] = 15.34
+    // Or if multi-color: ; filament used [g] = 15.34, 0.00, 2.50
+    const match = content.match(/;\s*filament used \[g\]\s*=\s*([\d\.\,\s]+)/i);
+    if (match && match[1]) {
+      const weightsStr = match[1].split(',');
+      const weights = weightsStr.map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+      if (weights.length > 0) return weights;
+    }
+  } catch (err) {
+    console.error(`Failed to extract weights from gcode at ${remoteFile}:`, err.message);
+  }
+  if (fs.existsSync(localTemp)) fs.unlinkSync(localTemp);
+  return null;
+};
+
 const getPredictedWeights = async (gcodeFile) => {
   let client;
   try {
     client = await connectFtp();
     let weights = null;
-    
-    // Bambu stores currently printing files in the root or / timelapses folder depending on mode
-    // We can try to fetch the exact file if we know the path, but let's try root
+
+    // Bambu often prepends /data/ to paths, but FTP root is usually /
+    let cleanPath = gcodeFile.startsWith('/data/') ? gcodeFile.substring(5) : gcodeFile;
+    if (!cleanPath.startsWith('/')) cleanPath = '/' + cleanPath;
+
+    const isGcode = cleanPath.toLowerCase().endsWith('.gcode');
+    const extractFn = isGcode ? extractWeightsFromGcode : extractWeightsFrom3mf;
+
     try {
-      weights = await extractWeightsFrom3mf(client, `/${gcodeFile}`);
+      weights = await extractFn(client, cleanPath);
     } catch (e) {
-      console.log('Could not find file in root, trying tasks folder...');
+      console.log(`Could not find ${cleanPath}, trying tasks folder...`);
       try {
-        const list = await client.list('/');
-        // Sometimes it's in a subdirectory
-        weights = await extractWeightsFrom3mf(client, `/tasks/${gcodeFile}`);
+        weights = await extractFn(client, `/tasks${cleanPath}`);
       } catch (err2) {
       }
     }
-    
+
     client.close();
     return weights;
   } catch (err) {

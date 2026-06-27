@@ -39,7 +39,7 @@
   },
   "3D": {
     "enc_type": 0,
-    "layer_num": 27,
+    "layer_num": 31,
     "print_cali_option": 0,
     "total_layer_num": 210,
     "ventobox": {
@@ -264,7 +264,7 @@
   ],
   "cfg": "4C1001FD2B9",
   "command": "push_status",
-  "cooling_fan_speed": "15",
+  "cooling_fan_speed": "14",
   "design_id": "",
   "device": {
     "airduct": {
@@ -340,7 +340,7 @@
         "state": 0
       },
       "timelapse_path": "",
-      "tl_external_free_kb": 351464960,
+      "tl_external_free_kb": 351338944,
       "tl_external_total_kb": 482540736,
       "tl_internal_free_kb": 962560,
       "tl_internal_total_kb": 962560
@@ -392,7 +392,7 @@
       ],
       "state": 33042
     },
-    "fan": 6579452,
+    "fan": 6579451,
     "fila_switch": {
       "in": [
         -1,
@@ -499,7 +499,7 @@
     "resolution": "1080p",
     "rtsp_url": "rtsps://10.1.209.27:322/streaming/live/1",
     "timelapse": "enable",
-    "tl_external_free_kb": 351464960,
+    "tl_external_free_kb": 351338944,
     "tl_external_total_kb": 482540736,
     "tl_internal_free_kb": 962560,
     "tl_internal_total_kb": 962560,
@@ -541,7 +541,7 @@
   "job_attr": 18,
   "job_id": "0",
   "lan_task_id": "0",
-  "layer_num": 27,
+  "layer_num": 31,
   "lights_report": [
     {
       "mode": "on",
@@ -559,11 +559,11 @@
   ],
   "mc_action": 0,
   "mc_err": 0,
-  "mc_percent": 50,
+  "mc_percent": 55,
   "mc_print_error_code": "0",
   "mc_print_stage": "2",
   "mc_print_sub_stage": 0,
-  "mc_remaining_time": 176,
+  "mc_remaining_time": 158,
   "mc_stage": 2,
   "model_id": "",
   "msg": 0,
@@ -588,7 +588,7 @@
     "ahb": true,
     "version": 10
   },
-  "percent": 50,
+  "percent": 55,
   "plate_cnt": 1,
   "plate_id": 1,
   "plate_idx": 1,
@@ -604,7 +604,7 @@
   "queue_number": 0,
   "queue_sts": 0,
   "queue_total": 0,
-  "remain_time": 176,
+  "remain_time": 158,
   "s_obj": [],
   "sdcard": true,
   "sequence_id": "2021",
