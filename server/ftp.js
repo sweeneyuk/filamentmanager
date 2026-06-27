@@ -105,7 +105,66 @@ const downloadLatestTimelapseAndPhoto = async (printName, archiveId) => {
   }
 };
 
+const extractWeightsFrom3mf = async (client, remoteFile) => {
+  const AdmZip = require('adm-zip');
+  const localTemp = path.join(mediaDir, 'temp_print.3mf');
+  try {
+    await client.downloadTo(localTemp, remoteFile);
+    const zip = new AdmZip(localTemp);
+    const zipEntries = zip.getEntries();
+    const detailsEntry = zipEntries.find(e => e.entryName === 'Metadata/project_details.json' || e.entryName === 'Metadata/slice_info.config');
+    
+    if (detailsEntry) {
+      const data = JSON.parse(detailsEntry.getData().toString('utf8'));
+      fs.unlinkSync(localTemp); // Cleanup
+      
+      // We look for filament weights
+      if (data.filament_weight) {
+        // Sometimes it's an array for multi-material
+        return Array.isArray(data.filament_weight) ? data.filament_weight : [data.filament_weight];
+      }
+      if (data.plate_summary && data.plate_summary.length > 0) {
+        return data.plate_summary[0].filament_weight || [];
+      }
+    }
+  } catch (err) {
+    console.error('Failed to extract weights from 3mf:', err.message);
+  }
+  if (fs.existsSync(localTemp)) fs.unlinkSync(localTemp);
+  return null;
+};
+
+const getPredictedWeights = async (gcodeFile) => {
+  let client;
+  try {
+    client = await connectFtp();
+    let weights = null;
+    
+    // Bambu stores currently printing files in the root or / timelapses folder depending on mode
+    // We can try to fetch the exact file if we know the path, but let's try root
+    try {
+      weights = await extractWeightsFrom3mf(client, `/${gcodeFile}`);
+    } catch (e) {
+      console.log('Could not find file in root, trying tasks folder...');
+      try {
+        const list = await client.list('/');
+        // Sometimes it's in a subdirectory
+        weights = await extractWeightsFrom3mf(client, `/tasks/${gcodeFile}`);
+      } catch (err2) {
+      }
+    }
+    
+    client.close();
+    return weights;
+  } catch (err) {
+    if (client) client.close();
+    console.error('FTP Error getting weights:', err.message);
+    return null;
+  }
+};
+
 module.exports = {
   connectFtp,
-  downloadLatestTimelapseAndPhoto
+  downloadLatestTimelapseAndPhoto,
+  getPredictedWeights
 };

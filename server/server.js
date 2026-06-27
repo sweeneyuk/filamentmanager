@@ -93,6 +93,27 @@ app.post('/api/spools', (req, res) => {
   });
 });
 
+// PUT /api/spools/:id
+app.put('/api/spools/:id', (req, res) => {
+  const { brand_id, material_id, color, cost, total_weight, empty_weight, used_weight } = req.body;
+  db.run(`
+    UPDATE spools 
+    SET brand_id = ?, material_id = ?, color = ?, cost = ?, total_weight = ?, empty_weight = ?, used_weight = ?
+    WHERE id = ?
+  `, [brand_id, material_id, color, cost, total_weight, empty_weight, used_weight, req.params.id], function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ success: true });
+  });
+});
+
+// DELETE /api/spools/:id
+app.delete('/api/spools/:id', (req, res) => {
+  db.run('DELETE FROM spools WHERE id = ?', [req.params.id], function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ success: true });
+  });
+});
+
 // GET /api/archives
 app.get('/api/archives', (req, res) => {
   const query = `
@@ -125,8 +146,53 @@ app.get('/api/ams', (req, res) => {
   res.json(getAmsStatus());
 });
 
+// GET /api/ams/assignments
+app.get('/api/ams/assignments', (req, res) => {
+  db.all('SELECT tray_id, spool_id FROM ams_assignments', [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    const assignments = {};
+    rows.forEach(r => { assignments[r.tray_id] = r.spool_id; });
+    res.json(assignments);
+  });
+});
+
+// POST /api/ams/assignments
+app.post('/api/ams/assignments', (req, res) => {
+  const { tray_id, spool_id } = req.body;
+  if (!tray_id) return res.status(400).json({ error: 'tray_id required' });
+  
+  if (spool_id === null || spool_id === '') {
+    db.run('DELETE FROM ams_assignments WHERE tray_id = ?', [tray_id], err => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ success: true });
+    });
+  } else {
+    db.run(`
+      INSERT INTO ams_assignments (tray_id, spool_id) VALUES (?, ?)
+      ON CONFLICT(tray_id) DO UPDATE SET spool_id = excluded.spool_id
+    `, [tray_id, spool_id], err => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ success: true });
+    });
+  }
+});
+
 // Serve Media directory
 app.use('/media', express.static(path.join(__dirname, 'data/media')));
+
+// POST /api/import/bambuddy
+const multer = require('multer');
+const upload = multer({ dest: 'uploads/' });
+app.post('/api/import/bambuddy', upload.single('dbFile'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const { importBambuddyDb } = require('./import');
+  try {
+    await importBambuddyDb(req.file.path);
+    res.json({ success: true, message: 'Database imported successfully!' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
 
 // GET /api/test/ha
 app.get('/api/test/ha', async (req, res) => {

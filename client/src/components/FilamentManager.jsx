@@ -6,6 +6,8 @@ function FilamentManager() {
   const [brands, setBrands] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [amsData, setAmsData] = useState(null);
+  const [amsAssignments, setAmsAssignments] = useState({});
+  const [editingSpool, setEditingSpool] = useState(null);
   
   const [newSpool, setNewSpool] = useState({
     brand_id: '',
@@ -13,7 +15,8 @@ function FilamentManager() {
     color: '#ffffff',
     cost: '',
     total_weight: 1000,
-    empty_weight: ''
+    empty_weight: '',
+    used_weight: 0
   });
 
   useEffect(() => {
@@ -42,9 +45,32 @@ function FilamentManager() {
 
   const fetchAms = async () => {
     try {
-      const res = await axios.get('/api/ams');
-      setAmsData(res.data);
+      const [amsRes, assignRes] = await Promise.all([
+        axios.get('/api/ams'),
+        axios.get('/api/ams/assignments')
+      ]);
+      setAmsData(amsRes.data);
+      setAmsAssignments(assignRes.data);
     } catch (err) {}
+  };
+
+  const handleAssignAms = async (trayId, spoolId) => {
+    try {
+      await axios.post('/api/ams/assignments', { tray_id: trayId, spool_id: spoolId });
+      fetchAms();
+    } catch (err) {
+      alert('Failed to assign spool to AMS');
+    }
+  };
+
+  const handleDeleteSpool = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this spool?')) return;
+    try {
+      await axios.delete(`/api/spools/${id}`);
+      fetchData();
+    } catch (err) {
+      alert('Failed to delete spool');
+    }
   };
 
   const handleBrandChange = (e) => {
@@ -60,12 +86,32 @@ function FilamentManager() {
   const handleAddSpool = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('/api/spools', newSpool);
+      if (editingSpool) {
+        await axios.put(`/api/spools/${editingSpool}`, newSpool);
+        setEditingSpool(null);
+        alert('Spool updated!');
+      } else {
+        await axios.post('/api/spools', newSpool);
+        alert('Spool added!');
+      }
       fetchData();
-      alert('Spool added!');
+      setNewSpool({ brand_id: brands[0]?.id || '', material_id: materials[0]?.id || '', color: '#ffffff', cost: '', total_weight: 1000, empty_weight: brands[0]?.default_empty_weight || '', used_weight: 0 });
     } catch (err) {
-      alert('Failed to add spool');
+      alert('Failed to save spool');
     }
+  };
+
+  const startEdit = (spool) => {
+    setEditingSpool(spool.id);
+    setNewSpool({
+      brand_id: spool.brand_id,
+      material_id: spool.material_id,
+      color: spool.color,
+      cost: spool.cost,
+      total_weight: spool.total_weight,
+      empty_weight: spool.empty_weight,
+      used_weight: spool.used_weight
+    });
   };
 
   return (
@@ -103,9 +149,24 @@ function FilamentManager() {
                         <div style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>
                           {hasFilament ? tray.tray_type : 'Empty'}
                         </div>
-                        <div style={{ fontSize: '0.7rem', color: '#888' }}>
+                        <div style={{ fontSize: '0.7rem', color: '#888', marginBottom: '8px' }}>
                           Slot {tIndex + 1}
                         </div>
+                        <select 
+                          style={{ width: '100%', fontSize: '0.7rem', padding: '2px' }}
+                          value={amsAssignments[`${amsUnit.id}-${tIndex}`] || ''}
+                          onChange={(e) => handleAssignAms(`${amsUnit.id}-${tIndex}`, e.target.value)}
+                        >
+                          <option value="">-- Assign Spool --</option>
+                          {spools.map(s => {
+                            const rem = s.total_weight - s.used_weight;
+                            return (
+                              <option key={s.id} value={s.id}>
+                                {s.brand_name} {s.material_name} ({rem.toFixed(0)}g)
+                              </option>
+                            );
+                          })}
+                        </select>
                       </div>
                     );
                   })}
@@ -120,7 +181,7 @@ function FilamentManager() {
 
       <div className="grid">
         <div className="card">
-          <h2>Add New Spool</h2>
+          <h2>{editingSpool ? 'Edit Spool' : 'Add New Spool'}</h2>
           <form onSubmit={handleAddSpool}>
             <div className="form-group">
               <label>Brand</label>
@@ -157,8 +218,23 @@ function FilamentManager() {
                 <input type="number" value={newSpool.empty_weight} onChange={(e) => setNewSpool({...newSpool, empty_weight: e.target.value})} required />
               </div>
             </div>
+            
+            {editingSpool && (
+              <div className="form-group">
+                <label>Used Weight (g)</label>
+                <input type="number" value={newSpool.used_weight} onChange={(e) => setNewSpool({...newSpool, used_weight: e.target.value})} required />
+              </div>
+            )}
 
-            <button type="submit">Add Spool</button>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button type="submit">{editingSpool ? 'Save Changes' : 'Add Spool'}</button>
+              {editingSpool && (
+                <button type="button" onClick={() => {
+                  setEditingSpool(null);
+                  setNewSpool({ brand_id: brands[0]?.id || '', material_id: materials[0]?.id || '', color: '#ffffff', cost: '', total_weight: 1000, empty_weight: brands[0]?.default_empty_weight || '', used_weight: 0 });
+                }} style={{ backgroundColor: '#444' }}>Cancel</button>
+              )}
+            </div>
           </form>
         </div>
 
@@ -172,6 +248,7 @@ function FilamentManager() {
                 <th>Material</th>
                 <th>Remaining</th>
                 <th>Cost</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -186,10 +263,14 @@ function FilamentManager() {
                     <td>{spool.material_name}</td>
                     <td>{remaining.toFixed(1)}g</td>
                     <td>{spool.cost}</td>
+                    <td>
+                      <button onClick={() => startEdit(spool)} style={{ padding: '4px 8px', marginRight: '5px', fontSize: '0.8rem', backgroundColor: '#333' }}>Edit</button>
+                      <button onClick={() => handleDeleteSpool(spool.id)} style={{ padding: '4px 8px', fontSize: '0.8rem', backgroundColor: 'var(--danger-color, #c62828)' }}>Delete</button>
+                    </td>
                   </tr>
                 );
               })}
-              {spools.length === 0 && <tr><td colSpan="5" style={{textAlign: 'center', color: '#888'}}>No spools added yet.</td></tr>}
+              {spools.length === 0 && <tr><td colSpan="6" style={{textAlign: 'center', color: '#888'}}>No spools added yet.</td></tr>}
             </tbody>
           </table>
         </div>

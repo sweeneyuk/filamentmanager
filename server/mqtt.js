@@ -9,7 +9,8 @@ let printState = {
   name: '',
   startTime: null,
   startEnergy: 0,
-  spoolId: null, // Track which spool we are using
+  predictedWeights: [], // Extracted from 3MF
+  activeTrays: [], // Tray IDs being used (e.g., '0-0')
 };
 
 // Helper to get settings
@@ -86,13 +87,37 @@ const handlePrintStatus = async (printData) => {
       printState.name = subTaskName || 'Unknown Print';
       printState.startTime = new Date();
       printState.startEnergy = await getPrinterEnergyUsage();
-      
-      // Determine spool used (naive approach: take the active tray from AMS or default spool)
-      // For now, we don't know exactly which spool in the DB maps to the tray, but we can guess or leave it null
-      printState.spoolId = null; 
+      printState.predictedWeights = [];
+      printState.activeTrays = [];
 
-    } else if (newStatus === 'FINISH' && printState.status === 'RUNNING') {
-      // Print completed
+      // If ams_mapping exists, we can know which trays are being used
+      if (printData.ams_mapping && Array.isArray(printData.ams_mapping)) {
+        printState.activeTrays = printData.ams_mapping.map(m => {
+          // Sometimes it's [255] for no AMS, or [0, 1] for AMS 0 Tray 0 and Tray 1
+          // Bambu sometimes returns ams_mapping: [0, 255, 255...] where 0 means AMS 0 Tray 0
+          if (m === 255) return null;
+          const amsId = Math.floor(m / 4);
+          const trayId = m % 4;
+          return `${amsId}-${trayId}`;
+        }).filter(Boolean);
+      } else if (printData.vt_tray && printData.vt_tray.id !== 255) {
+        // Single tray active
+        printState.activeTrays = [`0-${printData.vt_tray.id}`]; // naive fallback
+      }
+
+      // Start fetching the 3MF weights asynchronously in the background
+      if (printData.gcode_file) {
+        const { getPredictedWeights } = require('./ftp');
+        getPredictedWeights(printData.gcode_file).then(weights => {
+          if (weights && Array.isArray(weights)) {
+            printState.predictedWeights = weights;
+            console.log('Successfully extracted predicted weights:', weights);
+          }
+        });
+      }
+
+    } else if ((newStatus === 'FINISH' || newStatus === 'FAILED') && printState.status === 'RUNNING') {
+      // Print completed or failed
       const endTime = new Date();
       const endEnergy = await getPrinterEnergyUsage();
       const durationSeconds = Math.round((endTime - printState.startTime) / 1000);
@@ -101,39 +126,64 @@ const handlePrintStatus = async (printData) => {
       const energyRate = await getEnergyRate();
       const energyCost = energyUsed * energyRate;
 
-      // Filament used (if provided in MQTT payload it's usually in mc_print_line_num or similar, but Bambu MQTT lacks direct weight in real-time easily, we'll need to rely on users or an estimate, but wait, the printer sends 'mc_print_sub_stage' or 'mc_percent' - actually getting precise weight from read-only MQTT is tricky without slicing metadata. Let's record 0 for now and let the user edit, or if we can extract it, great.)
-      // We'll leave filament_used_g = 0 for now unless we can parse it from printData.
-      const filamentUsed = 0; 
-      const filamentCost = 0;
+      // Calculate Filament Used
+      let percentCompleted = 1.0;
+      if (newStatus === 'FAILED' && printData.mc_percent) {
+        percentCompleted = printData.mc_percent / 100.0;
+      }
 
-      const totalCost = energyCost + filamentCost;
+      let filamentUsed = 0;
+      // Deduct weight from assigned spools
+      db.all('SELECT tray_id, spool_id FROM ams_assignments', [], (err, assignments) => {
+        const assignMap = {};
+        if (!err && assignments) assignments.forEach(a => assignMap[a.tray_id] = a.spool_id);
 
-      // Save to archive first to get ID
-      db.run(`
-        INSERT INTO archives (print_name, status, duration_seconds, energy_kwh, energy_cost, filament_used_g, filament_cost, total_cost, spool_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [printState.name, 'COMPLETED', durationSeconds, energyUsed, energyCost, filamentUsed, filamentCost, totalCost, printState.spoolId], async function(err) {
-        if (err) {
-          console.error('Failed to save archive:', err);
-        } else {
-          const archiveId = this.lastID;
-          console.log(`Print ${printState.name} archived with ID ${archiveId}.`);
-          
-          // Download timelapse and photo asynchronously
-          const { downloadLatestTimelapseAndPhoto } = require('./ftp');
-          const paths = await downloadLatestTimelapseAndPhoto(printState.name, archiveId);
-          
-          if (paths.timelapsePath || paths.photoPath) {
-            db.run(
-              'UPDATE archives SET timelapse_path = ?, photo_path = ? WHERE id = ?',
-              [paths.timelapsePath, paths.photoPath, archiveId]
-            );
+        printState.activeTrays.forEach((trayId, idx) => {
+          const predicted = (printState.predictedWeights[idx] || 0) * percentCompleted;
+          if (predicted > 0) {
+            filamentUsed += predicted;
+            const spoolId = assignMap[trayId];
+            if (spoolId) {
+              db.run('UPDATE spools SET used_weight = used_weight + ? WHERE id = ?', [predicted, spoolId]);
+            }
           }
-        }
-      });
+        });
 
-      // Reset state
-      printState = { status: 'IDLE', name: '', startTime: null, startEnergy: 0, spoolId: null };
+        // If we didn't have active trays mapped but have a predicted weight, just sum it
+        if (printState.activeTrays.length === 0 && printState.predictedWeights.length > 0) {
+          filamentUsed = printState.predictedWeights.reduce((a, b) => a + b, 0) * percentCompleted;
+        }
+
+        const filamentCost = 0; // Requires looking up the spool cost/g which we can skip or do a subquery
+        const totalCost = energyCost + filamentCost;
+
+        // Save to archive first to get ID
+        db.run(`
+          INSERT INTO archives (print_name, status, duration_seconds, energy_kwh, energy_cost, filament_used_g, filament_cost, total_cost)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `, [printState.name, newStatus, durationSeconds, energyUsed, energyCost, filamentUsed, filamentCost, totalCost], async function(err) {
+          if (err) {
+            console.error('Failed to save archive:', err);
+          } else {
+            const archiveId = this.lastID;
+            console.log(`Print ${printState.name} archived with ID ${archiveId}.`);
+            
+            // Download timelapse and photo asynchronously
+            const { downloadLatestTimelapseAndPhoto } = require('./ftp');
+            const paths = await downloadLatestTimelapseAndPhoto(printState.name, archiveId);
+            
+            if (paths.timelapsePath || paths.photoPath) {
+              db.run(
+                'UPDATE archives SET timelapse_path = ?, photo_path = ? WHERE id = ?',
+                [paths.timelapsePath, paths.photoPath, archiveId]
+              );
+            }
+          }
+        });
+
+        // Reset state
+        printState = { status: 'IDLE', name: '', startTime: null, startEnergy: 0, predictedWeights: [], activeTrays: [] };
+      });
     } else {
       printState.status = newStatus;
     }

@@ -75,6 +75,16 @@ const initDb = () => {
         )
       `);
       
+      // Create ams_assignments table
+      db.run(`
+        CREATE TABLE IF NOT EXISTS ams_assignments (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          tray_id TEXT UNIQUE NOT NULL,
+          spool_id INTEGER,
+          FOREIGN KEY (spool_id) REFERENCES spools(id)
+        )
+      `);
+      
       // Attempt to add new columns to an existing archives table (fails silently if they exist)
       db.run("ALTER TABLE archives ADD COLUMN timelapse_path TEXT", () => {});
       db.run("ALTER TABLE archives ADD COLUMN photo_path TEXT", () => {
