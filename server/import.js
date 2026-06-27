@@ -8,17 +8,30 @@ const importBambuddyDb = (filePath) => {
       if (err) return reject(err);
     });
 
-    // 1. Fetch materials, vendors (brands), and spools from bambuddy DB
-    bdb.all('SELECT * FROM filament', [], (err, filaments) => {
+    bdb.all("SELECT name FROM sqlite_master WHERE type='table'", [], (err, tables) => {
       if (err) { bdb.close(); return reject(err); }
+      const tableNames = tables.map(t => t.name);
       
-      bdb.all('SELECT * FROM vendor', [], (err, vendors) => {
-        if (err) { bdb.close(); return reject(err); }
+      const filamentTable = tableNames.includes('filaments') ? 'filaments' : (tableNames.includes('filament') ? 'filament' : null);
+      const vendorTable = tableNames.includes('vendors') ? 'vendors' : (tableNames.includes('vendor') ? 'vendor' : (tableNames.includes('brands') ? 'brands' : null));
+      const spoolTable = tableNames.includes('spools') ? 'spools' : (tableNames.includes('spool') ? 'spool' : null);
 
-        bdb.all('SELECT * FROM spool', [], (err, spools) => {
+      if (!filamentTable || !vendorTable || !spoolTable) {
+        bdb.close();
+        return reject(new Error(`Could not identify all required tables. Found tables: ${tableNames.join(', ')}`));
+      }
+
+      // 1. Fetch materials, vendors (brands), and spools from bambuddy DB
+      bdb.all(`SELECT * FROM ${filamentTable}`, [], (err, filaments) => {
+        if (err) { bdb.close(); return reject(err); }
+        
+        bdb.all(`SELECT * FROM ${vendorTable}`, [], (err, vendors) => {
           if (err) { bdb.close(); return reject(err); }
 
-          bdb.close();
+          bdb.all(`SELECT * FROM ${spoolTable}`, [], (err, spools) => {
+            if (err) { bdb.close(); return reject(err); }
+
+            bdb.close();
 
           // Proceed to map and insert into our DB
           db.serialize(() => {
