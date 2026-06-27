@@ -42,10 +42,13 @@ function PrintStatus() {
 
   return (
     <div>
-      <div className="fm-header">
-        <div>
-          <h1 style={{margin: '0 0 5px 0', fontSize: '1.5rem'}}>Print Status</h1>
-          <p style={{margin: 0, color: '#888', fontSize: '0.9rem'}}>Live AMS tracking</p>
+      <div className="card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--primary-color)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h2 style={{ margin: '0 0 5px 0', color: 'var(--primary-color)' }}>Print Status</h2>
+            <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Live Dashboard</div>
+            <div style={{ fontSize: '0.85rem', color: '#888' }}>Real-time printer telemetry and AMS tracking.</div>
+          </div>
         </div>
       </div>
 
@@ -237,7 +240,7 @@ function PrintStatus() {
 
       {isAssignModalOpen && (
         <div className="modal-overlay" onClick={() => setIsAssignModalOpen(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
               <h2>Assign Spool</h2>
               <button className="btn-secondary" onClick={() => setIsAssignModalOpen(false)}>Close</button>

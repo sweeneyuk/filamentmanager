@@ -238,7 +238,7 @@
     "tray_reading_bits": "0",
     "tray_tar": "2",
     "unbind_ams_stat": 0,
-    "version": 6161
+    "version": 6163
   },
   "ams_rfid_status": 0,
   "ams_status": 768,
@@ -340,7 +340,7 @@
         "state": 0
       },
       "timelapse_path": "",
-      "tl_external_free_kb": 351450112,
+      "tl_external_free_kb": 351485696,
       "tl_external_total_kb": 482540736,
       "tl_internal_free_kb": 962560,
       "tl_internal_total_kb": 962560
@@ -499,7 +499,7 @@
     "resolution": "1080p",
     "rtsp_url": "rtsps://10.1.209.27:322/streaming/live/1",
     "timelapse": "enable",
-    "tl_external_free_kb": 351450112,
+    "tl_external_free_kb": 351485696,
     "tl_external_total_kb": 482540736,
     "tl_internal_free_kb": 962560,
     "tl_internal_total_kb": 962560,
@@ -559,11 +559,11 @@
   ],
   "mc_action": 0,
   "mc_err": 0,
-  "mc_percent": 48,
+  "mc_percent": 49,
   "mc_print_error_code": "0",
   "mc_print_stage": "2",
   "mc_print_sub_stage": 0,
-  "mc_remaining_time": 185,
+  "mc_remaining_time": 180,
   "mc_stage": 2,
   "model_id": "",
   "msg": 0,
@@ -588,7 +588,7 @@
     "ahb": true,
     "version": 10
   },
-  "percent": 48,
+  "percent": 49,
   "plate_cnt": 1,
   "plate_id": 1,
   "plate_idx": 1,
@@ -604,7 +604,7 @@
   "queue_number": 0,
   "queue_sts": 0,
   "queue_total": 0,
-  "remain_time": 185,
+  "remain_time": 180,
   "s_obj": [],
   "sdcard": true,
   "sequence_id": "2021",
@@ -722,7 +722,7 @@
       "xcam_info": "000000000000000000000000"
     }
   ],
-  "wifi_signal": "-41dBm",
+  "wifi_signal": "-46dBm",
   "xcam": {
     "allow_skip_parts": false,
     "buildplate_marker_detector": false,

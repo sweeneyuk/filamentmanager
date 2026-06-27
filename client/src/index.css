@@ -120,6 +120,13 @@ button.btn-primary:hover {
   margin-bottom: 20px;
 }
 
+.card {
+  background-color: var(--card-bg);
+  border-radius: 8px;
+  padding: 20px;
+  border: 1px solid var(--border-color);
+}
+
 .stat-card {
   background-color: var(--card-bg);
   border-radius: 8px;
