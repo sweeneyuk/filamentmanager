@@ -108,11 +108,14 @@ function PrintStatus() {
                             } catch (e) {
                               colorText = 'Unknown';
                             }
-                            const identifier = s.subtype && s.subtype.toLowerCase() !== 'basic' ? s.subtype : colorText;
+                            let subtypeText = '';
+                            if (s.subtype && s.subtype.toLowerCase() !== 'basic') {
+                              subtypeText = `(${s.subtype})`;
+                            }
 
                             return (
                               <option key={s.id} value={s.id}>
-                                {s.brand_name} {s.material_name} ({identifier}) - {rem.toFixed(0)}g
+                                {s.brand_name} {s.material_name} {colorText} {subtypeText} - {rem.toFixed(0)}g
                               </option>
                             );
                           })}
