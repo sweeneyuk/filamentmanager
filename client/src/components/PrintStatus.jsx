@@ -68,14 +68,41 @@ function PrintStatus() {
           </div>
 
           <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-            <div style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>Nozzle Temp</div>
-              <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.nozzleTemp || 0}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {printState.nozzleTarget || 0}°C</span></div>
-            </div>
-            <div style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>Bed Temp</div>
-              <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.bedTemp || 0}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {printState.bedTarget || 0}°C</span></div>
-            </div>
+            {(() => {
+              const temps = [];
+              if (printState.raw) {
+                Object.keys(printState.raw).forEach(key => {
+                  if (key.endsWith('_temper') && !key.includes('target')) {
+                    const baseName = key.replace('_temper', '');
+                    const current = printState.raw[key];
+                    const target = printState.raw[`${baseName}_target_temper`] || 0;
+                    const title = baseName.charAt(0).toUpperCase() + baseName.slice(1).replace('_', ' ') + ' Temp';
+                    
+                    temps.push(
+                      <div key={key} style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>{title}</div>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{current}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {target}°C</span></div>
+                      </div>
+                    );
+                  }
+                });
+              }
+              
+              if (temps.length === 0) {
+                temps.push(
+                  <div key="nozzle" style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>Nozzle Temp</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.nozzleTemp || 0}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {printState.nozzleTarget || 0}°C</span></div>
+                  </div>,
+                  <div key="bed" style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>Bed Temp</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.bedTemp || 0}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {printState.bedTarget || 0}°C</span></div>
+                  </div>
+                );
+              }
+              return temps;
+            })()}
+
             <div style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
               <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>Layer</div>
               <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.layerNum || 0} <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {printState.totalLayerNum || 0}</span></div>
@@ -94,7 +121,13 @@ function PrintStatus() {
           <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
             {Array.isArray(amsData) ? amsData.map((amsUnit, index) => (
               <div key={index} style={{ border: '1px solid var(--border-color)', borderRadius: '8px', padding: '15px', minWidth: '300px', flex: 1 }}>
-                <h3 style={{ margin: '0 0 15px 0', fontSize: '1.1rem' }}>AMS {amsUnit.id || index + 1}</h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem' }}>AMS {amsUnit.id !== undefined ? parseInt(amsUnit.id) + 1 : index + 1}</h3>
+                  <div style={{ display: 'flex', gap: '10px', fontSize: '0.8rem', color: '#888' }}>
+                    {amsUnit.humidity !== undefined && <span title="Humidity Index (1-5)">💧 {amsUnit.humidity}</span>}
+                    {amsUnit.temp !== undefined && <span title="Internal Temperature">🌡️ {amsUnit.temp}°C</span>}
+                  </div>
+                </div>
                 <div style={{ display: 'flex', gap: '10px' }}>
                   {amsUnit.tray && amsUnit.tray.map((tray, tIndex) => {
                     const hasFilament = tray.tray_type && tray.tray_type !== '';

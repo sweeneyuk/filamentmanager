@@ -19,6 +19,7 @@ let printState = {
   bedTarget: 0,
   layerNum: 0,
   totalLayerNum: 0,
+  raw: null
 };
 
 // Helper to get settings
@@ -85,6 +86,9 @@ const handlePrintStatus = async (printData) => {
   // Handle print lifecycle
   const newStatus = printData.gcode_state;
   const subTaskName = printData.subtask_name;
+
+  // Save raw data for dynamic rendering
+  printState.raw = printData;
 
   // Live Telemetry
   if (printData.mc_percent !== undefined) printState.progress = printData.mc_percent;
