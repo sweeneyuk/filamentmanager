@@ -84,8 +84,38 @@ function PrintStatus() {
                         <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{current}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {target}°C</span></div>
                       </div>
                     );
+                  } else if (key.endsWith('_speed')) {
+                    const baseName = key.replace('_speed', '');
+                    let title = baseName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') + ' Fan';
+                    if (title === 'Cooling Fan') title = 'Part Fan';
+                    if (title === 'Big Fan1 Fan') title = 'Aux Fan';
+                    if (title === 'Big Fan2 Fan') title = 'Chamber Fan';
+                    const speed = printState.raw[key];
+                    
+                    temps.push(
+                      <div key={key} style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>{title}</div>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{speed === "0" ? "Off" : speed}</div>
+                      </div>
+                    );
                   }
                 });
+
+                if (printState.raw.extruder && Array.isArray(printState.raw.extruder.info)) {
+                  // Only render these if we didn't already render a nozzle_temper, or if there are multiple
+                  const hasMulti = printState.raw.extruder.info.length > 1;
+                  printState.raw.extruder.info.forEach((ext, i) => {
+                    // Skip ridiculous values which usually mean the sensor is disconnected
+                    if (ext.temp > 0 && ext.temp < 1000) {
+                      temps.push(
+                        <div key={`ext_${i}`} style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>Nozzle {i + 1}</div>
+                          <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{ext.temp}°C</div>
+                        </div>
+                      );
+                    }
+                  });
+                }
               }
               
               if (temps.length === 0) {

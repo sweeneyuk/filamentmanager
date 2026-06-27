@@ -89,6 +89,7 @@ const handlePrintStatus = async (printData) => {
 
   // Save raw data for dynamic rendering
   printState.raw = printData;
+  require('fs').writeFileSync('raw_mqtt_dump.json', JSON.stringify(printData, null, 2));
 
   // Live Telemetry
   if (printData.mc_percent !== undefined) printState.progress = printData.mc_percent;
