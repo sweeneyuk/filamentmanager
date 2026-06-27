@@ -21,6 +21,15 @@ function Settings() {
     }).catch(console.error);
   }, []);
 
+  const testConnection = async (type) => {
+    try {
+      const res = await axios.get(`/api/test/${type}`);
+      alert(res.data.message);
+    } catch (err) {
+      alert(`Connection failed: ${err.response?.data?.message || err.message}`);
+    }
+  };
+
   const handleChange = (e) => {
     setSettings({ ...settings, [e.target.name]: e.target.value });
   };
@@ -58,6 +67,9 @@ function Settings() {
             <label>LAN Access Code</label>
             <input type="password" name="bambu_access_code" value={settings.bambu_access_code || ''} onChange={handleChange} />
           </div>
+          <button type="button" onClick={() => testConnection('mqtt')} style={{ backgroundColor: '#2b2b2b', marginTop: '10px' }}>
+            Test Bambu Connection
+          </button>
         </div>
 
         <div className="card">
@@ -78,6 +90,9 @@ function Settings() {
             <label>Electricity Rate Entity ID</label>
             <input type="text" name="ha_rate_entity" value={settings.ha_rate_entity || ''} onChange={handleChange} placeholder="sensor.electricity_price" />
           </div>
+          <button type="button" onClick={() => testConnection('ha')} style={{ backgroundColor: '#2b2b2b', marginTop: '10px' }}>
+            Test HA Connection
+          </button>
         </div>
 
         <button type="submit" disabled={saving}>

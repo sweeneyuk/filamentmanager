@@ -39,6 +39,7 @@ function Archive() {
               <th>Spool</th>
               <th>Energy Cost</th>
               <th>Total Cost</th>
+              <th>Media</th>
             </tr>
           </thead>
           <tbody>
@@ -71,11 +72,26 @@ function Archive() {
                 <td style={{fontWeight: 'bold', color: 'var(--primary-color)'}}>
                   £{arch.total_cost?.toFixed(2) || '0.00'}
                 </td>
+                <td>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {arch.photo_path && (
+                      <a href={arch.photo_path} target="_blank" rel="noreferrer" style={{ color: 'var(--primary-color)' }}>
+                        📸 Photo
+                      </a>
+                    )}
+                    {arch.timelapse_path && (
+                      <a href={arch.timelapse_path} target="_blank" rel="noreferrer" style={{ color: 'var(--primary-color)' }}>
+                        🎥 Video
+                      </a>
+                    )}
+                    {!arch.photo_path && !arch.timelapse_path && <span style={{color: '#666'}}>None</span>}
+                  </div>
+                </td>
               </tr>
             ))}
             {archives.length === 0 && (
               <tr>
-                <td colSpan="8" style={{textAlign: 'center', color: '#888', padding: '20px'}}>
+                <td colSpan="9" style={{textAlign: 'center', color: '#888', padding: '20px'}}>
                   No prints archived yet. Once configured, prints will automatically appear here.
                 </td>
               </tr>

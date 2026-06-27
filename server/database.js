@@ -59,6 +59,7 @@ const initDb = () => {
       db.run(`
         CREATE TABLE IF NOT EXISTS archives (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
+          spool_id INTEGER,
           print_name TEXT,
           status TEXT,
           duration_seconds INTEGER,
@@ -67,13 +68,17 @@ const initDb = () => {
           filament_used_g REAL,
           filament_cost REAL,
           total_cost REAL,
-          spool_id INTEGER,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          timelapse_path TEXT,
+          photo_path TEXT,
           FOREIGN KEY (spool_id) REFERENCES spools(id)
         )
-      `, (err) => {
-        if (err) return reject(err);
-        resolve();
+      `);
+      
+      // Attempt to add new columns to an existing archives table (fails silently if they exist)
+      db.run("ALTER TABLE archives ADD COLUMN timelapse_path TEXT", () => {});
+      db.run("ALTER TABLE archives ADD COLUMN photo_path TEXT", () => {
+        resolve(); // Resolve promise after the last query in serialize block finishes
       });
     });
   });

@@ -108,13 +108,28 @@ const handlePrintStatus = async (printData) => {
 
       const totalCost = energyCost + filamentCost;
 
-      // Save to archive
+      // Save to archive first to get ID
       db.run(`
         INSERT INTO archives (print_name, status, duration_seconds, energy_kwh, energy_cost, filament_used_g, filament_cost, total_cost, spool_id)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [printState.name, 'COMPLETED', durationSeconds, energyUsed, energyCost, filamentUsed, filamentCost, totalCost, printState.spoolId], (err) => {
-        if (err) console.error('Failed to save archive:', err);
-        else console.log(`Print ${printState.name} archived.`);
+      `, [printState.name, 'COMPLETED', durationSeconds, energyUsed, energyCost, filamentUsed, filamentCost, totalCost, printState.spoolId], async function(err) {
+        if (err) {
+          console.error('Failed to save archive:', err);
+        } else {
+          const archiveId = this.lastID;
+          console.log(`Print ${printState.name} archived with ID ${archiveId}.`);
+          
+          // Download timelapse and photo asynchronously
+          const { downloadLatestTimelapseAndPhoto } = require('./ftp');
+          const paths = await downloadLatestTimelapseAndPhoto(printState.name, archiveId);
+          
+          if (paths.timelapsePath || paths.photoPath) {
+            db.run(
+              'UPDATE archives SET timelapse_path = ?, photo_path = ? WHERE id = ?',
+              [paths.timelapsePath, paths.photoPath, archiveId]
+            );
+          }
+        }
       });
 
       // Reset state

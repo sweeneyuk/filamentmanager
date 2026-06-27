@@ -74,10 +74,47 @@ function FilamentManager() {
       
       {amsData && Object.keys(amsData).length > 0 && (
         <div className="card">
-          <h2>AMS Status</h2>
-          <pre style={{fontSize: '12px', background: '#1f1f1f', padding: '10px', borderRadius: '4px', overflowX: 'auto'}}>
-            {JSON.stringify(amsData, null, 2)}
-          </pre>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2>AMS Status</h2>
+            <button onClick={fetchAms} style={{ padding: '4px 8px', fontSize: '0.8rem' }}>Refresh AMS</button>
+          </div>
+          <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', marginTop: '10px' }}>
+            {Array.isArray(amsData) ? amsData.map((amsUnit, index) => (
+              <div key={index} style={{ border: '1px solid #444', borderRadius: '8px', padding: '10px', minWidth: '250px' }}>
+                <h3 style={{ margin: '0 0 10px 0', fontSize: '1rem' }}>AMS {amsUnit.id || index + 1}</h3>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  {amsUnit.tray && amsUnit.tray.map((tray, tIndex) => {
+                    const hasFilament = tray.tray_type && tray.tray_type !== '';
+                    const hexColor = tray.tray_color ? `#${tray.tray_color.substring(0, 6)}` : '#333';
+                    return (
+                      <div key={tIndex} style={{ 
+                        flex: 1, 
+                        textAlign: 'center',
+                        backgroundColor: hasFilament ? 'rgba(255,255,255,0.05)' : 'transparent',
+                        padding: '10px 5px',
+                        borderRadius: '4px',
+                        border: hasFilament ? `1px solid ${hexColor}` : '1px dashed #555'
+                      }}>
+                        <div style={{
+                          width: '24px', height: '24px', borderRadius: '50%', 
+                          backgroundColor: hasFilament ? hexColor : '#222',
+                          margin: '0 auto 8px auto'
+                        }}></div>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>
+                          {hasFilament ? tray.tray_type : 'Empty'}
+                        </div>
+                        <div style={{ fontSize: '0.7rem', color: '#888' }}>
+                          Slot {tIndex + 1}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )) : (
+              <pre style={{fontSize: '12px', color: '#888'}}>Waiting for detailed AMS payload...</pre>
+            )}
+          </div>
         </div>
       )}
 

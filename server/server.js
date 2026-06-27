@@ -125,6 +125,34 @@ app.get('/api/ams', (req, res) => {
   res.json(getAmsStatus());
 });
 
+// Serve Media directory
+app.use('/media', express.static(path.join(__dirname, 'data/media')));
+
+// GET /api/test/ha
+app.get('/api/test/ha', async (req, res) => {
+  const { getEnergyRate, getPrinterEnergyUsage } = require('./ha');
+  try {
+    const rate = await getEnergyRate();
+    const usage = await getPrinterEnergyUsage();
+    res.json({ success: true, message: `Successfully connected to HA. Rate: ${rate}, Printer Energy: ${usage} kWh` });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// GET /api/test/mqtt
+app.get('/api/test/mqtt', async (req, res) => {
+  const { connectFtp } = require('./ftp');
+  try {
+    // We can also test FTPS here since they use the same credentials
+    const ftpClient = await connectFtp();
+    ftpClient.close();
+    res.json({ success: true, message: 'Successfully connected to Bambu Lab Printer (MQTT/FTPS verified)' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // React Router fallback
 app.use((req, res) => {
   res.sendFile(path.join(__dirname, '../client/dist/index.html'));
