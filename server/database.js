@@ -89,12 +89,13 @@ const initDb = () => {
       db.run("ALTER TABLE archives ADD COLUMN timelapse_path TEXT", () => {});
       db.run("ALTER TABLE archives ADD COLUMN photo_path TEXT", () => {});
 
-      // Add new columns to spools table
-      db.run("ALTER TABLE spools ADD COLUMN archived INTEGER DEFAULT 0", () => {});
-      db.run("ALTER TABLE spools ADD COLUMN subtype TEXT", () => {});
-      db.run("ALTER TABLE spools ADD COLUMN location TEXT", () => {});
-      db.run("ALTER TABLE spools ADD COLUMN last_used_at DATETIME", () => {});
-      db.run("ALTER TABLE spools ADD COLUMN last_print_name TEXT", () => {
+      // Migrations for existing databases
+      db.run('ALTER TABLE spools ADD COLUMN archived INTEGER DEFAULT 0', (err) => { /* ignore if exists */ });
+      db.run('ALTER TABLE spools ADD COLUMN subtype TEXT', (err) => { /* ignore */ });
+      db.run('ALTER TABLE spools ADD COLUMN location TEXT', (err) => { /* ignore */ });
+      db.run('ALTER TABLE spools ADD COLUMN last_used_at DATETIME', (err) => { /* ignore */ });
+      db.run('ALTER TABLE spools ADD COLUMN last_print_name TEXT', (err) => { /* ignore */ });
+      db.run('ALTER TABLE spools ADD COLUMN color_name TEXT', (err) => {
         resolve(); // Resolve promise after the last query in serialize block finishes
       });
     });

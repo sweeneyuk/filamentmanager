@@ -99,14 +99,18 @@ function PrintStatus() {
                           {spools.map(s => {
                             const rem = s.total_weight - s.used_weight;
                             let colorText = '';
-                            try {
-                              if (s.color) {
-                                const names = namer(s.color);
-                                colorText = names.basic[0].name; // e.g. "red", "black"
-                                colorText = colorText.charAt(0).toUpperCase() + colorText.slice(1);
+                            if (s.color_name) {
+                              colorText = s.color_name;
+                            } else {
+                              try {
+                                if (s.color) {
+                                  const names = namer(s.color);
+                                  colorText = names.basic[0].name; // e.g. "red", "black"
+                                  colorText = colorText.charAt(0).toUpperCase() + colorText.slice(1);
+                                }
+                              } catch (e) {
+                                colorText = 'Unknown';
                               }
-                            } catch (e) {
-                              colorText = 'Unknown';
                             }
                             let subtypeText = '';
                             if (s.subtype && s.subtype.toLowerCase() !== 'basic') {

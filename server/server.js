@@ -83,26 +83,26 @@ app.get('/api/spools', (req, res) => {
 
 // POST /api/spools
 app.post('/api/spools', (req, res) => {
-  const { brand_id, material_id, subtype, location, color, cost, total_weight, empty_weight } = req.body;
+  const { brand_id, material_id, subtype, color, color_name, cost, total_weight, empty_weight, used_weight, location } = req.body;
   db.run(`
-    INSERT INTO spools (brand_id, material_id, subtype, location, color, cost, total_weight, empty_weight) 
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `, [brand_id, material_id, subtype, location, color, cost, total_weight, empty_weight], function(err) {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ id: this.lastID });
+    INSERT INTO spools (brand_id, material_id, subtype, color, color_name, cost, total_weight, empty_weight, used_weight, location)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [brand_id, material_id, subtype, color, color_name, cost, total_weight, empty_weight, used_weight || 0, location], function(err) {
+    if (err) res.status(500).json({ error: err.message });
+    else res.json({ id: this.lastID });
   });
 });
 
 // PUT /api/spools/:id
 app.put('/api/spools/:id', (req, res) => {
-  const { brand_id, material_id, subtype, location, color, cost, total_weight, empty_weight, used_weight } = req.body;
+  const { brand_id, material_id, subtype, color, color_name, cost, total_weight, empty_weight, used_weight, location } = req.body;
   db.run(`
     UPDATE spools 
-    SET brand_id = ?, material_id = ?, subtype = ?, location = ?, color = ?, cost = ?, total_weight = ?, empty_weight = ?, used_weight = ?
+    SET brand_id = ?, material_id = ?, subtype = ?, color = ?, color_name = ?, cost = ?, total_weight = ?, empty_weight = ?, used_weight = ?, location = ?
     WHERE id = ?
-  `, [brand_id, material_id, subtype, location, color, cost, total_weight, empty_weight, used_weight, req.params.id], function(err) {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ success: true });
+  `, [brand_id, material_id, subtype, color, color_name, cost, total_weight, empty_weight, used_weight, location, req.params.id], (err) => {
+    if (err) res.status(500).json({ error: err.message });
+    else res.json({ success: true });
   });
 });
 
@@ -280,8 +280,8 @@ app.post('/api/import/csv', upload.single('csvFile'), (req, res) => {
             if (!err) mRows.forEach(r => matMap[r.name] = r.id);
             
             const insertSpool = db.prepare(`
-              INSERT INTO spools (brand_id, material_id, subtype, location, color, cost, total_weight, empty_weight, used_weight, archived) 
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO spools (brand_id, material_id, subtype, location, color, color_name, cost, total_weight, empty_weight, used_weight, archived) 
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `);
             results.forEach(r => {
               const brand = r.Brand || r.brand || '';
@@ -293,6 +293,8 @@ app.post('/api/import/csv', upload.single('csvFile'), (req, res) => {
                 let hexMatch = r.rgba.match(/[0-9A-Fa-f]{6}/);
                 if (hexMatch) color = '#' + hexMatch[0];
               }
+              
+              const colorName = r['Color Name'] || r.color_name || '';
 
               insertSpool.run(
                 brandMap[brand] || null,
@@ -300,6 +302,7 @@ app.post('/api/import/csv', upload.single('csvFile'), (req, res) => {
                 r.Subtype || r.subtype || '',
                 r.Location || r.storage_location || r.location || '',
                 color,
+                colorName,
                 parseFloat(r.Cost || r.cost_per_kg) || 0,
                 parseFloat(r['Label Weight'] || r.label_weight) || 1000,
                 parseFloat(r['Empty Weight'] || r.empty_weight) || 250,

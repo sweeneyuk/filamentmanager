@@ -102,9 +102,13 @@ function SpoolModal({ isOpen, onClose, editingSpool, brands, materials, onSave }
           </div>
 
           <div className="form-row">
-            <div className="form-group">
+            <div className="form-group" style={{ flex: 0.3 }}>
               <label>Color</label>
-              <input type="color" value={newSpool.color} onChange={(e) => setNewSpool({...newSpool, color: e.target.value})} style={{padding: '0', height: '35px'}} />
+              <input type="color" value={newSpool.color} onChange={(e) => setNewSpool({...newSpool, color: e.target.value})} style={{padding: '0', height: '35px', width: '100%'}} />
+            </div>
+            <div className="form-group" style={{ flex: 0.7 }}>
+              <label>Color Name</label>
+              <input type="text" placeholder="e.g. Fire Engine Red" value={newSpool.color_name || ''} onChange={(e) => setNewSpool({...newSpool, color_name: e.target.value})} />
             </div>
             <div className="form-group">
               <label>Cost ($/£)</label>
