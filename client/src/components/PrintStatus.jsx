@@ -9,6 +9,7 @@ function PrintStatus() {
   const [printState, setPrintState] = useState(null);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [activeTrayId, setActiveTrayId] = useState(null);
+  const [settings, setSettings] = useState({});
 
   useEffect(() => {
     fetchData();
@@ -18,17 +19,33 @@ function PrintStatus() {
 
   const fetchData = async () => {
     try {
-      const [amsRes, assignRes, spoolsRes, printRes] = await Promise.all([
+      const [amsRes, assignRes, spoolsRes, printRes, settingsRes] = await Promise.all([
         axios.get('/api/ams'),
         axios.get('/api/ams/assignments'),
         axios.get('/api/spools'),
-        axios.get('/api/print_status')
+        axios.get('/api/print_status'),
+        axios.get('/api/settings')
       ]);
       setAmsData(amsRes.data);
       setAmsAssignments(assignRes.data);
       setSpools(spoolsRes.data.filter(s => !s.archived));
       setPrintState(printRes.data);
+      setSettings(settingsRes.data);
     } catch (err) {}
+  };
+
+  const handleRenameAms = async (amsId) => {
+    const defaultName = amsId === "128" || amsId === "255" ? "External Spool" : `AMS ${parseInt(amsId) + 1}`;
+    const currentName = settings[`ams_name_${amsId}`] || defaultName;
+    const newName = prompt(`Enter a new name for this AMS (or clear to reset):`, currentName);
+    if (newName !== null) {
+      try {
+        await axios.post('/api/settings', { [`ams_name_${amsId}`]: newName.trim() });
+        fetchData();
+      } catch (err) {
+        alert('Failed to rename AMS');
+      }
+    }
   };
 
   const handleAssignAms = async (trayId, spoolId) => {
@@ -182,7 +199,14 @@ function PrintStatus() {
             {Array.isArray(amsData) ? amsData.map((amsUnit, index) => (
               <div key={index} style={{ border: '1px solid var(--border-color)', borderRadius: '8px', padding: '15px', minWidth: '300px', flex: 1 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                  <h3 style={{ margin: 0, fontSize: '1.1rem' }}>AMS {amsUnit.id !== undefined ? parseInt(amsUnit.id) + 1 : index + 1}</h3>
+                  <h3 
+                    style={{ margin: 0, fontSize: '1.1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }} 
+                    onClick={() => handleRenameAms(amsUnit.id)} 
+                    title="Click to rename"
+                  >
+                    {settings[`ams_name_${amsUnit.id}`] || (amsUnit.id === "128" || amsUnit.id === "255" ? "External Spool" : `AMS ${parseInt(amsUnit.id) + 1}`)}
+                    <span style={{fontSize: '0.8rem', opacity: 0.5}}>✎</span>
+                  </h3>
                   <div style={{ display: 'flex', gap: '10px', fontSize: '0.8rem', color: '#888' }}>
                     {amsUnit.humidity !== undefined && <span title="Humidity Index (1-5)">💧 {amsUnit.humidity}</span>}
                     {amsUnit.temp !== undefined && <span title="Internal Temperature">🌡️ {amsUnit.temp}°C</span>}

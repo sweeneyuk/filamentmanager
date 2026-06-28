@@ -8,6 +8,7 @@ function FilamentManager() {
   const [materials, setMaterials] = useState([]);
   const [amsData, setAmsData] = useState(null);
   const [amsAssignments, setAmsAssignments] = useState({});
+  const [settings, setSettings] = useState({});
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSpool, setEditingSpool] = useState(null);
@@ -38,12 +39,14 @@ function FilamentManager() {
 
   const fetchAms = async () => {
     try {
-      const [amsRes, assignRes] = await Promise.all([
+      const [amsRes, assignRes, settingsRes] = await Promise.all([
         axios.get('/api/ams'),
-        axios.get('/api/ams/assignments')
+        axios.get('/api/ams/assignments'),
+        axios.get('/api/settings')
       ]);
       setAmsData(amsRes.data);
       setAmsAssignments(assignRes.data);
+      setSettings(settingsRes.data);
     } catch (err) {}
   };
 
@@ -118,9 +121,15 @@ function FilamentManager() {
       if (sId === spoolId) {
         const parts = trayId.split('-');
         if (parts.length === 2) {
-          // If amsId is 0, just "AMS Slot X" or "AMS 1 Slot X"
-          const amsNum = parseInt(parts[0]) === 0 ? 1 : Math.floor(parseInt(parts[0]) / 4) + 1;
+          const amsId = parts[0];
           const slotNum = parseInt(parts[1]) + 1;
+          const customName = settings[`ams_name_${amsId}`];
+          if (customName) return `${customName} - Slot ${slotNum}`;
+          
+          if (amsId === "128" || amsId === "255") return `External Spool`;
+          
+          // Fallback logic
+          const amsNum = parseInt(amsId) === 0 ? 1 : Math.floor(parseInt(amsId) / 4) + 1;
           return `AMS ${amsNum} Slot ${slotNum}`;
         }
         return trayId;
