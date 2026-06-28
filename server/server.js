@@ -132,11 +132,12 @@ app.get('/api/archives', (req, res) => {
       a.*,
       GROUP_CONCAT(sp.color, '|') as spool_colors,
       GROUP_CONCAT(sp.color_name, '|') as spool_color_names,
-      GROUP_CONCAT(sp.material_name, '|') as spool_materials,
+      GROUP_CONCAT(m.name, '|') as spool_materials,
       GROUP_CONCAT(b.name, '|') as spool_brands
     FROM archives a
     LEFT JOIN spools sp ON sp.last_print_name = a.print_name
     LEFT JOIN brands b ON sp.brand_id = b.id
+    LEFT JOIN materials m ON sp.material_id = m.id
     GROUP BY a.id
     ORDER BY a.created_at DESC
   `;
