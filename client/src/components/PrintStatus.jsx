@@ -40,6 +40,18 @@ function PrintStatus() {
     }
   };
 
+  // Returns true if a hex colour is perceptually dark (so we should use white text on it)
+  const isColorDark = (hex) => {
+    if (!hex) return true;
+    const h = hex.replace('#', '');
+    const r = parseInt(h.substring(0, 2), 16);
+    const g = parseInt(h.substring(2, 4), 16);
+    const b = parseInt(h.substring(4, 6), 16);
+    // Perceived luminance (WCAG formula)
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance < 0.45;
+  };
+
   return (
     <div>
       <div className="card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--primary-color)' }}>
@@ -76,8 +88,16 @@ function PrintStatus() {
             {(() => {
               const temps = [];
               if (printState.raw) {
+                // Check if we have dual extruder data — if so, skip the generic nozzle_temper key
+                const hasDualExtruder = printState.raw.extruder &&
+                  Array.isArray(printState.raw.extruder.info) &&
+                  printState.raw.extruder.info.length > 1;
+
                 Object.keys(printState.raw).forEach(key => {
                   if (key.endsWith('_temper') && !key.includes('target')) {
+                    // Skip generic nozzle_temper when we have per-extruder data
+                    if (key === 'nozzle_temper' && hasDualExtruder) return;
+
                     const baseName = key.replace('_temper', '');
                     const current = printState.raw[key];
                     const target = printState.raw[`${baseName}_target_temper`] || 0;
@@ -109,19 +129,21 @@ function PrintStatus() {
                   }
                 });
 
+                // Dual extruder: render Left / Right nozzle cards with targets
                 if (printState.raw.extruder && Array.isArray(printState.raw.extruder.info)) {
-                  // Only render these if we didn't already render a nozzle_temper, or if there are multiple
-                  const hasMulti = printState.raw.extruder.info.length > 1;
+                  const labels = ['Left Nozzle', 'Right Nozzle'];
+                  const targets = printState.raw.extruder.target || [];
                   printState.raw.extruder.info.forEach((ext, i) => {
-                    // Skip ridiculous values which usually mean the sensor is disconnected
-                    if (ext.temp > 0 && ext.temp < 1000) {
-                      temps.push(
-                        <div key={`ext_${i}`} style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-                          <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>Nozzle {i + 1}</div>
-                          <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{ext.temp}°C</div>
-                        </div>
-                      );
-                    }
+                    // Skip disconnected / sentinel values
+                    if (ext.temp <= 0 || ext.temp >= 1000) return;
+                    const label = labels[i] || `Nozzle ${i + 1}`;
+                    const target = Array.isArray(targets) ? (targets[i] ?? 0) : (printState.raw.nozzle_target_temper || 0);
+                    temps.push(
+                      <div key={`ext_${i}`} style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>{label}</div>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{ext.temp}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {target}°C</span></div>
+                      </div>
+                    );
                   });
                 }
               }
@@ -185,7 +207,13 @@ function PrintStatus() {
                         position: 'relative'
                       }}>
                         {isActive && (
-                          <div style={{ position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)', backgroundColor: hexColor, color: '#000', fontSize: '0.6rem', fontWeight: 'bold', padding: '2px 6px', borderRadius: '8px', whiteSpace: 'nowrap' }}>
+                          <div style={{
+                            position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)',
+                            backgroundColor: hexColor,
+                            color: isColorDark(hexColor) ? '#ffffff' : '#000000',
+                            border: isColorDark(hexColor) ? '1px solid rgba(255,255,255,0.3)' : 'none',
+                            fontSize: '0.6rem', fontWeight: 'bold', padding: '2px 6px', borderRadius: '8px', whiteSpace: 'nowrap'
+                          }}>
                             IN USE
                           </div>
                         )}
