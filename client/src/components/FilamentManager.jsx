@@ -18,6 +18,7 @@ function FilamentManager() {
 
   useEffect(() => {
     fetchData();
+    fetchAms();
     const interval = setInterval(fetchAms, 5000);
     return () => clearInterval(interval);
   }, []);
@@ -118,7 +119,7 @@ function FilamentManager() {
 
   const getAmsLocation = (spoolId) => {
     for (const [trayId, sId] of Object.entries(amsAssignments)) {
-      if (sId === spoolId) {
+      if (sId == spoolId) {
         const parts = trayId.split('-');
         if (parts.length === 2) {
           const amsId = parts[0];
