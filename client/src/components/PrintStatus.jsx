@@ -170,19 +170,30 @@ function PrintStatus() {
                   {amsUnit.tray && amsUnit.tray.map((tray, tIndex) => {
                     const hasFilament = tray.tray_type && tray.tray_type !== '';
                     const hexColor = tray.tray_color ? `#${tray.tray_color.substring(0, 6)}` : '#333';
+                    const trayId = `${amsUnit.id}-${tIndex}`;
+                    const isActive = printState && printState.status === 'RUNNING' && printState.activeTrays && printState.activeTrays.includes(trayId);
                     return (
                       <div key={tIndex} style={{ 
                         flex: 1, 
                         textAlign: 'center',
-                        backgroundColor: hasFilament ? 'rgba(255,255,255,0.03)' : 'transparent',
+                        backgroundColor: isActive ? `${hexColor}22` : (hasFilament ? 'rgba(255,255,255,0.03)' : 'transparent'),
                         padding: '10px 5px',
                         borderRadius: '6px',
-                        border: hasFilament ? `1px solid ${hexColor}` : '1px dashed var(--border-color)'
+                        border: isActive ? `2px solid ${hexColor}` : (hasFilament ? `1px solid ${hexColor}` : '1px dashed var(--border-color)'),
+                        boxShadow: isActive ? `0 0 12px ${hexColor}66` : 'none',
+                        transition: 'all 0.3s ease',
+                        position: 'relative'
                       }}>
+                        {isActive && (
+                          <div style={{ position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)', backgroundColor: hexColor, color: '#000', fontSize: '0.6rem', fontWeight: 'bold', padding: '2px 6px', borderRadius: '8px', whiteSpace: 'nowrap' }}>
+                            IN USE
+                          </div>
+                        )}
                         <div style={{
                           width: '30px', height: '30px', borderRadius: '50%', 
                           backgroundColor: hasFilament ? hexColor : '#222',
-                          margin: '0 auto 10px auto'
+                          margin: '0 auto 10px auto',
+                          boxShadow: isActive ? `0 0 8px ${hexColor}` : 'none'
                         }}></div>
                         <div style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>
                           {hasFilament ? tray.tray_type : 'Empty'}
@@ -191,13 +202,12 @@ function PrintStatus() {
                           Slot {tIndex + 1}
                         </div>
                         {(() => {
-                          const trayId = `${amsUnit.id}-${tIndex}`;
                           const assignedSpoolId = amsAssignments[trayId];
                           const assignedSpool = spools.find(s => s.id == assignedSpoolId);
                           return (
                             <div>
                               {assignedSpool ? (
-                                <div style={{ fontSize: '0.75rem', marginBottom: '5px', color: 'var(--primary-color)' }}>
+                                <div style={{ fontSize: '0.75rem', marginBottom: '5px', color: isActive ? hexColor : 'var(--primary-color)', fontWeight: isActive ? 'bold' : 'normal' }}>
                                   {assignedSpool.brand_name} {assignedSpool.material_name}
                                 </div>
                               ) : (

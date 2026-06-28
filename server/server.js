@@ -125,16 +125,33 @@ app.delete('/api/spools/:id', (req, res) => {
 
 // GET /api/archives
 app.get('/api/archives', (req, res) => {
+  // Join to spools that were used for each print (matched via last_print_name)
   const query = `
-    SELECT a.*, s.color as spool_color, b.name as spool_brand
+    SELECT 
+      a.*,
+      GROUP_CONCAT(sp.color, '|') as spool_colors,
+      GROUP_CONCAT(sp.color_name, '|') as spool_color_names,
+      GROUP_CONCAT(sp.material_name, '|') as spool_materials,
+      GROUP_CONCAT(b.name, '|') as spool_brands
     FROM archives a
-    LEFT JOIN spools s ON a.spool_id = s.id
-    LEFT JOIN brands b ON s.brand_id = b.id
+    LEFT JOIN spools sp ON sp.last_print_name = a.print_name
+    LEFT JOIN brands b ON sp.brand_id = b.id
+    GROUP BY a.id
     ORDER BY a.created_at DESC
   `;
   db.all(query, [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
+    // Parse the pipe-delimited spool info into arrays
+    const parsed = rows.map(r => ({
+      ...r,
+      spools_used: r.spool_brands ? r.spool_brands.split('|').map((brand, i) => ({
+        brand,
+        material: r.spool_materials ? r.spool_materials.split('|')[i] : '',
+        color: r.spool_colors ? r.spool_colors.split('|')[i] : null,
+        color_name: r.spool_color_names ? r.spool_color_names.split('|')[i] : null,
+      })) : []
+    }));
+    res.json(parsed);
   });
 });
 

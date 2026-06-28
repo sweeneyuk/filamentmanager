@@ -69,11 +69,15 @@ function Archive() {
                 <td>{formatDuration(arch.duration_seconds)}</td>
                 <td>{arch.energy_kwh?.toFixed(3) || '0.000'}</td>
                 <td>
-                  {arch.spool_id ? (
-                    <span style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
-                      <span className="color-dot" style={{backgroundColor: arch.spool_color}}></span>
-                      {arch.spool_brand}
-                    </span>
+                  {arch.spools_used && arch.spools_used.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {arch.spools_used.map((s, i) => (
+                        <span key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: s.color || '#888', display: 'inline-block', flexShrink: 0 }}></span>
+                          <span style={{ fontSize: '0.85rem' }}>{s.brand} {s.material}</span>
+                        </span>
+                      ))}
+                    </div>
                   ) : '-'}
                 </td>
                 <td>£{arch.energy_cost?.toFixed(2) || '0.00'}</td>
