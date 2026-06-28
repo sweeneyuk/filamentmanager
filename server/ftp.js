@@ -122,11 +122,19 @@ const extractWeightsFrom3mf = async (client, remoteFile) => {
         if (data.filament_weight) return Array.isArray(data.filament_weight) ? data.filament_weight : [data.filament_weight];
         if (data.plate_summary && data.plate_summary.length > 0) return data.plate_summary[0].filament_weight || [];
       } catch (jsonErr) {
-        // It might be XML (slice_info.config)
-        const match = contentStr.match(/<weight>([\d\.\,\s]+)<\/weight>/i) || contentStr.match(/<filament_weight>([\d\.\,\s]+)<\/filament_weight>/i);
-        if (match && match[1]) {
-          const weights = match[1].split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
-          if (weights.length > 0) return weights;
+        // It's XML (slice_info.config)
+        const filamentRegex = /<filament\s+[^>]*used_g="([\d\.]+)"/gi;
+        const weights = [];
+        let match;
+        while ((match = filamentRegex.exec(contentStr)) !== null) {
+          weights.push(parseFloat(match[1]));
+        }
+        if (weights.length > 0) return weights;
+
+        // Fallback to total weight metadata
+        const weightMatch = contentStr.match(/<metadata\s+key="weight"\s+value="([\d\.\,\s]+)"/i);
+        if (weightMatch && weightMatch[1]) {
+           return [parseFloat(weightMatch[1])];
         }
       }
     }

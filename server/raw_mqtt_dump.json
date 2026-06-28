@@ -39,9 +39,9 @@
   },
   "3D": {
     "enc_type": 0,
-    "layer_num": 52,
+    "layer_num": 10,
     "print_cali_option": 0,
-    "total_layer_num": 52,
+    "total_layer_num": 10,
     "ventobox": {
       "enable": false,
       "speed": 50,
@@ -59,7 +59,7 @@
         "dry_sf_reason": [
           6
         ],
-        "dry_time": 700,
+        "dry_time": 684,
         "humidity": "3",
         "humidity_raw": "18",
         "id": "0",
@@ -240,7 +240,7 @@
     "tray_reading_bits": "0",
     "tray_tar": "255",
     "unbind_ams_stat": 0,
-    "version": 10988
+    "version": 11025
   },
   "ams_rfid_status": 0,
   "ams_status": 0,
@@ -249,7 +249,7 @@
   "aux_part_fan": false,
   "batch_id": 0,
   "bed_target_temper": 0,
-  "bed_temper": 65,
+  "bed_temper": 51,
   "big_fan1_speed": "0",
   "big_fan2_speed": "0",
   "cali_version": 0,
@@ -331,25 +331,25 @@
     },
     "bed": {
       "info": {
-        "temp": 65
+        "temp": 51
       },
       "state": 0
     },
-    "bed_temp": 65,
+    "bed_temp": 51,
     "cam": {
       "laser": {
         "cond": 253,
         "state": 0
       },
-      "timelapse_path": "/media/usb0/timelapse/video_2026-06-29_01-22-17_4.mp4",
-      "tl_external_free_kb": 351752192,
+      "timelapse_path": "/media/usb0/timelapse/video_2026-06-29_01-39-23_4.mp4",
+      "tl_external_free_kb": 351803264,
       "tl_external_total_kb": 482540736,
       "tl_internal_free_kb": 962560,
       "tl_internal_total_kb": 962560
     },
     "ctc": {
       "info": {
-        "temp": 39
+        "temp": 36
       },
       "state": 0
     },
@@ -374,7 +374,7 @@
           "spre": 65535,
           "star": 65535,
           "stat": 0,
-          "temp": 50,
+          "temp": 48,
           "z_bias": 0
         },
         {
@@ -388,13 +388,13 @@
           "spre": 65279,
           "star": 65279,
           "stat": 0,
-          "temp": 114,
+          "temp": 82,
           "z_bias": 0
         }
       ],
       "state": 274
     },
-    "fan": 6774784,
+    "fan": 6553600,
     "fila_switch": {
       "in": [
         -1,
@@ -474,7 +474,7 @@
   "gcode_file": "/data/Metadata/plate_1.gcode",
   "gcode_file_prepare_percent": "100",
   "gcode_state": "FINISH",
-  "heatbreak_fan_speed": "8",
+  "heatbreak_fan_speed": "0",
   "hms": [
     {
       "attr": 83887616,
@@ -486,7 +486,7 @@
   "home_flag": -1067098728,
   "hw_switch_state": 0,
   "info": {
-    "temp": 39
+    "temp": 36
   },
   "ipcam": {
     "agora_service": "disable",
@@ -501,7 +501,7 @@
     "resolution": "1080p",
     "rtsp_url": "rtsps://10.1.209.27:322/streaming/live/1",
     "timelapse": "disable",
-    "tl_external_free_kb": 351752192,
+    "tl_external_free_kb": 351803264,
     "tl_external_total_kb": 482540736,
     "tl_internal_free_kb": 962560,
     "tl_internal_total_kb": 962560,
@@ -543,7 +543,7 @@
   "job_attr": 2,
   "job_id": "0",
   "lan_task_id": "0",
-  "layer_num": 52,
+  "layer_num": 10,
   "lights_report": [
     {
       "mode": "off",
@@ -555,7 +555,10 @@
     }
   ],
   "mapping": [
-    32768
+    65535,
+    65535,
+    65535,
+    1
   ],
   "mc_action": 255,
   "mc_err": 0,
@@ -582,11 +585,11 @@
   },
   "nozzle_diameter": "0.4",
   "nozzle_target_temper": 0,
-  "nozzle_temper": 114,
+  "nozzle_temper": 82,
   "nozzle_type": "HS01",
   "online": {
     "ahb": true,
-    "version": 10
+    "version": 11
   },
   "percent": 100,
   "plate_cnt": 1,
@@ -630,9 +633,9 @@
   "stg_cd": 0,
   "stg_cur": -1,
   "subtask_id": "0",
-  "subtask_name": "Cylinder",
-  "task_id": "9293",
-  "total_layer_num": 52,
+  "subtask_name": "Cube",
+  "task_id": "9585",
+  "total_layer_num": 10,
   "upgrade_state": {
     "ahb_new_version_number": "",
     "ams_new_version_number": "",
@@ -641,8 +644,8 @@
     "err_code": 0,
     "ext_new_version_number": "",
     "force_upgrade": false,
-    "idx": 10,
-    "idx2": 381171800,
+    "idx": 11,
+    "idx2": 381171806,
     "lower_limit": "00.00.00.00",
     "message": "",
     "module": "",
@@ -667,7 +670,7 @@
     "time_remaining": 0,
     "trouble_id": ""
   },
-  "ver": "20010",
+  "ver": "20018",
   "vir_slot": [
     {
       "bed_temp": "0",
