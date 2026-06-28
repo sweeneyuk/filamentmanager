@@ -59,9 +59,9 @@
         "dry_sf_reason": [
           6
         ],
-        "dry_time": 684,
+        "dry_time": 665,
         "humidity": "3",
-        "humidity_raw": "18",
+        "humidity_raw": "17",
         "id": "0",
         "info": "11942E23",
         "temp": "44.7",
@@ -188,7 +188,7 @@
         "humidity_raw": "25",
         "id": "128",
         "info": "10002E04",
-        "temp": "27.6",
+        "temp": "28.1",
         "tray": [
           {
             "bed_temp": "0",
@@ -240,7 +240,7 @@
     "tray_reading_bits": "0",
     "tray_tar": "255",
     "unbind_ams_stat": 0,
-    "version": 11025
+    "version": 11083
   },
   "ams_rfid_status": 0,
   "ams_status": 0,
@@ -249,7 +249,7 @@
   "aux_part_fan": false,
   "batch_id": 0,
   "bed_target_temper": 0,
-  "bed_temper": 51,
+  "bed_temper": 48,
   "big_fan1_speed": "0",
   "big_fan2_speed": "0",
   "cali_version": 0,
@@ -331,25 +331,25 @@
     },
     "bed": {
       "info": {
-        "temp": 51
+        "temp": 48
       },
       "state": 0
     },
-    "bed_temp": 51,
+    "bed_temp": 48,
     "cam": {
       "laser": {
         "cond": 253,
         "state": 0
       },
-      "timelapse_path": "/media/usb0/timelapse/video_2026-06-29_01-39-23_4.mp4",
-      "tl_external_free_kb": 351803264,
+      "timelapse_path": "/media/usb0/timelapse/video_2026-06-29_01-58-03_4.mp4",
+      "tl_external_free_kb": 351854528,
       "tl_external_total_kb": 482540736,
       "tl_internal_free_kb": 962560,
       "tl_internal_total_kb": 962560
     },
     "ctc": {
       "info": {
-        "temp": 36
+        "temp": 35
       },
       "state": 0
     },
@@ -374,7 +374,7 @@
           "spre": 65535,
           "star": 65535,
           "stat": 0,
-          "temp": 48,
+          "temp": 45,
           "z_bias": 0
         },
         {
@@ -388,7 +388,7 @@
           "spre": 65279,
           "star": 65279,
           "stat": 0,
-          "temp": 82,
+          "temp": 67,
           "z_bias": 0
         }
       ],
@@ -486,7 +486,7 @@
   "home_flag": -1067098728,
   "hw_switch_state": 0,
   "info": {
-    "temp": 36
+    "temp": 35
   },
   "ipcam": {
     "agora_service": "disable",
@@ -501,7 +501,7 @@
     "resolution": "1080p",
     "rtsp_url": "rtsps://10.1.209.27:322/streaming/live/1",
     "timelapse": "disable",
-    "tl_external_free_kb": 351803264,
+    "tl_external_free_kb": 351854528,
     "tl_external_total_kb": 482540736,
     "tl_internal_free_kb": 962560,
     "tl_internal_total_kb": 962560,
@@ -558,7 +558,7 @@
     65535,
     65535,
     65535,
-    1
+    3
   ],
   "mc_action": 255,
   "mc_err": 0,
@@ -585,11 +585,11 @@
   },
   "nozzle_diameter": "0.4",
   "nozzle_target_temper": 0,
-  "nozzle_temper": 82,
+  "nozzle_temper": 67,
   "nozzle_type": "HS01",
   "online": {
     "ahb": true,
-    "version": 11
+    "version": 12
   },
   "percent": 100,
   "plate_cnt": 1,
@@ -634,7 +634,7 @@
   "stg_cur": -1,
   "subtask_id": "0",
   "subtask_name": "Cube",
-  "task_id": "9585",
+  "task_id": "2687",
   "total_layer_num": 10,
   "upgrade_state": {
     "ahb_new_version_number": "",
@@ -644,8 +644,8 @@
     "err_code": 0,
     "ext_new_version_number": "",
     "force_upgrade": false,
-    "idx": 11,
-    "idx2": 381171806,
+    "idx": 12,
+    "idx2": 381171812,
     "lower_limit": "00.00.00.00",
     "message": "",
     "module": "",
@@ -670,7 +670,7 @@
     "time_remaining": 0,
     "trouble_id": ""
   },
-  "ver": "20018",
+  "ver": "20000",
   "vir_slot": [
     {
       "bed_temp": "0",

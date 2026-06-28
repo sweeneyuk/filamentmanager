@@ -113,12 +113,12 @@ const handlePrintStatus = async (printData) => {
       printState.predictedWeights = [];
       printState.activeTrays = [];
 
-      // If ams_mapping exists, we can know which trays are being used
-      if (printData.ams_mapping && Array.isArray(printData.ams_mapping)) {
-        printState.activeTrays = printData.ams_mapping.map(m => {
-          // Sometimes it's [255] for no AMS, or [0, 1] for AMS 0 Tray 0 and Tray 1
-          // Bambu sometimes returns ams_mapping: [0, 255, 255...] where 0 means AMS 0 Tray 0
-          if (m === 255) return null;
+      // If ams_mapping or mapping exists, we can know which trays are being used
+      const mappingArray = printData.mapping || printData.ams_mapping;
+      if (mappingArray && Array.isArray(mappingArray)) {
+        printState.activeTrays = mappingArray.map(m => {
+          // 255 or 65535 means no AMS tray assigned
+          if (m === 255 || m === 65535) return null;
           const amsId = Math.floor(m / 4);
           const trayId = m % 4;
           return `${amsId}-${trayId}`;
@@ -157,25 +157,27 @@ const handlePrintStatus = async (printData) => {
       }
 
       let filamentUsed = 0;
+      const archivedState = { ...printState };
+      
       // Deduct weight from assigned spools
       db.all('SELECT tray_id, spool_id FROM ams_assignments', [], (err, assignments) => {
         const assignMap = {};
         if (!err && assignments) assignments.forEach(a => assignMap[a.tray_id] = a.spool_id);
 
-        printState.activeTrays.forEach((trayId, idx) => {
-          const predicted = (printState.predictedWeights[idx] || 0) * percentCompleted;
+        archivedState.activeTrays.forEach((trayId, idx) => {
+          const predicted = (archivedState.predictedWeights[idx] || 0) * percentCompleted;
           if (predicted > 0) {
             filamentUsed += predicted;
             const spoolId = assignMap[trayId];
             if (spoolId) {
-              db.run('UPDATE spools SET used_weight = used_weight + ?, last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?', [predicted, printState.name, spoolId]);
+              db.run('UPDATE spools SET used_weight = used_weight + ?, last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?', [predicted, archivedState.name, spoolId]);
             }
           }
         });
 
         // If we didn't have active trays mapped but have a predicted weight, just sum it
-        if (printState.activeTrays.length === 0 && printState.predictedWeights.length > 0) {
-          filamentUsed = printState.predictedWeights.reduce((a, b) => a + b, 0) * percentCompleted;
+        if (archivedState.activeTrays.length === 0 && archivedState.predictedWeights.length > 0) {
+          filamentUsed = archivedState.predictedWeights.reduce((a, b) => a + b, 0) * percentCompleted;
         }
 
         const filamentCost = 0; // Requires looking up the spool cost/g which we can skip or do a subquery
@@ -185,18 +187,18 @@ const handlePrintStatus = async (printData) => {
         db.run(`
           INSERT INTO archives (print_name, status, duration_seconds, energy_kwh, energy_cost, filament_used_g, filament_cost, total_cost)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `, [printState.name, newStatus, durationSeconds, energyUsed, energyCost, filamentUsed, filamentCost, totalCost], async function(err) {
+        `, [archivedState.name, newStatus, durationSeconds, energyUsed, energyCost, filamentUsed, filamentCost, totalCost], async function(err) {
           if (err) {
             console.error('Failed to save archive:', err);
           } else {
             const archiveId = this.lastID;
-            console.log(`Print ${printState.name} archived with ID ${archiveId}.`);
+            console.log(`Print ${archivedState.name} archived with ID ${archiveId}.`);
             // Download timelapse and photo asynchronously after 60 seconds
             // This gives the printer time to render the final timelapse MP4
             setTimeout(async () => {
               try {
                 const { downloadLatestTimelapseAndPhoto } = require('./ftp');
-                const paths = await downloadLatestTimelapseAndPhoto(printState.name, archiveId);
+                const paths = await downloadLatestTimelapseAndPhoto(archivedState.name, archiveId);
                 
                 if (paths.timelapsePath || paths.photoPath) {
                   db.run(
@@ -210,10 +212,10 @@ const handlePrintStatus = async (printData) => {
             }, 60000);
           }
         });
-
-        // Reset state
-        printState = { status: 'IDLE', name: '', startTime: null, startEnergy: 0, predictedWeights: [], activeTrays: [], progress: 0, remainingTime: 0, nozzleTemp: 0, nozzleTarget: 0, bedTemp: 0, bedTarget: 0, layerNum: 0, totalLayerNum: 0, raw: null, lastFetchedGcode: null };
       });
+
+      // Reset state synchronously to prepare for next print
+      printState = { status: 'IDLE', name: '', startTime: null, startEnergy: 0, predictedWeights: [], activeTrays: [], progress: 0, remainingTime: 0, nozzleTemp: 0, nozzleTarget: 0, bedTemp: 0, bedTarget: 0, layerNum: 0, totalLayerNum: 0, raw: null, lastFetchedGcode: null };
     } else {
       printState.status = newStatus;
     }
