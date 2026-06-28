@@ -114,11 +114,21 @@ const extractWeightsFrom3mf = async (client, remoteFile) => {
     const detailsEntry = zipEntries.find(e => e.entryName === 'Metadata/project_details.json' || e.entryName === 'Metadata/slice_info.config');
     
     if (detailsEntry) {
-      const data = JSON.parse(detailsEntry.getData().toString('utf8'));
+      const contentStr = detailsEntry.getData().toString('utf8');
       fs.unlinkSync(localTemp); // Cleanup
       
-      if (data.filament_weight) return Array.isArray(data.filament_weight) ? data.filament_weight : [data.filament_weight];
-      if (data.plate_summary && data.plate_summary.length > 0) return data.plate_summary[0].filament_weight || [];
+      try {
+        const data = JSON.parse(contentStr);
+        if (data.filament_weight) return Array.isArray(data.filament_weight) ? data.filament_weight : [data.filament_weight];
+        if (data.plate_summary && data.plate_summary.length > 0) return data.plate_summary[0].filament_weight || [];
+      } catch (jsonErr) {
+        // It might be XML (slice_info.config)
+        const match = contentStr.match(/<weight>([\d\.\,\s]+)<\/weight>/i) || contentStr.match(/<filament_weight>([\d\.\,\s]+)<\/filament_weight>/i);
+        if (match && match[1]) {
+          const weights = match[1].split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+          if (weights.length > 0) return weights;
+        }
+      }
     }
   } catch (err) {
     console.error(`Failed to extract weights from 3mf at ${remoteFile}:`, err.message);
