@@ -19,7 +19,7 @@
       ],
       "total_time": 0
     },
-    "cond": 14,
+    "cond": 15,
     "cur_stage": {
       "clock_in_time": 0,
       "idx": 0,
@@ -39,9 +39,9 @@
   },
   "3D": {
     "enc_type": 0,
-    "layer_num": 31,
+    "layer_num": 134,
     "print_cali_option": 0,
-    "total_layer_num": 210,
+    "total_layer_num": 134,
     "ventobox": {
       "enable": false,
       "speed": 50,
@@ -59,10 +59,10 @@
         "dry_sf_reason": [],
         "dry_time": 0,
         "humidity": "2",
-        "humidity_raw": "27",
+        "humidity_raw": "30",
         "id": "0",
         "info": "11002E03",
-        "temp": "34.4",
+        "temp": "29.9",
         "tray": [
           {
             "bed_temp": "0",
@@ -132,7 +132,7 @@
             "nozzle_temp_max": "230",
             "nozzle_temp_min": "190",
             "remain": -1,
-            "state": 27,
+            "state": 11,
             "tag_uid": "0000000000000000",
             "total_len": 330000,
             "tray_color": "000000FF",
@@ -182,11 +182,11 @@
         },
         "dry_sf_reason": [],
         "dry_time": 0,
-        "humidity": "3",
+        "humidity": "4",
         "humidity_raw": "25",
         "id": "128",
         "info": "10002E04",
-        "temp": "31.6",
+        "temp": "26.6",
         "tray": [
           {
             "bed_temp": "0",
@@ -224,32 +224,32 @@
     "cali_stat": 0,
     "cfs": [
       2,
-      5,
-      7
+      3,
+      4
     ],
     "insert_flag": true,
     "power_on_flag": false,
     "tray_exist_bits": "1000f",
-    "tray_hall_out_bits": "4",
+    "tray_hall_out_bits": "0",
     "tray_is_bbl_bits": "1000f",
-    "tray_now": "2",
-    "tray_pre": "2",
+    "tray_now": "255",
+    "tray_pre": "255",
     "tray_read_done_bits": "1000f",
     "tray_reading_bits": "0",
-    "tray_tar": "2",
+    "tray_tar": "255",
     "unbind_ams_stat": 0,
-    "version": 6163
+    "version": 10841
   },
   "ams_rfid_status": 0,
-  "ams_status": 768,
+  "ams_status": 0,
   "ap_err": 0,
   "aux": "22801004",
   "aux_part_fan": false,
   "batch_id": 0,
-  "bed_target_temper": 60,
-  "bed_temper": 60,
-  "big_fan1_speed": "13",
-  "big_fan2_speed": "11",
+  "bed_target_temper": 0,
+  "bed_temper": 48,
+  "big_fan1_speed": "0",
+  "big_fan2_speed": "0",
   "cali_version": 0,
   "canvas_id": 0,
   "care": [
@@ -259,12 +259,12 @@
     },
     {
       "id": "ls",
-      "info": "3601828"
+      "info": "34A1827"
     }
   ],
-  "cfg": "4C1001FD2B9",
+  "cfg": "4C1001FD219",
   "command": "push_status",
-  "cooling_fan_speed": "14",
+  "cooling_fan_speed": "0",
   "design_id": "",
   "device": {
     "airduct": {
@@ -297,29 +297,29 @@
           "func": 0,
           "id": 16,
           "range": 6553600,
-          "state": 100,
-          "tar_state": 100
+          "state": 0,
+          "tar_state": 0
         },
         {
           "func": 5,
           "id": 32,
           "range": 6553600,
-          "state": 90,
-          "tar_state": 90
+          "state": 0,
+          "tar_state": 0
         },
         {
           "func": 6,
           "id": 160,
           "range": 6553600,
-          "state": 90,
-          "tar_state": 90
+          "state": 0,
+          "tar_state": 0
         },
         {
           "func": 2,
           "id": 48,
           "range": 6553600,
-          "state": 70,
-          "tar_state": 70
+          "state": 0,
+          "tar_state": 0
         }
       ],
       "subFunc": 0,
@@ -329,25 +329,25 @@
     },
     "bed": {
       "info": {
-        "temp": 3932220
+        "temp": 48
       },
-      "state": 2
+      "state": 0
     },
-    "bed_temp": 3932220,
+    "bed_temp": 48,
     "cam": {
       "laser": {
-        "cond": 252,
+        "cond": 253,
         "state": 0
       },
-      "timelapse_path": "",
-      "tl_external_free_kb": 351338944,
+      "timelapse_path": "/media/usb0/timelapse/video_2026-06-29_00-01-25_4.mp4",
+      "tl_external_free_kb": 351479616,
       "tl_external_total_kb": 482540736,
       "tl_internal_free_kb": 962560,
       "tl_internal_total_kb": 962560
     },
     "ctc": {
       "info": {
-        "temp": 37
+        "temp": 35
       },
       "state": 0
     },
@@ -372,7 +372,7 @@
           "spre": 65535,
           "star": 65535,
           "stat": 0,
-          "temp": 48,
+          "temp": 42,
           "z_bias": 0
         },
         {
@@ -381,24 +381,24 @@
           "hpre": 1,
           "htar": 1,
           "id": 1,
-          "info": 1102,
-          "snow": 2,
-          "spre": 2,
-          "star": 2,
-          "stat": 197376,
-          "temp": 14418140,
+          "info": 1032,
+          "snow": 65279,
+          "spre": 65279,
+          "star": 65279,
+          "stat": 0,
+          "temp": 46,
           "z_bias": 0
         }
       ],
-      "state": 33042
+      "state": 274
     },
-    "fan": 6579451,
+    "fan": 0,
     "fila_switch": {
       "in": [
         -1,
-        2
+        -1
       ],
-      "info": 2,
+      "info": 0,
       "out": [
         0,
         1
@@ -464,14 +464,14 @@
     "img_id": ""
   },
   "fail_reason": "0",
-  "fan_gear": 12511999,
+  "fan_gear": 0,
   "file": "/data/Metadata/plate_1.gcode",
   "force_upgrade": false,
-  "fun": "40029FD1930F9CB7",
+  "fun": "44029FD1930F9CB7",
   "fun2": "B7B77",
   "gcode_file": "/data/Metadata/plate_1.gcode",
   "gcode_file_prepare_percent": "100",
-  "gcode_state": "RUNNING",
+  "gcode_state": "FINISH",
   "heatbreak_fan_speed": "0",
   "hms": [
     {
@@ -481,10 +481,10 @@
       "ts_unix": "20260627034058"
     }
   ],
-  "home_flag": -1067098689,
-  "hw_switch_state": 2,
+  "home_flag": -1067098728,
+  "hw_switch_state": 0,
   "info": {
-    "temp": 37
+    "temp": 35
   },
   "ipcam": {
     "agora_service": "disable",
@@ -498,8 +498,8 @@
     "mode_bits": 2,
     "resolution": "1080p",
     "rtsp_url": "rtsps://10.1.209.27:322/streaming/live/1",
-    "timelapse": "enable",
-    "tl_external_free_kb": 351338944,
+    "timelapse": "disable",
+    "tl_external_free_kb": 351479616,
     "tl_external_total_kb": 482540736,
     "tl_internal_free_kb": 962560,
     "tl_internal_total_kb": 962560,
@@ -510,9 +510,9 @@
   "job": {
     "cur_stage": {
       "idx": 0,
-      "state": 2
+      "state": 0
     },
-    "job_state": 4,
+    "job_state": 8,
     "stage": [
       {
         "clock_in": false,
@@ -538,13 +538,13 @@
       }
     ]
   },
-  "job_attr": 18,
+  "job_attr": 2,
   "job_id": "0",
   "lan_task_id": "0",
-  "layer_num": 31,
+  "layer_num": 134,
   "lights_report": [
     {
-      "mode": "on",
+      "mode": "off",
       "node": "chamber_light"
     },
     {
@@ -553,18 +553,16 @@
     }
   ],
   "mapping": [
-    65535,
-    65535,
     2
   ],
-  "mc_action": 0,
+  "mc_action": 255,
   "mc_err": 0,
-  "mc_percent": 55,
+  "mc_percent": 100,
   "mc_print_error_code": "0",
-  "mc_print_stage": "2",
+  "mc_print_stage": "1",
   "mc_print_sub_stage": 0,
-  "mc_remaining_time": 158,
-  "mc_stage": 2,
+  "mc_remaining_time": 0,
+  "mc_stage": 1,
   "model_id": "",
   "msg": 0,
   "net": {
@@ -581,20 +579,20 @@
     ]
   },
   "nozzle_diameter": "0.4",
-  "nozzle_target_temper": 220,
-  "nozzle_temper": 220,
+  "nozzle_target_temper": 0,
+  "nozzle_temper": 46,
   "nozzle_type": "HS01",
   "online": {
     "ahb": true,
     "version": 10
   },
-  "percent": 55,
+  "percent": 100,
   "plate_cnt": 1,
   "plate_id": 1,
   "plate_idx": 1,
   "prepare_per": 100,
   "print_error": 0,
-  "print_gcode_action": 0,
+  "print_gcode_action": 255,
   "print_real_action": 0,
   "print_type": "local",
   "profile_id": "0",
@@ -604,14 +602,14 @@
   "queue_number": 0,
   "queue_sts": 0,
   "queue_total": 0,
-  "remain_time": 158,
+  "remain_time": 0,
   "s_obj": [],
   "sdcard": true,
   "sequence_id": "2021",
   "spd_lvl": 2,
   "spd_mag": 100,
-  "stat": "10010402180F0",
-  "state": 4,
+  "stat": "40258000",
+  "state": 6,
   "stg": [
     29,
     2,
@@ -628,11 +626,11 @@
     51
   ],
   "stg_cd": 0,
-  "stg_cur": 0,
+  "stg_cur": -1,
   "subtask_id": "0",
-  "subtask_name": "gf-extended-bin-5x5x6-s1x1-8edbf.stl",
-  "task_id": "180",
-  "total_layer_num": 210,
+  "subtask_name": "Guitar_pick_storage_box_Print-in-place",
+  "task_id": "7775",
+  "total_layer_num": 134,
   "upgrade_state": {
     "ahb_new_version_number": "",
     "ams_new_version_number": "",
@@ -722,7 +720,7 @@
       "xcam_info": "000000000000000000000000"
     }
   ],
-  "wifi_signal": "-40dBm",
+  "wifi_signal": "-39dBm",
   "xcam": {
     "allow_skip_parts": false,
     "buildplate_marker_detector": false,

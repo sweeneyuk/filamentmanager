@@ -63,8 +63,8 @@ const downloadLatestTimelapseAndPhoto = async (printName, archiveId) => {
     // 1. Try to fetch the latest timelapse from /timelapse
     try {
       const list = await client.list('/timelapse');
-      // Filter for mp4 and sort by date modified (descending)
-      const mp4s = list.filter(f => f.name.endsWith('.mp4')).sort((a, b) => b.modifiedAt - a.modifiedAt);
+      // Filter for mp4 and sort alphabetically descending to get the latest video_YYYY-MM-DD...
+      const mp4s = list.filter(f => f.name.endsWith('.mp4')).sort((a, b) => b.name.localeCompare(a.name));
       
       if (mp4s.length > 0) {
         const latestMp4 = mp4s[0];
@@ -78,10 +78,9 @@ const downloadLatestTimelapseAndPhoto = async (printName, archiveId) => {
     }
 
     // 2. Try to fetch the latest thumbnail/photo (bambu often stores thumbnails near the gcode or a specific cam folder)
-    // The exact path varies, but often it's in /cam or /ipcam, or we just grab the last modified .jpg
     try {
       const list = await client.list('/cam');
-      const jpgs = list.filter(f => f.name.endsWith('.jpg') || f.name.endsWith('.png')).sort((a, b) => b.modifiedAt - a.modifiedAt);
+      const jpgs = list.filter(f => f.name.endsWith('.jpg') || f.name.endsWith('.png')).sort((a, b) => b.name.localeCompare(a.name));
       
       if (jpgs.length > 0) {
         const latestJpg = jpgs[0];
@@ -118,17 +117,11 @@ const extractWeightsFrom3mf = async (client, remoteFile) => {
       const data = JSON.parse(detailsEntry.getData().toString('utf8'));
       fs.unlinkSync(localTemp); // Cleanup
       
-      // We look for filament weights
-      if (data.filament_weight) {
-        // Sometimes it's an array for multi-material
-        return Array.isArray(data.filament_weight) ? data.filament_weight : [data.filament_weight];
-      }
-      if (data.plate_summary && data.plate_summary.length > 0) {
-        return data.plate_summary[0].filament_weight || [];
-      }
+      if (data.filament_weight) return Array.isArray(data.filament_weight) ? data.filament_weight : [data.filament_weight];
+      if (data.plate_summary && data.plate_summary.length > 0) return data.plate_summary[0].filament_weight || [];
     }
   } catch (err) {
-    console.error('Failed to extract weights from 3mf:', err.message);
+    // console.error(`Failed to extract weights from 3mf at ${remoteFile}`);
   }
   if (fs.existsSync(localTemp)) fs.unlinkSync(localTemp);
   return null;
@@ -141,8 +134,6 @@ const extractWeightsFromGcode = async (client, remoteFile) => {
     const content = fs.readFileSync(localTemp, 'utf8');
     fs.unlinkSync(localTemp);
 
-    // Look for lines like: ; filament used [g] = 15.34
-    // Or if multi-color: ; filament used [g] = 15.34, 0.00, 2.50
     const match = content.match(/;\s*filament used \[g\]\s*=\s*([\d\.\,\s]+)/i);
     if (match && match[1]) {
       const weightsStr = match[1].split(',');
@@ -150,7 +141,7 @@ const extractWeightsFromGcode = async (client, remoteFile) => {
       if (weights.length > 0) return weights;
     }
   } catch (err) {
-    console.error(`Failed to extract weights from gcode at ${remoteFile}:`, err.message);
+    // console.error(`Failed to extract weights from gcode at ${remoteFile}`);
   }
   if (fs.existsSync(localTemp)) fs.unlinkSync(localTemp);
   return null;
@@ -162,21 +153,24 @@ const getPredictedWeights = async (gcodeFile) => {
     client = await connectFtp();
     let weights = null;
 
-    // Bambu often prepends /data/ to paths, but FTP root is usually /
     let cleanPath = gcodeFile.startsWith('/data/') ? gcodeFile.substring(5) : gcodeFile;
     if (!cleanPath.startsWith('/')) cleanPath = '/' + cleanPath;
-
     const isGcode = cleanPath.toLowerCase().endsWith('.gcode');
     const extractFn = isGcode ? extractWeightsFromGcode : extractWeightsFrom3mf;
 
-    try {
-      weights = await extractFn(client, cleanPath);
-    } catch (e) {
-      console.log(`Could not find ${cleanPath}, trying tasks folder...`);
-      try {
-        weights = await extractFn(client, `/tasks${cleanPath}`);
-      } catch (err2) {
-      }
+    const pathsToTry = [
+      gcodeFile.startsWith('/') ? gcodeFile : '/' + gcodeFile, // Exact payload path (e.g., /data/Metadata/...)
+      cleanPath, // Stripped /data/
+      `/tasks${cleanPath}` // Fallback in tasks directory
+    ];
+
+    for (const p of pathsToTry) {
+      weights = await extractFn(client, p);
+      if (weights) break;
+    }
+
+    if (!weights) {
+      console.log(`Could not extract weights for ${gcodeFile} across any expected FTP paths.`);
     }
 
     client.close();

@@ -191,17 +191,23 @@ const handlePrintStatus = async (printData) => {
           } else {
             const archiveId = this.lastID;
             console.log(`Print ${printState.name} archived with ID ${archiveId}.`);
-            
-            // Download timelapse and photo asynchronously
-            const { downloadLatestTimelapseAndPhoto } = require('./ftp');
-            const paths = await downloadLatestTimelapseAndPhoto(printState.name, archiveId);
-            
-            if (paths.timelapsePath || paths.photoPath) {
-              db.run(
-                'UPDATE archives SET timelapse_path = ?, photo_path = ? WHERE id = ?',
-                [paths.timelapsePath, paths.photoPath, archiveId]
-              );
-            }
+            // Download timelapse and photo asynchronously after 60 seconds
+            // This gives the printer time to render the final timelapse MP4
+            setTimeout(async () => {
+              try {
+                const { downloadLatestTimelapseAndPhoto } = require('./ftp');
+                const paths = await downloadLatestTimelapseAndPhoto(printState.name, archiveId);
+                
+                if (paths.timelapsePath || paths.photoPath) {
+                  db.run(
+                    'UPDATE archives SET timelapse_path = ?, photo_path = ? WHERE id = ?',
+                    [paths.timelapsePath, paths.photoPath, archiveId]
+                  );
+                }
+              } catch (e) {
+                console.error('Failed to download timelapse asynchronously:', e);
+              }
+            }, 60000);
           }
         });
 
