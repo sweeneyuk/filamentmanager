@@ -9,7 +9,7 @@ const app = express();
 const port = 3000;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '100kb' }));
 
 // Serve React static files in production
 app.use(express.static(path.join(__dirname, '../client/dist')));
@@ -27,7 +27,14 @@ app.get('/api/settings', (req, res) => {
   db.all('SELECT key, value FROM settings', [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     const settings = {};
-    rows.forEach(r => settings[r.key] = r.value);
+    const sensitiveKeys = ['access_code', 'password', 'token'];
+    rows.forEach(r => {
+      if (sensitiveKeys.some(k => r.key.toLowerCase().includes(k)) && r.value) {
+        settings[r.key] = '********';
+      } else {
+        settings[r.key] = r.value;
+      }
+    });
     res.json(settings);
   });
 });
@@ -39,7 +46,9 @@ app.post('/api/settings', (req, res) => {
     db.run('BEGIN TRANSACTION');
     const stmt = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
     for (const [key, value] of Object.entries(settings)) {
-      stmt.run(key, value);
+      if (value !== '********') {
+        stmt.run(key, value);
+      }
     }
     stmt.finalize();
     db.run('COMMIT', () => {
