@@ -89,9 +89,9 @@ function PrintStatus() {
               const temps = [];
               if (printState.raw) {
                 // Check if we have dual extruder data — if so, skip the generic nozzle_temper key
-                const hasDualExtruder = printState.raw.extruder &&
-                  Array.isArray(printState.raw.extruder.info) &&
-                  printState.raw.extruder.info.length > 1;
+                const extInfo = printState.raw.device?.extruder?.info || printState.raw.extruder?.info;
+                const extTarget = printState.raw.device?.extruder?.target || printState.raw.extruder?.target;
+                const hasDualExtruder = extInfo && Array.isArray(extInfo) && extInfo.length > 1;
 
                 Object.keys(printState.raw).forEach(key => {
                   if (key.endsWith('_temper') && !key.includes('target')) {
@@ -130,14 +130,14 @@ function PrintStatus() {
                 });
 
                 // Dual extruder: render Left / Right nozzle cards with targets
-                if (printState.raw.extruder && Array.isArray(printState.raw.extruder.info)) {
+                if (hasDualExtruder) {
                   const labels = ['Left Nozzle', 'Right Nozzle'];
-                  const targets = printState.raw.extruder.target || [];
-                  printState.raw.extruder.info.forEach((ext, i) => {
+                  const targets = extTarget || [];
+                  extInfo.forEach((ext, i) => {
                     // Skip disconnected / sentinel values
                     if (ext.temp <= 0 || ext.temp >= 1000) return;
                     const label = labels[i] || `Nozzle ${i + 1}`;
-                    const target = Array.isArray(targets) ? (targets[i] ?? 0) : (printState.raw.nozzle_target_temper || 0);
+                    const target = (Array.isArray(targets) && targets.length > i) ? targets[i] : (printState.raw.nozzle_target_temper || 0);
                     temps.push(
                       <div key={`ext_${i}`} style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
                         <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>{label}</div>

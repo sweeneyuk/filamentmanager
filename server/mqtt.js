@@ -11,6 +11,7 @@ const IDLE_STATE = () => ({
   startEnergy: 0,
   predictedWeights: [], // Extracted from 3MF
   activeTrays: [],      // Tray IDs being used (e.g., '0-0')
+  currentTrayId: null,  // The single tray actively feeding right now
   lastFetchedGcode: null,
   progress: 0,
   remainingTime: 0,
@@ -103,6 +104,16 @@ const handlePrintStatus = async (printData) => {
   if (printData.layer_num !== undefined) printState.layerNum = printData.layer_num;
   if (printData.total_layer_num !== undefined) printState.totalLayerNum = printData.total_layer_num;
 
+  // Track exactly which spool is currently feeding (updates continuously)
+  if (printData.ams && printData.ams.tray_now !== undefined) {
+    const m = parseInt(printData.ams.tray_now, 10);
+    if (m !== 255 && !isNaN(m)) {
+      printState.currentTrayId = `${Math.floor(m / 4)}-${m % 4}`;
+    } else {
+      printState.currentTrayId = null;
+    }
+  }
+
   if (newStatus && newStatus !== printState.status) {
     console.log(`Print status changed from ${printState.status} to ${newStatus}`);
     
@@ -115,7 +126,7 @@ const handlePrintStatus = async (printData) => {
       printState.predictedWeights = [];
       printState.activeTrays = [];
 
-      // If ams_mapping or mapping exists, we can know which trays are being used
+      // If ams_mapping or mapping exists, we can know which trays are being used for the whole print
       const mappingArray = printData.mapping || printData.ams_mapping;
       if (mappingArray && Array.isArray(mappingArray)) {
         printState.activeTrays = mappingArray.map(m => {
@@ -154,18 +165,25 @@ const handlePrintStatus = async (printData) => {
 
       // Calculate Filament Used
       let percentCompleted = 1.0;
-      if (newStatus === 'FAILED' && printData.mc_percent) {
-        percentCompleted = printData.mc_percent / 100.0;
+      if (newStatus === 'FAILED') {
+        percentCompleted = Math.max(0, printState.progress || 0) / 100.0;
       }
 
       let filamentUsed = 0;
+      let filamentCost = 0;
       const archivedState = { ...printState };
       const spoolDeductions = []; // Track exactly which spools were used
       
-      // Deduct weight from assigned spools
-      db.all('SELECT tray_id, spool_id FROM ams_assignments', [], (err, assignments) => {
+      // Deduct weight from assigned spools and compute costs
+      db.all('SELECT aa.tray_id, aa.spool_id, s.price, s.weight_g FROM ams_assignments aa LEFT JOIN spools s ON aa.spool_id = s.id', [], (err, assignments) => {
         const assignMap = {};
-        if (!err && assignments) assignments.forEach(a => assignMap[a.tray_id] = a.spool_id);
+        const costMap = {};
+        if (!err && assignments) {
+          assignments.forEach(a => {
+            assignMap[a.tray_id] = a.spool_id;
+            costMap[a.spool_id] = (a.price > 0 && a.weight_g > 0) ? (a.price / a.weight_g) : 0;
+          });
+        }
 
         archivedState.activeTrays.forEach((trayId, idx) => {
           const predicted = (archivedState.predictedWeights[idx] || 0) * percentCompleted;
@@ -175,8 +193,9 @@ const handlePrintStatus = async (printData) => {
             if (spoolId) {
               db.run('UPDATE spools SET used_weight = used_weight + ?, last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
                 [predicted, archivedState.name, spoolId]);
-              // Record which spool was used — populated after archive insert below
+              // Record which spool was used
               spoolDeductions.push({ spoolId, predicted });
+              filamentCost += predicted * (costMap[spoolId] || 0);
             }
           }
         });
@@ -186,7 +205,6 @@ const handlePrintStatus = async (printData) => {
           filamentUsed = archivedState.predictedWeights.reduce((a, b) => a + b, 0) * percentCompleted;
         }
 
-        const filamentCost = 0; // Requires looking up the spool cost/g which we can skip or do a subquery
         const totalCost = energyCost + filamentCost;
 
         // Save to archive first to get ID
