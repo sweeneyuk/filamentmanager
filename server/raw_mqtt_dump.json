@@ -39,9 +39,9 @@
   },
   "3D": {
     "enc_type": 0,
-    "layer_num": 134,
+    "layer_num": 10,
     "print_cali_option": 0,
-    "total_layer_num": 134,
+    "total_layer_num": 10,
     "ventobox": {
       "enable": false,
       "speed": 50,
@@ -59,10 +59,10 @@
         "dry_sf_reason": [],
         "dry_time": 0,
         "humidity": "2",
-        "humidity_raw": "30",
+        "humidity_raw": "31",
         "id": "0",
         "info": "11002E03",
-        "temp": "29.9",
+        "temp": "30.4",
         "tray": [
           {
             "bed_temp": "0",
@@ -186,7 +186,7 @@
         "humidity_raw": "25",
         "id": "128",
         "info": "10002E04",
-        "temp": "26.6",
+        "temp": "27.1",
         "tray": [
           {
             "bed_temp": "0",
@@ -238,7 +238,7 @@
     "tray_reading_bits": "0",
     "tray_tar": "255",
     "unbind_ams_stat": 0,
-    "version": 10841
+    "version": 10904
   },
   "ams_rfid_status": 0,
   "ams_status": 0,
@@ -247,7 +247,7 @@
   "aux_part_fan": false,
   "batch_id": 0,
   "bed_target_temper": 0,
-  "bed_temper": 48,
+  "bed_temper": 43,
   "big_fan1_speed": "0",
   "big_fan2_speed": "0",
   "cali_version": 0,
@@ -329,25 +329,25 @@
     },
     "bed": {
       "info": {
-        "temp": 48
+        "temp": 43
       },
       "state": 0
     },
-    "bed_temp": 48,
+    "bed_temp": 43,
     "cam": {
       "laser": {
         "cond": 253,
         "state": 0
       },
-      "timelapse_path": "/media/usb0/timelapse/video_2026-06-29_00-01-25_4.mp4",
-      "tl_external_free_kb": 351479616,
+      "timelapse_path": "/media/usb0/timelapse/video_2026-06-29_00-54-01_4.mp4",
+      "tl_external_free_kb": 351526080,
       "tl_external_total_kb": 482540736,
       "tl_internal_free_kb": 962560,
       "tl_internal_total_kb": 962560
     },
     "ctc": {
       "info": {
-        "temp": 35
+        "temp": 34
       },
       "state": 0
     },
@@ -386,7 +386,7 @@
           "spre": 65279,
           "star": 65279,
           "stat": 0,
-          "temp": 46,
+          "temp": 43,
           "z_bias": 0
         }
       ],
@@ -484,7 +484,7 @@
   "home_flag": -1067098728,
   "hw_switch_state": 0,
   "info": {
-    "temp": 35
+    "temp": 34
   },
   "ipcam": {
     "agora_service": "disable",
@@ -499,7 +499,7 @@
     "resolution": "1080p",
     "rtsp_url": "rtsps://10.1.209.27:322/streaming/live/1",
     "timelapse": "disable",
-    "tl_external_free_kb": 351479616,
+    "tl_external_free_kb": 351526080,
     "tl_external_total_kb": 482540736,
     "tl_internal_free_kb": 962560,
     "tl_internal_total_kb": 962560,
@@ -541,7 +541,7 @@
   "job_attr": 2,
   "job_id": "0",
   "lan_task_id": "0",
-  "layer_num": 134,
+  "layer_num": 10,
   "lights_report": [
     {
       "mode": "off",
@@ -553,7 +553,10 @@
     }
   ],
   "mapping": [
-    2
+    65535,
+    65535,
+    65535,
+    0
   ],
   "mc_action": 255,
   "mc_err": 0,
@@ -580,7 +583,7 @@
   },
   "nozzle_diameter": "0.4",
   "nozzle_target_temper": 0,
-  "nozzle_temper": 46,
+  "nozzle_temper": 43,
   "nozzle_type": "HS01",
   "online": {
     "ahb": true,
@@ -628,9 +631,9 @@
   "stg_cd": 0,
   "stg_cur": -1,
   "subtask_id": "0",
-  "subtask_name": "Guitar_pick_storage_box_Print-in-place",
-  "task_id": "7775",
-  "total_layer_num": 134,
+  "subtask_name": "Cube",
+  "task_id": "1277",
+  "total_layer_num": 10,
   "upgrade_state": {
     "ahb_new_version_number": "",
     "ams_new_version_number": "",
@@ -720,7 +723,7 @@
       "xcam_info": "000000000000000000000000"
     }
   ],
-  "wifi_signal": "-39dBm",
+  "wifi_signal": "-40dBm",
   "xcam": {
     "allow_skip_parts": false,
     "buildplate_marker_detector": false,

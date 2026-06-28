@@ -132,7 +132,7 @@ const handlePrintStatus = async (printData) => {
       if (printData.gcode_file && printState.lastFetchedGcode !== printData.gcode_file) {
         printState.lastFetchedGcode = printData.gcode_file;
         const { getPredictedWeights } = require('./ftp');
-        getPredictedWeights(printData.gcode_file).then(weights => {
+        getPredictedWeights(printData.gcode_file, printData.subtask_name).then(weights => {
           if (weights && Array.isArray(weights)) {
             printState.predictedWeights = weights;
             console.log('Successfully extracted predicted weights:', weights);

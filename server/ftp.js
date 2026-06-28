@@ -121,7 +121,7 @@ const extractWeightsFrom3mf = async (client, remoteFile) => {
       if (data.plate_summary && data.plate_summary.length > 0) return data.plate_summary[0].filament_weight || [];
     }
   } catch (err) {
-    // console.error(`Failed to extract weights from 3mf at ${remoteFile}`);
+    console.error(`Failed to extract weights from 3mf at ${remoteFile}:`, err.message);
   }
   if (fs.existsSync(localTemp)) fs.unlinkSync(localTemp);
   return null;
@@ -141,13 +141,13 @@ const extractWeightsFromGcode = async (client, remoteFile) => {
       if (weights.length > 0) return weights;
     }
   } catch (err) {
-    // console.error(`Failed to extract weights from gcode at ${remoteFile}`);
+    console.error(`Failed to extract weights from gcode at ${remoteFile}:`, err.message);
   }
   if (fs.existsSync(localTemp)) fs.unlinkSync(localTemp);
   return null;
 };
 
-const getPredictedWeights = async (gcodeFile) => {
+const getPredictedWeights = async (gcodeFile, subtaskName) => {
   let client;
   try {
     client = await connectFtp();
@@ -158,19 +158,35 @@ const getPredictedWeights = async (gcodeFile) => {
     const isGcode = cleanPath.toLowerCase().endsWith('.gcode');
     const extractFn = isGcode ? extractWeightsFromGcode : extractWeightsFrom3mf;
 
-    const pathsToTry = [
-      gcodeFile.startsWith('/') ? gcodeFile : '/' + gcodeFile, // Exact payload path (e.g., /data/Metadata/...)
-      cleanPath, // Stripped /data/
-      `/tasks${cleanPath}` // Fallback in tasks directory
-    ];
+    const pathsToTry = [];
+    
+    // Exact paths
+    pathsToTry.push(gcodeFile.startsWith('/') ? gcodeFile : '/' + gcodeFile);
+    pathsToTry.push(cleanPath);
+    pathsToTry.push(`/tasks${cleanPath}`);
+
+    // Fallback paths based on subtask_name
+    if (subtaskName) {
+      const sub = subtaskName.trim();
+      pathsToTry.push(`/${sub}.gcode.3mf`);
+      pathsToTry.push(`/cache/${sub}.gcode.3mf`);
+      pathsToTry.push(`/${sub}.3mf`);
+      pathsToTry.push(`/cache/${sub}.3mf`);
+    }
 
     for (const p of pathsToTry) {
-      weights = await extractFn(client, p);
-      if (weights) break;
+      // Determine extraction method based on the specific path we are trying
+      const isPathGcode = p.toLowerCase().endsWith('.gcode');
+      const fn = isPathGcode ? extractWeightsFromGcode : extractWeightsFrom3mf;
+      weights = await fn(client, p);
+      if (weights) {
+        console.log(`Successfully extracted weights from ${p}`);
+        break;
+      }
     }
 
     if (!weights) {
-      console.log(`Could not extract weights for ${gcodeFile} across any expected FTP paths.`);
+      console.log(`Could not extract weights across any expected FTP paths.`);
     }
 
     client.close();
