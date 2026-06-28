@@ -3,6 +3,7 @@ import axios from 'axios';
 
 function Archive() {
   const [archives, setArchives] = useState([]);
+  const [selectedVideo, setSelectedVideo] = useState(null);
 
   useEffect(() => {
     fetchArchives();
@@ -92,7 +93,20 @@ function Archive() {
                     <div style={{ fontWeight: '500' }}>{d.toLocaleDateString()}</div>
                     <div style={{ fontSize: '0.75rem', color: '#888' }}>{d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
                   </td>
-                  <td style={{ fontWeight: '500' }}>{arch.print_name || 'Unknown'}</td>
+                  <td style={{ fontWeight: '500' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      {arch.photo_path ? (
+                        <div style={{ width: '40px', height: '40px', borderRadius: '4px', overflow: 'hidden', backgroundColor: 'var(--secondary-bg)', flexShrink: 0 }}>
+                          <img src={arch.photo_path} alt="Print thumbnail" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        </div>
+                      ) : (
+                        <div style={{ width: '40px', height: '40px', borderRadius: '4px', backgroundColor: 'var(--secondary-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <span style={{ fontSize: '1.2rem', opacity: 0.5 }}>🖨️</span>
+                        </div>
+                      )}
+                      <span>{arch.print_name || 'Unknown'}</span>
+                    </div>
+                  </td>
                   <td>{getStatusBadge(arch.status)}</td>
                   <td>{formatDuration(arch.duration_seconds)}</td>
                 <td>{arch.energy_kwh?.toFixed(3) || '0.000'}</td>
@@ -123,11 +137,13 @@ function Archive() {
                         </a>
                       )}
                       {arch.timelapse_path && (
-                        <a href={arch.timelapse_path} target="_blank" rel="noreferrer" style={{ 
-                          color: '#fff', textDecoration: 'none', backgroundColor: 'rgba(255,255,255,0.1)', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' 
-                        }}>
+                        <button 
+                          onClick={() => setSelectedVideo(arch.timelapse_path)}
+                          style={{ 
+                            color: '#fff', border: 'none', cursor: 'pointer', backgroundColor: 'rgba(255,255,255,0.1)', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' 
+                          }}>
                           🎥 Video
-                        </a>
+                        </button>
                       )}
                       {!arch.photo_path && !arch.timelapse_path && <span style={{color: '#666', fontSize: '0.85rem'}}>None</span>}
                     </div>
@@ -147,6 +163,61 @@ function Archive() {
         </table>
         </div>
       </div>
+
+      {selectedVideo && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          backdropFilter: 'blur(4px)'
+        }} onClick={() => setSelectedVideo(null)}>
+          <div style={{
+            position: 'relative',
+            width: '80%',
+            maxWidth: '1000px',
+            backgroundColor: 'var(--card-bg)',
+            borderRadius: '12px',
+            overflow: 'hidden',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.5)'
+          }} onClick={e => e.stopPropagation()}>
+            <button 
+              onClick={() => setSelectedVideo(null)}
+              style={{
+                position: 'absolute',
+                top: '15px',
+                right: '15px',
+                background: 'rgba(0,0,0,0.5)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '50%',
+                width: '36px',
+                height: '36px',
+                fontSize: '18px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 10
+              }}
+            >
+              ✕
+            </button>
+            <video 
+              src={selectedVideo} 
+              controls 
+              autoPlay 
+              style={{ width: '100%', maxHeight: '80vh', display: 'block' }} 
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
