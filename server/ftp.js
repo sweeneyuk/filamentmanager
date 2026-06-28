@@ -1,6 +1,7 @@
 const ftp = require('basic-ftp');
 const fs = require('fs');
 const path = require('path');
+const AdmZip = require('adm-zip');
 const { db } = require('./database');
 
 // Ensure media directory exists
@@ -105,7 +106,6 @@ const downloadLatestTimelapseAndPhoto = async (printName, archiveId) => {
 };
 
 const extractWeightsFrom3mf = async (client, remoteFile) => {
-  const AdmZip = require('adm-zip');
   const localTemp = path.join(mediaDir, 'temp_print.3mf');
   try {
     await client.downloadTo(localTemp, remoteFile);

@@ -4,13 +4,14 @@ const { getPrinterEnergyUsage, getEnergyRate } = require('./ha');
 
 let client = null;
 let currentAmsData = {};
-let printState = {
+const IDLE_STATE = () => ({
   status: 'IDLE',
   name: '',
   startTime: null,
   startEnergy: 0,
   predictedWeights: [], // Extracted from 3MF
-  activeTrays: [], // Tray IDs being used (e.g., '0-0')
+  activeTrays: [],      // Tray IDs being used (e.g., '0-0')
+  lastFetchedGcode: null,
   progress: 0,
   remainingTime: 0,
   nozzleTemp: 0,
@@ -20,7 +21,9 @@ let printState = {
   layerNum: 0,
   totalLayerNum: 0,
   raw: null
-};
+});
+
+let printState = IDLE_STATE();
 
 // Helper to get settings
 const getSetting = (key) => {
@@ -87,9 +90,8 @@ const handlePrintStatus = async (printData) => {
   const newStatus = printData.gcode_state;
   const subTaskName = printData.subtask_name;
 
-  // Save raw data for dynamic rendering
+  // Save raw data for dynamic rendering in the UI
   printState.raw = printData;
-  require('fs').writeFileSync('raw_mqtt_dump.json', JSON.stringify(printData, null, 2));
 
   // Live Telemetry
   if (printData.mc_percent !== undefined) printState.progress = printData.mc_percent;
@@ -215,7 +217,7 @@ const handlePrintStatus = async (printData) => {
       });
 
       // Reset state synchronously to prepare for next print
-      printState = { status: 'IDLE', name: '', startTime: null, startEnergy: 0, predictedWeights: [], activeTrays: [], progress: 0, remainingTime: 0, nozzleTemp: 0, nozzleTarget: 0, bedTemp: 0, bedTarget: 0, layerNum: 0, totalLayerNum: 0, raw: null, lastFetchedGcode: null };
+      printState = IDLE_STATE();
     } else {
       printState.status = newStatus;
     }

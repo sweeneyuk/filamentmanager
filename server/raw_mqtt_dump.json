@@ -59,7 +59,7 @@
         "dry_sf_reason": [
           6
         ],
-        "dry_time": 650,
+        "dry_time": 647,
         "humidity": "3",
         "humidity_raw": "17",
         "id": "0",
@@ -249,7 +249,7 @@
   "aux_part_fan": false,
   "batch_id": 0,
   "bed_target_temper": 0,
-  "bed_temper": 51,
+  "bed_temper": 48,
   "big_fan1_speed": "0",
   "big_fan2_speed": "0",
   "cali_version": 0,
@@ -331,11 +331,11 @@
     },
     "bed": {
       "info": {
-        "temp": 51
+        "temp": 48
       },
       "state": 0
     },
-    "bed_temp": 51,
+    "bed_temp": 48,
     "cam": {
       "laser": {
         "cond": 253,
@@ -374,7 +374,7 @@
           "spre": 65535,
           "star": 65535,
           "stat": 0,
-          "temp": 47,
+          "temp": 44,
           "z_bias": 0
         },
         {
@@ -388,13 +388,13 @@
           "spre": 65279,
           "star": 65279,
           "stat": 0,
-          "temp": 74,
+          "temp": 49,
           "z_bias": 0
         }
       ],
       "state": 274
     },
-    "fan": 6553600,
+    "fan": 0,
     "fila_switch": {
       "in": [
         -1,
@@ -585,7 +585,7 @@
   },
   "nozzle_diameter": "0.4",
   "nozzle_target_temper": 0,
-  "nozzle_temper": 74,
+  "nozzle_temper": 49,
   "nozzle_type": "HS01",
   "online": {
     "ahb": true,

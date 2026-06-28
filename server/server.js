@@ -1,8 +1,9 @@
 const express = require('express');
 const cors = require('cors');
-const { db, initDb, populateDefaults } = require('./database');
-const { connectMqtt, getAmsStatus } = require('./mqtt');
 const path = require('path');
+const multer = require('multer');
+const { db, initDb, populateDefaults } = require('./database');
+const { connectMqtt, getAmsStatus, getPrintState } = require('./mqtt');
 
 const app = express();
 const port = 3000;
@@ -174,7 +175,6 @@ app.get('/api/ams', (req, res) => {
 
 // GET /api/print_status
 app.get('/api/print_status', (req, res) => {
-  const { getPrintState } = require('./mqtt');
   res.json(getPrintState());
 });
 
@@ -213,7 +213,6 @@ app.post('/api/ams/assignments', (req, res) => {
 app.use('/media', express.static(path.join(__dirname, 'data/media')));
 
 // POST /api/import/bambuddy
-const multer = require('multer');
 const upload = multer({ dest: 'uploads/' });
 app.post('/api/import/bambuddy', upload.single('dbFile'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
