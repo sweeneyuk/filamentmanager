@@ -175,13 +175,13 @@ const handlePrintStatus = async (printData) => {
       const spoolDeductions = []; // Track exactly which spools were used
       
       // Deduct weight from assigned spools and compute costs
-      db.all('SELECT aa.tray_id, aa.spool_id, s.price, s.weight_g FROM ams_assignments aa LEFT JOIN spools s ON aa.spool_id = s.id', [], (err, assignments) => {
+      db.all('SELECT aa.tray_id, aa.spool_id, s.cost, s.total_weight FROM ams_assignments aa LEFT JOIN spools s ON aa.spool_id = s.id', [], (err, assignments) => {
         const assignMap = {};
         const costMap = {};
         if (!err && assignments) {
           assignments.forEach(a => {
             assignMap[a.tray_id] = a.spool_id;
-            costMap[a.spool_id] = (a.price > 0 && a.weight_g > 0) ? (a.price / a.weight_g) : 0;
+            costMap[a.spool_id] = (a.cost > 0 && a.total_weight > 0) ? (a.cost / a.total_weight) : 0;
           });
         }
 

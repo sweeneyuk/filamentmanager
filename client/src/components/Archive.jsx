@@ -80,6 +80,7 @@ function Archive() {
                 <th>Energy (kWh)</th>
                 <th>Spool</th>
                 <th>Energy Cost</th>
+                <th>Filament Cost</th>
                 <th>Total Cost</th>
                 <th>Media</th>
               </tr>
@@ -124,6 +125,7 @@ function Archive() {
                   ) : '-'}
                 </td>
                 <td>£{arch.energy_cost?.toFixed(2) || '0.00'}</td>
+                <td>£{arch.filament_cost?.toFixed(2) || '0.00'}</td>
                 <td style={{fontWeight: 'bold', color: 'var(--primary-color)'}}>
                   £{arch.total_cost?.toFixed(2) || '0.00'}
                 </td>

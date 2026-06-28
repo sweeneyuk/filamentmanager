@@ -113,6 +113,22 @@ function FilamentManager() {
     materialStats[matName].weight += (s.total_weight - s.used_weight);
   });
 
+  const getAmsLocation = (spoolId) => {
+    for (const [trayId, sId] of Object.entries(amsAssignments)) {
+      if (sId === spoolId) {
+        const parts = trayId.split('-');
+        if (parts.length === 2) {
+          // If amsId is 0, just "AMS Slot X" or "AMS 1 Slot X"
+          const amsNum = parseInt(parts[0]) === 0 ? 1 : Math.floor(parseInt(parts[0]) / 4) + 1;
+          const slotNum = parseInt(parts[1]) + 1;
+          return `AMS ${amsNum} Slot ${slotNum}`;
+        }
+        return trayId;
+      }
+    }
+    return null;
+  };
+
   // Filtering Logic
   let filteredSpools = spools;
   if (filter === 'Active') filteredSpools = spools.filter(s => !s.archived);
@@ -213,7 +229,7 @@ function FilamentManager() {
                   <td>{spool.material_name}</td>
                   <td>{spool.subtype || 'Basic'}</td>
                   <td>{spool.brand_name}</td>
-                  <td style={{color: '#b388ff'}}>{spool.location || '-'}</td>
+                  <td style={{color: '#b388ff'}}>{getAmsLocation(spool.id) || spool.location || '-'}</td>
                   <td>{spool.total_weight}g</td>
                   <td>{remaining.toFixed(0)}g</td>
                   <td>£{spool.cost?.toFixed(2) || '0.00'}</td>
