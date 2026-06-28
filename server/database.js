@@ -84,6 +84,18 @@ const initDb = () => {
           FOREIGN KEY (spool_id) REFERENCES spools(id)
         )
       `);
+
+      // Create archive_spools junction table - records exactly which spools were used for each print
+      db.run(`
+        CREATE TABLE IF NOT EXISTS archive_spools (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          archive_id INTEGER NOT NULL,
+          spool_id INTEGER NOT NULL,
+          weight_used_g REAL,
+          FOREIGN KEY (archive_id) REFERENCES archives(id),
+          FOREIGN KEY (spool_id) REFERENCES spools(id)
+        )
+      `);
       
       // Attempt to add new columns to an existing archives table (fails silently if they exist)
       db.run("ALTER TABLE archives ADD COLUMN timelapse_path TEXT", () => {});

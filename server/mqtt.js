@@ -160,6 +160,7 @@ const handlePrintStatus = async (printData) => {
 
       let filamentUsed = 0;
       const archivedState = { ...printState };
+      const spoolDeductions = []; // Track exactly which spools were used
       
       // Deduct weight from assigned spools
       db.all('SELECT tray_id, spool_id FROM ams_assignments', [], (err, assignments) => {
@@ -172,7 +173,10 @@ const handlePrintStatus = async (printData) => {
             filamentUsed += predicted;
             const spoolId = assignMap[trayId];
             if (spoolId) {
-              db.run('UPDATE spools SET used_weight = used_weight + ?, last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?', [predicted, archivedState.name, spoolId]);
+              db.run('UPDATE spools SET used_weight = used_weight + ?, last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
+                [predicted, archivedState.name, spoolId]);
+              // Record which spool was used — populated after archive insert below
+              spoolDeductions.push({ spoolId, predicted });
             }
           }
         });
@@ -195,6 +199,12 @@ const handlePrintStatus = async (printData) => {
           } else {
             const archiveId = this.lastID;
             console.log(`Print ${archivedState.name} archived with ID ${archiveId}.`);
+
+            // Record which spools were used for this specific archive entry
+            spoolDeductions.forEach(({ spoolId, predicted }) => {
+              db.run('INSERT INTO archive_spools (archive_id, spool_id, weight_used_g) VALUES (?, ?, ?)',
+                [archiveId, spoolId, predicted]);
+            });
             // Download timelapse and photo asynchronously after 60 seconds
             // This gives the printer time to render the final timelapse MP4
             setTimeout(async () => {

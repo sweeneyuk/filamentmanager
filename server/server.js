@@ -126,16 +126,18 @@ app.delete('/api/spools/:id', (req, res) => {
 
 // GET /api/archives
 app.get('/api/archives', (req, res) => {
-  // Join to spools that were used for each print (matched via last_print_name)
+  // Join to the archive_spools junction table for accurate per-print spool tracking
   const query = `
     SELECT 
       a.*,
       GROUP_CONCAT(sp.color, '|') as spool_colors,
       GROUP_CONCAT(sp.color_name, '|') as spool_color_names,
       GROUP_CONCAT(m.name, '|') as spool_materials,
-      GROUP_CONCAT(b.name, '|') as spool_brands
+      GROUP_CONCAT(b.name, '|') as spool_brands,
+      GROUP_CONCAT(aps.weight_used_g, '|') as spool_weights
     FROM archives a
-    LEFT JOIN spools sp ON sp.last_print_name = a.print_name
+    LEFT JOIN archive_spools aps ON aps.archive_id = a.id
+    LEFT JOIN spools sp ON aps.spool_id = sp.id
     LEFT JOIN brands b ON sp.brand_id = b.id
     LEFT JOIN materials m ON sp.material_id = m.id
     GROUP BY a.id
@@ -143,7 +145,6 @@ app.get('/api/archives', (req, res) => {
   `;
   db.all(query, [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
-    // Parse the pipe-delimited spool info into arrays
     const parsed = rows.map(r => ({
       ...r,
       spools_used: r.spool_brands ? r.spool_brands.split('|').map((brand, i) => ({
@@ -151,6 +152,7 @@ app.get('/api/archives', (req, res) => {
         material: r.spool_materials ? r.spool_materials.split('|')[i] : '',
         color: r.spool_colors ? r.spool_colors.split('|')[i] : null,
         color_name: r.spool_color_names ? r.spool_color_names.split('|')[i] : null,
+        weight_used_g: r.spool_weights ? parseFloat(r.spool_weights.split('|')[i]) : null,
       })) : []
     }));
     res.json(parsed);

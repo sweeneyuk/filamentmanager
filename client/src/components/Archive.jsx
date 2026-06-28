@@ -75,6 +75,7 @@ function Archive() {
                         <span key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: s.color || '#888', display: 'inline-block', flexShrink: 0 }}></span>
                           <span style={{ fontSize: '0.85rem' }}>{s.brand} {s.material}</span>
+                          {s.weight_used_g && <span style={{ fontSize: '0.75rem', color: '#888' }}>({s.weight_used_g.toFixed(1)}g)</span>}
                         </span>
                       ))}
                     </div>
