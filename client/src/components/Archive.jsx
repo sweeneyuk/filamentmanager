@@ -70,104 +70,121 @@ function Archive() {
         </div>
       </div>
       
-      <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
-        <div style={{ overflowX: 'auto' }}>
-          <table className="fm-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Print Name</th>
-                <th>Status</th>
-                <th>Duration</th>
-                <th>Energy (kWh)</th>
-                <th>Spool</th>
-                <th>Energy Cost</th>
-                <th>Filament Cost</th>
-                <th>Total Cost</th>
-                <th>Media</th>
-              </tr>
-            </thead>
-            <tbody>
-              {archives.map(arch => {
-                const d = new Date(arch.created_at);
-                return (
-                <tr key={arch.id}>
-                  <td>
-                    <div style={{ fontWeight: '500' }}>{d.toLocaleDateString()}</div>
-                    <div style={{ fontSize: '0.75rem', color: '#888' }}>{d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-                  </td>
-                  <td style={{ fontWeight: '500' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      {arch.photo_path ? (
-                        <div style={{ width: '40px', height: '40px', borderRadius: '4px', overflow: 'hidden', backgroundColor: 'var(--secondary-bg)', flexShrink: 0 }}>
-                          <img src={arch.photo_path} alt="Print thumbnail" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        </div>
-                      ) : (
-                        <div style={{ width: '40px', height: '40px', borderRadius: '4px', backgroundColor: 'var(--secondary-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <span style={{ fontSize: '1.2rem', opacity: 0.5 }}>🖨️</span>
-                        </div>
-                      )}
-                      <span>{arch.print_name || 'Unknown'}</span>
-                    </div>
-                  </td>
-                  <td>{getStatusBadge(arch.status)}</td>
-                  <td>{formatDuration(arch.duration_seconds)}</td>
-                <td>{arch.energy_kwh?.toFixed(3) || '0.000'}</td>
-                <td>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+        gap: '24px',
+        padding: '10px 0'
+      }}>
+        {archives.map(arch => {
+          const d = new Date(arch.created_at);
+          // If the final photo wasn't extracted successfully, fallback to thumbnail for the modal
+          const modalPhoto = arch.photo_path || arch.thumbnail_path;
+          
+          return (
+            <div key={arch.id} className="card" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              
+              {/* Thumbnail Header Area */}
+              <div style={{ position: 'relative', width: '100%', height: '220px', backgroundColor: 'var(--secondary-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {arch.thumbnail_path ? (
+                  <img 
+                    src={arch.thumbnail_path} 
+                    alt="Print Thumbnail" 
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                  />
+                ) : (
+                  <div style={{ fontSize: '3rem', opacity: 0.2 }}>🖨️</div>
+                )}
+                
+                {/* Media Overlay Buttons */}
+                <div style={{ position: 'absolute', bottom: '10px', right: '10px', display: 'flex', gap: '8px' }}>
+                  {arch.timelapse_path && (
+                    <button 
+                      onClick={() => setSelectedVideo(arch.timelapse_path)}
+                      style={{ 
+                        backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer', padding: '6px 10px', borderRadius: '6px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px', backdropFilter: 'blur(4px)'
+                      }}>
+                      🎥 Video
+                    </button>
+                  )}
+                  {modalPhoto && (
+                    <button 
+                      onClick={() => setSelectedPhoto(modalPhoto)}
+                      style={{ 
+                        backgroundColor: 'rgba(0,255,136,0.2)', color: '#fff', border: '1px solid rgba(0,255,136,0.4)', cursor: 'pointer', padding: '6px 10px', borderRadius: '6px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px', backdropFilter: 'blur(4px)'
+                      }}>
+                      📸 Photo
+                    </button>
+                  )}
+                </div>
+                
+                {/* Status Badge */}
+                <div style={{ position: 'absolute', top: '10px', left: '10px' }}>
+                  {getStatusBadge(arch.status)}
+                </div>
+              </div>
+
+              {/* Details Content */}
+              <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
+                
+                {/* Title and Time */}
+                <div>
+                  <h3 style={{ margin: '0 0 4px 0', fontSize: '1.1rem', wordBreak: 'break-word' }}>{arch.print_name || 'Unknown'}</h3>
+                  <div style={{ fontSize: '0.8rem', color: '#888', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>{d.toLocaleDateString()} {d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                    <span>⏱️ {formatDuration(arch.duration_seconds)}</span>
+                  </div>
+                </div>
+
+                <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '0' }} />
+
+                {/* Spools Used */}
+                <div style={{ fontSize: '0.85rem' }}>
+                  <div style={{ color: '#888', marginBottom: '6px' }}>Filament Used:</div>
                   {arch.spools_used && arch.spools_used.length > 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       {arch.spools_used.map((s, i) => (
-                        <span key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: s.color || '#888', display: 'inline-block', flexShrink: 0 }}></span>
-                          <span style={{ fontSize: '0.85rem' }}>{s.brand} {s.material}</span>
-                          {s.weight_used_g && <span style={{ fontSize: '0.75rem', color: '#888' }}>({s.weight_used_g.toFixed(1)}g)</span>}
-                        </span>
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: s.color || '#888', display: 'inline-block', flexShrink: 0 }}></span>
+                            <span>{s.brand} {s.material}</span>
+                          </div>
+                          {s.weight_used_g && <span style={{ color: '#888' }}>{s.weight_used_g.toFixed(1)}g</span>}
+                        </div>
                       ))}
                     </div>
-                  ) : '-'}
-                </td>
-                <td>£{arch.energy_cost?.toFixed(2) || '0.00'}</td>
-                <td>£{arch.filament_cost?.toFixed(2) || '0.00'}</td>
-                <td style={{fontWeight: 'bold', color: 'var(--primary-color)'}}>
-                  £{arch.total_cost?.toFixed(2) || '0.00'}
-                </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      {arch.photo_path && (
-                        <button 
-                          onClick={() => setSelectedPhoto(arch.photo_path)}
-                          style={{ 
-                            color: 'var(--primary-color)', border: 'none', cursor: 'pointer', backgroundColor: 'rgba(0,255,136,0.1)', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' 
-                          }}>
-                          📸 Photo
-                        </button>
-                      )}
-                      {arch.timelapse_path && (
-                        <button 
-                          onClick={() => setSelectedVideo(arch.timelapse_path)}
-                          style={{ 
-                            color: '#fff', border: 'none', cursor: 'pointer', backgroundColor: 'rgba(255,255,255,0.1)', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' 
-                          }}>
-                          🎥 Video
-                        </button>
-                      )}
-                      {!arch.photo_path && !arch.timelapse_path && <span style={{color: '#666', fontSize: '0.85rem'}}>None</span>}
-                    </div>
-                  </td>
-                </tr>
-                );
-              })}
-            {archives.length === 0 && (
-              <tr>
-                <td colSpan="9" style={{textAlign: 'center', color: '#888', padding: '40px 20px'}}>
-                  <div style={{ fontSize: '1.2rem', marginBottom: '10px' }}>No prints archived yet</div>
-                  <div>Once configured, prints will automatically appear here.</div>
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-        </div>
+                  ) : <span style={{ color: '#555' }}>None recorded</span>}
+                </div>
+
+                <div style={{ flex: 1 }}></div>
+
+                {/* Cost Breakdown */}
+                <div style={{ backgroundColor: 'var(--secondary-bg)', padding: '10px', borderRadius: '8px', fontSize: '0.85rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ color: '#888' }}>⚡ Energy ({arch.energy_kwh?.toFixed(3) || '0.00'} kWh)</span>
+                    <span>£{arch.energy_cost?.toFixed(2) || '0.00'}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ color: '#888' }}>🧵 Filament</span>
+                    <span>£{arch.filament_cost?.toFixed(2) || '0.00'}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', paddingTop: '6px', borderTop: '1px solid rgba(255,255,255,0.1)', fontWeight: 'bold', color: 'var(--primary-color)' }}>
+                    <span>Total Cost</span>
+                    <span>£{arch.total_cost?.toFixed(2) || '0.00'}</span>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          );
+        })}
+        {archives.length === 0 && (
+          <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#888', padding: '40px 20px', backgroundColor: 'var(--card-bg)', borderRadius: '12px' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '10px', opacity: 0.5 }}>🖨️</div>
+            <div style={{ fontSize: '1.2rem', marginBottom: '10px' }}>No prints archived yet</div>
+            <div>Once configured, prints will automatically appear here.</div>
+          </div>
+        )}
       </div>
 
       {selectedVideo && (

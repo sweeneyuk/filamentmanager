@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const AdmZip = require('adm-zip');
 const { db } = require('./database');
+const { execSync } = require('child_process');
 
 // Ensure media directory exists
 const mediaDir = path.join(__dirname, 'data', 'media');
@@ -78,45 +79,33 @@ const downloadLatestTimelapseAndPhoto = async (printName, archiveId, gcodeFile =
       console.log('Could not fetch timelapse (maybe disabled or missing folder):', err.message);
     }
 
-    // 2. Try to fetch the latest thumbnail/photo (bambu often stores thumbnails near the gcode or a specific cam folder)
-    try {
-      const list = await client.list('/cam');
-      const jpgs = list.filter(f => f.name.endsWith('.jpg') || f.name.endsWith('.png')).sort((a, b) => b.name.localeCompare(a.name));
-      
-      if (jpgs.length > 0) {
-        const latestJpg = jpgs[0];
-        const ext = path.extname(latestJpg.name);
-        const localPath = path.join(mediaDir, `${archiveId}_photo${ext}`);
-        await client.downloadTo(localPath, `/cam/${latestJpg.name}`);
-        photoPath = `/media/${archiveId}_photo${ext}`;
-        console.log(`Downloaded photo: ${latestJpg.name}`);
-      }
-    } catch (err) {
-      console.log('Could not fetch photo from /cam:', err.message);
-    }
-    
-    // 3. Fallback: extract thumbnail directly from the .3mf file
-    if (!photoPath && gcodeFile && gcodeFile.toLowerCase().endsWith('.3mf')) {
+    // 2. Extract the final frame from the timelapse to use as the finished photo
+    if (timelapsePath) {
       try {
-        console.log(`Attempting to extract thumbnail from ${gcodeFile}`);
-        const localTemp3mf = path.join(mediaDir, `${archiveId}_temp.3mf`);
-        await client.downloadTo(localTemp3mf, gcodeFile);
-        
-        const zip = new AdmZip(localTemp3mf);
-        const zipEntries = zip.getEntries();
-        // Bambu Studio embeds the thumbnail at Metadata/plate_1.png
-        const thumbnailEntry = zipEntries.find(e => e.entryName.toLowerCase() === 'metadata/plate_1.png');
-        
-        if (thumbnailEntry) {
-          const localThumbPath = path.join(mediaDir, `${archiveId}_photo.png`);
-          fs.writeFileSync(localThumbPath, thumbnailEntry.getData());
-          photoPath = `/media/${archiveId}_photo.png`;
-          console.log(`Successfully extracted 3MF thumbnail for archive ${archiveId}`);
-        }
-        
-        fs.unlinkSync(localTemp3mf);
+        const localPhotoPath = path.join(mediaDir, `${archiveId}_photo.jpg`);
+        const localTimelapsePath = path.join(mediaDir, `${archiveId}_timelapse.mp4`);
+        // Grab frames from the last 1 second, updating the same file so the last frame remains
+        execSync(`ffmpeg -y -sseof -1 -i "${localTimelapsePath}" -update 1 -q:v 2 "${localPhotoPath}"`, { stdio: 'ignore' });
+        photoPath = `/media/${archiveId}_photo.jpg`;
+        console.log(`Successfully extracted final frame from timelapse.`);
       } catch (err) {
-        console.log('Failed to extract thumbnail from 3MF:', err.message);
+        console.log(`Failed to extract final frame with ffmpeg: ${err.message}`);
+      }
+    } else {
+      // Fallback: If no timelapse, try to fetch from /cam
+      try {
+        const list = await client.list('/cam');
+        const jpgs = list.filter(f => f.name.endsWith('.jpg') || f.name.endsWith('.png')).sort((a, b) => b.name.localeCompare(a.name));
+        if (jpgs.length > 0) {
+          const latestJpg = jpgs[0];
+          const ext = path.extname(latestJpg.name);
+          const localPath = path.join(mediaDir, `${archiveId}_photo${ext}`);
+          await client.downloadTo(localPath, `/cam/${latestJpg.name}`);
+          photoPath = `/media/${archiveId}_photo${ext}`;
+          console.log(`Downloaded photo from /cam: ${latestJpg.name}`);
+        }
+      } catch (err) {
+        console.log('Could not fetch photo from /cam:', err.message);
       }
     }
 
@@ -127,6 +116,45 @@ const downloadLatestTimelapseAndPhoto = async (printName, archiveId, gcodeFile =
     if (client) client.close();
     console.error('FTP Error during download:', err.message);
     return { timelapsePath: null, photoPath: null };
+  }
+};
+
+/**
+ * Extracts the 3MF thumbnail at the start of a print.
+ */
+const extractThumbnailFrom3mf = async (gcodeFile, prefix) => {
+  if (!gcodeFile || !gcodeFile.toLowerCase().endsWith('.3mf')) return null;
+  
+  let client;
+  try {
+    client = await connectFtp();
+    const localTemp3mf = path.join(mediaDir, `${prefix}_temp_thumb.3mf`);
+    
+    let cleanPath = gcodeFile.startsWith('/data/') ? gcodeFile.substring(5) : gcodeFile;
+    if (!cleanPath.startsWith('/')) cleanPath = '/' + cleanPath;
+    
+    console.log(`Attempting to extract initial thumbnail from ${cleanPath}`);
+    await client.downloadTo(localTemp3mf, cleanPath);
+    
+    const zip = new AdmZip(localTemp3mf);
+    const zipEntries = zip.getEntries();
+    const thumbnailEntry = zipEntries.find(e => e.entryName.toLowerCase() === 'metadata/plate_1.png');
+    
+    let thumbnailPath = null;
+    if (thumbnailEntry) {
+      const localThumbPath = path.join(mediaDir, `${prefix}_thumbnail.png`);
+      fs.writeFileSync(localThumbPath, thumbnailEntry.getData());
+      thumbnailPath = `/media/${prefix}_thumbnail.png`;
+      console.log(`Successfully extracted initial 3MF thumbnail for prefix ${prefix}`);
+    }
+    
+    fs.unlinkSync(localTemp3mf);
+    client.close();
+    return thumbnailPath;
+  } catch (err) {
+    if (client) client.close();
+    console.log('Failed to extract initial thumbnail from 3MF:', err.message);
+    return null;
   }
 };
 
@@ -246,5 +274,6 @@ const getPredictedWeights = async (gcodeFile, subtaskName) => {
 module.exports = {
   connectFtp,
   downloadLatestTimelapseAndPhoto,
+  extractThumbnailFrom3mf,
   getPredictedWeights
 };

@@ -82,6 +82,7 @@ const initDb = () => {
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           timelapse_path TEXT,
           photo_path TEXT,
+          thumbnail_path TEXT,
           FOREIGN KEY (spool_id) REFERENCES spools(id)
         )
       `);

@@ -195,10 +195,10 @@ const handlePrintStatus = async (printData) => {
         printState.activeTrays = [`0-${printData.vt_tray.id}`]; // naive fallback
       }
 
-      // Start fetching the 3MF weights asynchronously in the background
+      // Start fetching the 3MF weights and thumbnail asynchronously in the background
       if (printData.gcode_file && printState.lastFetchedGcode !== printData.gcode_file) {
         printState.lastFetchedGcode = printData.gcode_file;
-        const { getPredictedWeights } = require('./ftp');
+        const { getPredictedWeights, extractThumbnailFrom3mf } = require('./ftp');
         getPredictedWeights(printData.gcode_file, printData.subtask_name).then(res => {
           if (res && res.weights && Array.isArray(res.weights)) {
             printState.predictedWeights = res.weights;
@@ -206,6 +206,14 @@ const handlePrintStatus = async (printData) => {
             console.log('Successfully extracted predicted weights:', res.weights);
           }
         }).catch(err => console.log('Failed to fetch weights via FTP:', err.message));
+        
+        // Extract thumbnail right away with a timestamp prefix
+        const thumbPrefix = Date.now().toString();
+        extractThumbnailFrom3mf(printData.gcode_file, thumbPrefix).then(thumbPath => {
+          if (thumbPath) {
+            printState.thumbnailPath = thumbPath;
+          }
+        }).catch(err => console.log('Failed to fetch thumbnail via FTP:', err.message));
       }
 
     } else if ((newStatus === 'FINISH' || newStatus === 'FAILED') && printState.status === 'RUNNING') {
@@ -264,9 +272,9 @@ const handlePrintStatus = async (printData) => {
 
         // Save to archive first to get ID
         db.run(`
-          INSERT INTO archives (print_name, status, duration_seconds, energy_kwh, energy_cost, filament_used_g, filament_cost, total_cost)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `, [archivedState.name, newStatus, durationSeconds, energyUsed, energyCost, filamentUsed, filamentCost, totalCost], async function(err) {
+          INSERT INTO archives (print_name, status, duration_seconds, energy_kwh, energy_cost, filament_used_g, filament_cost, total_cost, thumbnail_path)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [archivedState.name, newStatus, durationSeconds, energyUsed, energyCost, filamentUsed, filamentCost, totalCost, archivedState.thumbnailPath || null], async function(err) {
           if (err) {
             console.error('Failed to save archive:', err);
           } else {
