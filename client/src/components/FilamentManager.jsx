@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import SpoolModal from './SpoolModal';
+import { io } from 'socket.io-client';
 
 function FilamentManager() {
   const [spools, setSpools] = useState([]);
@@ -19,8 +20,17 @@ function FilamentManager() {
   useEffect(() => {
     fetchData();
     fetchAms();
-    const interval = setInterval(fetchAms, 5000);
-    return () => clearInterval(interval);
+    const socket = io();
+
+    socket.on('ams_update', (data) => {
+      setAmsData(data);
+    });
+
+    socket.on('ams_assignments_update', (data) => {
+      setAmsAssignments(data);
+    });
+
+    return () => socket.disconnect();
   }, []);
 
   const fetchData = async () => {

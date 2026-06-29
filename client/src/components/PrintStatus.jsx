@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import namer from 'color-namer';
+import { io } from 'socket.io-client';
 
 function PrintStatus() {
   const [amsData, setAmsData] = useState(null);
@@ -13,8 +14,21 @@ function PrintStatus() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 2500);
-    return () => clearInterval(interval);
+    const socket = io();
+
+    socket.on('print_state_update', (data) => {
+      setPrintState(data);
+    });
+
+    socket.on('ams_update', (data) => {
+      setAmsData(data);
+    });
+
+    socket.on('ams_assignments_update', (data) => {
+      setAmsAssignments(data);
+    });
+
+    return () => socket.disconnect();
   }, []);
 
   const fetchData = async () => {

@@ -4,6 +4,7 @@ const { getPrinterEnergyUsage, getEnergyRate } = require('./ha');
 
 let client = null;
 let currentAmsData = {};
+let ioInstance = null;
 const IDLE_STATE = () => ({
   status: 'IDLE',
   name: '',
@@ -250,6 +251,11 @@ const handlePrintStatus = async (printData) => {
       printState.status = newStatus;
     }
   }
+
+  if (ioInstance) {
+    ioInstance.emit('print_state_update', printState);
+    ioInstance.emit('ams_update', currentAmsData);
+  }
 };
 
 const getAmsStatus = () => {
@@ -260,8 +266,13 @@ const getPrintState = () => {
   return printState;
 };
 
+const setIo = (io) => {
+  ioInstance = io;
+};
+
 module.exports = {
   connectMqtt,
   getAmsStatus,
-  getPrintState
+  getPrintState,
+  setIo
 };

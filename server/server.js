@@ -3,10 +3,29 @@ const cors = require('cors');
 const path = require('path');
 const multer = require('multer');
 const { db, initDb, populateDefaults } = require('./database');
-const { connectMqtt, getAmsStatus, getPrintState } = require('./mqtt');
+const { connectMqtt, getAmsStatus, getPrintState, setIo } = require('./mqtt');
+const http = require('http');
+const { Server } = require('socket.io');
 
 const app = express();
 const port = 3000;
+
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE']
+  }
+});
+
+setIo(io);
+
+io.on('connection', (socket) => {
+  // console.log('Client connected to WebSocket');
+  socket.on('disconnect', () => {
+    // console.log('Client disconnected');
+  });
+});
 
 app.use(cors());
 app.use(express.json({ limit: '100kb' }));
@@ -208,14 +227,31 @@ app.post('/api/ams/assignments', (req, res) => {
   if (spool_id === null || spool_id === '') {
     db.run('DELETE FROM ams_assignments WHERE tray_id = ?', [tray_id], err => {
       if (err) return res.status(500).json({ error: err.message });
+      // Broadcast change
+      db.all('SELECT tray_id, spool_id FROM ams_assignments', [], (err, rows) => {
+        if (!err) {
+          const assignments = {};
+          rows.forEach(r => assignments[r.tray_id] = r.spool_id);
+          io.emit('ams_assignments_update', assignments);
+        }
+      });
       res.json({ success: true });
     });
   } else {
     db.run(`
-      INSERT INTO ams_assignments (tray_id, spool_id) VALUES (?, ?)
+      INSERT INTO ams_assignments (tray_id, spool_id) 
+      VALUES (?, ?) 
       ON CONFLICT(tray_id) DO UPDATE SET spool_id = excluded.spool_id
     `, [tray_id, spool_id], err => {
       if (err) return res.status(500).json({ error: err.message });
+      // Broadcast change
+      db.all('SELECT tray_id, spool_id FROM ams_assignments', [], (err, rows) => {
+        if (!err) {
+          const assignments = {};
+          rows.forEach(r => assignments[r.tray_id] = r.spool_id);
+          io.emit('ams_assignments_update', assignments);
+        }
+      });
       res.json({ success: true });
     });
   }
@@ -379,6 +415,6 @@ app.use((req, res) => {
   res.sendFile(path.join(__dirname, '../client/dist/index.html'));
 });
 
-app.listen(port, () => {
+server.listen(port, () => {
   console.log(`Backend server running on http://localhost:${port}`);
 });
