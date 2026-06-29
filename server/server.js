@@ -27,8 +27,24 @@ io.on('connection', (socket) => {
   });
 });
 
+// Middleware
 app.use(cors());
-app.use(express.json({ limit: '100kb' }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+const authRoutes = require('./authRoutes');
+const { authenticateToken } = require('./auth');
+
+// Auth routes (unprotected)
+app.use('/api/auth', authRoutes);
+
+// Protect all other API routes
+app.use('/api', authenticateToken, (req, res, next) => {
+  if (req.setupRequired) {
+    return res.status(403).json({ error: 'Setup Required', setupRequired: true });
+  }
+  next();
+});
 
 // Serve React static files in production
 app.use(express.static(path.join(__dirname, '../client/dist')));
@@ -297,6 +313,7 @@ app.get('/api/export/csv', (req, res) => {
 });
 
 // POST /api/import/csv
+const upload = multer({ dest: 'uploads/' });
 app.post('/api/import/csv', upload.single('csvFile'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No CSV file uploaded' });
   const csv = require('csv-parser');

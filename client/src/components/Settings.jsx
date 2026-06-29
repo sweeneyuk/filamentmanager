@@ -9,10 +9,14 @@ function Settings() {
     ha_url: '',
     ha_token: '',
     ha_energy_entity: '',
-    ha_rate_entity: ''
+    ha_rate_entity: '',
+    oidc_issuer: '',
+    oidc_client_id: '',
+    oidc_client_secret: ''
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const { logout } = useAuth();
 
   useEffect(() => {
     axios.get('/api/settings').then(res => {
@@ -102,6 +106,26 @@ function Settings() {
           </div>
           <button type="button" onClick={() => testConnection('ha')} style={{ backgroundColor: '#2b2b2b', marginTop: '10px' }}>
             Test HA Connection
+          </button>
+        </div>
+
+        <div className="settings-section">
+          <h2>Authentication & Security</h2>
+          <p className="settings-desc">Optional: Configure an OpenID Connect (OIDC) provider like Authentik for SSO.</p>
+          <div className="form-group">
+            <label>OIDC Issuer URL</label>
+            <input type="text" name="oidc_issuer" value={settings.oidc_issuer || ''} onChange={handleChange} placeholder="https://authentik.domain.com/application/o/filamentmanager/" />
+          </div>
+          <div className="form-group">
+            <label>OIDC Client ID</label>
+            <input type="text" name="oidc_client_id" value={settings.oidc_client_id || ''} onChange={handleChange} />
+          </div>
+          <div className="form-group">
+            <label>OIDC Client Secret</label>
+            <input type="password" name="oidc_client_secret" value={settings.oidc_client_secret || ''} onChange={handleChange} />
+          </div>
+          <button type="button" onClick={logout} style={{ backgroundColor: '#aa3333', marginTop: '10px' }}>
+            Logout
           </button>
         </div>
 

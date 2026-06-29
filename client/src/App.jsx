@@ -4,8 +4,19 @@ import FilamentManager from './components/FilamentManager';
 import Archive from './components/Archive';
 import Settings from './components/Settings';
 import PrintStatus from './components/PrintStatus';
+import Login from './components/Login';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 
-function App() {
+const PrivateRoute = ({ children }) => {
+  const { user, loading, setupRequired } = useAuth();
+
+  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--text-color)' }}>Loading...</div>;
+  if (!user || setupRequired) return <Login />;
+
+  return children;
+};
+
+function MainApp() {
   return (
     <Router>
       <div className="app-container">
@@ -28,14 +39,22 @@ function App() {
         
         <main className="main-content">
           <Routes>
-            <Route path="/" element={<FilamentManager />} />
-            <Route path="/print-status" element={<PrintStatus />} />
-            <Route path="/archive" element={<Archive />} />
-            <Route path="/settings" element={<Settings />} />
+            <Route path="/" element={<PrivateRoute><FilamentManager /></PrivateRoute>} />
+            <Route path="/print-status" element={<PrivateRoute><PrintStatus /></PrivateRoute>} />
+            <Route path="/archive" element={<PrivateRoute><Archive /></PrivateRoute>} />
+            <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
           </Routes>
         </main>
       </div>
     </Router>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <MainApp />
+    </AuthProvider>
   );
 }
 

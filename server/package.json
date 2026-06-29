@@ -14,13 +14,16 @@
     "adm-zip": "^0.5.17",
     "axios": "^1.18.1",
     "basic-ftp": "^6.0.1",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "csv-parser": "^3.2.1",
     "csv-writer": "^1.6.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
     "mqtt": "^5.15.1",
     "multer": "^2.2.0",
+    "openid-client": "^6.8.4",
     "socket.io": "^4.8.3",
     "sqlite3": "^6.0.1"
   }
