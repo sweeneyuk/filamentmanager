@@ -116,41 +116,42 @@ function PrintStatus() {
           </div>
 
           <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>🌡️ Nozzle</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.nozzleTemp || 0}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {printState.nozzleTarget || 0}°C</span></div>
+            </div>
+
+            <div style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>🛏️ Bed</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.bedTemp || 0}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {printState.bedTarget || 0}°C</span></div>
+            </div>
+
+            {printState.chamberTemp !== undefined && printState.chamberTemp > 0 && (
+              <div style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>📦 Chamber</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.chamberTemp}°C</div>
+              </div>
+            )}
+
+            <div style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>💡 Light</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.light ? 'On' : 'Off'}</div>
+            </div>
+
             {(() => {
               const temps = [];
               if (printState.raw) {
-                // Check if we have dual extruder data — if so, skip the generic nozzle_temper key
-                const extInfo = printState.raw.device?.extruder?.info || printState.raw.extruder?.info;
-                const extTarget = printState.raw.device?.extruder?.target || printState.raw.extruder?.target;
-                const hasDualExtruder = extInfo && Array.isArray(extInfo) && extInfo.length > 1;
-
-                Object.keys(printState.raw).forEach(key => {
-                  if (key.endsWith('_temper') && !key.includes('target')) {
-                    // Skip generic nozzle_temper when we have per-extruder data
-                    if (key === 'nozzle_temper' && hasDualExtruder) return;
-
-                    const baseName = key.replace('_temper', '');
-                    const current = printState.raw[key];
-                    const target = printState.raw[`${baseName}_target_temper`] || 0;
-                    const title = baseName.charAt(0).toUpperCase() + baseName.slice(1).replace('_', ' ') + ' Temp';
-                    
-                    temps.push(
-                      <div key={key} style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>{title}</div>
-                        <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{current}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {target}°C</span></div>
-                      </div>
-                    );
-                  } else if (key.endsWith('_speed')) {
-                    const baseName = key.replace('_speed', '');
-                    let title = baseName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') + ' Fan';
-                    if (title === 'Cooling Fan Fan') title = 'Part Fan';
-                    if (title === 'Big Fan1 Fan') title = 'Aux Fan';
-                    if (title === 'Big Fan2 Fan') title = 'Chamber Fan';
-                    if (title === 'Heatbreak Fan Fan') title = 'Heatbreak Fan';
-                    
-                    const rawSpeed = parseInt(printState.raw[key] || 0, 10);
+                // Fan speeds
+                const speeds = {
+                  'cooling_fan_speed': '💨 Part Fan',
+                  'heatbreak_fan_speed': '💨 Hotend Fan',
+                  'big_fan1_speed': '💨 Aux Fan',
+                  'big_fan2_speed': '💨 Chamber Fan'
+                };
+                Object.entries(speeds).forEach(([key, title]) => {
+                  if (printState.raw[key] !== undefined && printState.raw[key] !== '0') {
+                    const rawSpeed = parseInt(printState.raw[key], 10);
                     const speedPercent = rawSpeed === 0 ? "Off" : `${Math.round((rawSpeed / 15) * 100)}%`;
-                    
                     temps.push(
                       <div key={key} style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
                         <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>{title}</div>
@@ -160,42 +161,29 @@ function PrintStatus() {
                   }
                 });
 
-                // Dual extruder: render Left / Right nozzle cards with targets
+                // Dual extruder support
+                const hasDualExtruder = printState.raw.ext_info && Array.isArray(printState.raw.ext_info) && printState.raw.ext_info.length > 1;
                 if (hasDualExtruder) {
                   const labels = ['Left Nozzle', 'Right Nozzle'];
-                  const targets = extTarget || [];
-                  extInfo.forEach((ext, i) => {
-                    // Skip disconnected / sentinel values
+                  const extTarget = printState.raw.ext_target || [];
+                  printState.raw.ext_info.forEach((ext, i) => {
                     if (ext.temp <= 0 || ext.temp >= 1000) return;
                     const label = labels[i] || `Nozzle ${i + 1}`;
-                    const target = (Array.isArray(targets) && targets.length > i) ? targets[i] : (printState.raw.nozzle_target_temper || 0);
+                    const target = (Array.isArray(extTarget) && extTarget.length > i) ? extTarget[i] : (printState.raw.nozzle_target_temper || 0);
                     temps.push(
                       <div key={`ext_${i}`} style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>{label}</div>
+                        <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>🌡️ {label}</div>
                         <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{ext.temp}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {target}°C</span></div>
                       </div>
                     );
                   });
                 }
               }
-              
-              if (temps.length === 0) {
-                temps.push(
-                  <div key="nozzle" style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>Nozzle Temp</div>
-                    <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.nozzleTemp || 0}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {printState.nozzleTarget || 0}°C</span></div>
-                  </div>,
-                  <div key="bed" style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>Bed Temp</div>
-                    <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.bedTemp || 0}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {printState.bedTarget || 0}°C</span></div>
-                  </div>
-                );
-              }
               return temps;
             })()}
 
             <div style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>Layer</div>
+              <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>📶 Layer</div>
               <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.layerNum || 0} <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {printState.totalLayerNum || 0}</span></div>
             </div>
           </div>
@@ -231,7 +219,7 @@ function PrintStatus() {
                     const hasFilament = tray.tray_type && tray.tray_type !== '';
                     const hexColor = tray.tray_color ? `#${tray.tray_color.substring(0, 6)}` : '#333';
                     const trayId = `${amsUnit.id}-${tIndex}`;
-                    const isActive = printState && printState.status === 'RUNNING' && printState.activeTrays && printState.activeTrays.includes(trayId);
+                    const isActive = printState && printState.status === 'RUNNING' && printState.currentTrayId === trayId;
                     return (
                       <div key={tIndex} style={{ 
                         flex: 1, 

@@ -20,6 +20,8 @@ const IDLE_STATE = () => ({
   nozzleTarget: 0,
   bedTemp: 0,
   bedTarget: 0,
+  chamberTemp: 0,
+  light: false,
   layerNum: 0,
   totalLayerNum: 0,
   raw: null
@@ -102,6 +104,10 @@ const handlePrintStatus = async (printData) => {
   if (printData.nozzle_target_temper !== undefined) printState.nozzleTarget = printData.nozzle_target_temper;
   if (printData.bed_temper !== undefined) printState.bedTemp = printData.bed_temper;
   if (printData.bed_target_temper !== undefined) printState.bedTarget = printData.bed_target_temper;
+  if (printData.chamber_temper !== undefined) printState.chamberTemp = printData.chamber_temper;
+  if (printData.lights_report && printData.lights_report.length > 0) {
+    printState.light = printData.lights_report[0].mode === "on";
+  }
   if (printData.layer_num !== undefined) printState.layerNum = printData.layer_num;
   if (printData.total_layer_num !== undefined) printState.totalLayerNum = printData.total_layer_num;
 
@@ -229,7 +235,7 @@ const handlePrintStatus = async (printData) => {
             setTimeout(async () => {
               try {
                 const { downloadLatestTimelapseAndPhoto } = require('./ftp');
-                const paths = await downloadLatestTimelapseAndPhoto(archivedState.name, archiveId);
+                const paths = await downloadLatestTimelapseAndPhoto(archivedState.name, archiveId, archivedState.raw.gcode_file);
                 
                 if (paths.timelapsePath || paths.photoPath) {
                   db.run(

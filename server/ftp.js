@@ -53,7 +53,7 @@ const connectFtp = async () => {
 /**
  * Downloads the most recent timelapse from the /timelapse folder.
  */
-const downloadLatestTimelapseAndPhoto = async (printName, archiveId) => {
+const downloadLatestTimelapseAndPhoto = async (printName, archiveId, gcodeFile = null) => {
   let client;
   try {
     client = await connectFtp();
@@ -95,6 +95,31 @@ const downloadLatestTimelapseAndPhoto = async (printName, archiveId) => {
       console.log('Could not fetch photo from /cam:', err.message);
     }
     
+    // 3. Fallback: extract thumbnail directly from the .3mf file
+    if (!photoPath && gcodeFile && gcodeFile.toLowerCase().endsWith('.3mf')) {
+      try {
+        console.log(`Attempting to extract thumbnail from ${gcodeFile}`);
+        const localTemp3mf = path.join(mediaDir, `${archiveId}_temp.3mf`);
+        await client.downloadTo(localTemp3mf, gcodeFile);
+        
+        const zip = new AdmZip(localTemp3mf);
+        const zipEntries = zip.getEntries();
+        // Bambu Studio embeds the thumbnail at Metadata/plate_1.png
+        const thumbnailEntry = zipEntries.find(e => e.entryName.toLowerCase() === 'metadata/plate_1.png');
+        
+        if (thumbnailEntry) {
+          const localThumbPath = path.join(mediaDir, `${archiveId}_photo.png`);
+          fs.writeFileSync(localThumbPath, thumbnailEntry.getData());
+          photoPath = `/media/${archiveId}_photo.png`;
+          console.log(`Successfully extracted 3MF thumbnail for archive ${archiveId}`);
+        }
+        
+        fs.unlinkSync(localTemp3mf);
+      } catch (err) {
+        console.log('Failed to extract thumbnail from 3MF:', err.message);
+      }
+    }
+
     client.close();
     
     return { timelapsePath, photoPath };
