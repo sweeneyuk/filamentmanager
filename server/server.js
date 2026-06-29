@@ -397,16 +397,24 @@ app.get('/api/test/ha', async (req, res) => {
   }
 });
 
-// GET /api/test/mqtt
-app.get('/api/test/mqtt', async (req, res) => {
+// GET /api/test/bambu
+app.get('/api/test/bambu', async (req, res) => {
   const { connectFtp } = require('./ftp');
+  const { db } = require('./database');
+  
   try {
-    // We can also test FTPS here since they use the same credentials
     const ftpClient = await connectFtp();
     ftpClient.close();
     res.json({ success: true, message: 'Successfully connected to Bambu Lab Printer (MQTT/FTPS verified)' });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    db.get("SELECT value FROM settings WHERE key = 'printer_mode'", (dbErr, row) => {
+      const mode = row ? row.value : 'lan';
+      if (mode === 'cloud') {
+        res.json({ success: true, message: 'Successfully connected in Cloud Mode! (Note: FTPS media downloads are unavailable over cloud)' });
+      } else {
+        res.status(500).json({ success: false, message: `FTPS Connection Failed: ${err.message}` });
+      }
+    });
   }
 });
 
