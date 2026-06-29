@@ -260,19 +260,6 @@ app.post('/api/ams/assignments', (req, res) => {
 // Serve Media directory
 app.use('/media', express.static(path.join(__dirname, 'data/media')));
 
-// POST /api/import/bambuddy
-const upload = multer({ dest: 'uploads/' });
-app.post('/api/import/bambuddy', upload.single('dbFile'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  const { importBambuddyDb } = require('./import');
-  try {
-    await importBambuddyDb(req.file.path);
-    res.json({ success: true, message: 'Database imported successfully!' });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
-
 // GET /api/export/csv
 app.get('/api/export/csv', (req, res) => {
   const { createObjectCsvStringifier } = require('csv-writer');

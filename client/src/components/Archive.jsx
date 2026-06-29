@@ -3,7 +3,9 @@ import axios from 'axios';
 
 function Archive() {
   const [archives, setArchives] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedVideo, setSelectedVideo] = useState(null);
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
 
   useEffect(() => {
     fetchArchives();
@@ -132,11 +134,13 @@ function Archive() {
                   <td>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       {arch.photo_path && (
-                        <a href={arch.photo_path} target="_blank" rel="noreferrer" style={{ 
-                          color: 'var(--primary-color)', textDecoration: 'none', backgroundColor: 'rgba(0,255,136,0.1)', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' 
-                        }}>
+                        <button 
+                          onClick={() => setSelectedPhoto(arch.photo_path)}
+                          style={{ 
+                            color: 'var(--primary-color)', border: 'none', cursor: 'pointer', backgroundColor: 'rgba(0,255,136,0.1)', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' 
+                          }}>
                           📸 Photo
-                        </a>
+                        </button>
                       )}
                       {arch.timelapse_path && (
                         <button 
@@ -216,6 +220,63 @@ function Archive() {
               controls 
               autoPlay 
               style={{ width: '100%', maxHeight: '80vh', display: 'block' }} 
+            />
+          </div>
+        </div>
+      )}
+
+      {selectedPhoto && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          backdropFilter: 'blur(4px)'
+        }} onClick={() => setSelectedPhoto(null)}>
+          <div style={{
+            position: 'relative',
+            width: '80%',
+            maxWidth: '1000px',
+            backgroundColor: 'var(--card-bg)',
+            borderRadius: '12px',
+            overflow: 'hidden',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }} onClick={e => e.stopPropagation()}>
+            <button 
+              onClick={() => setSelectedPhoto(null)}
+              style={{
+                position: 'absolute',
+                top: '15px',
+                right: '15px',
+                background: 'rgba(0,0,0,0.5)',
+                color: 'white',
+                border: 'none',
+                width: '40px',
+                height: '40px',
+                borderRadius: '50%',
+                fontSize: '1.2rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 10
+              }}
+            >
+              ×
+            </button>
+            <img 
+              src={selectedPhoto} 
+              alt="Print Photo"
+              style={{ width: '100%', maxHeight: '80vh', objectFit: 'contain', display: 'block' }} 
             />
           </div>
         </div>

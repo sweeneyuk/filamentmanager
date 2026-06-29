@@ -46,26 +46,6 @@ function Settings() {
     setSaving(false);
   };
 
-  const handleUploadBambuddy = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    
-    const formData = new FormData();
-    formData.append('dbFile', file);
-    
-    try {
-      setLoading(true);
-      const res = await axios.post('/api/import/bambuddy', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      alert(res.data.message);
-    } catch (err) {
-      alert(`Import failed: ${err.response?.data?.message || err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   if (loading) return <div>Loading...</div>;
 
   return (
@@ -129,19 +109,6 @@ function Settings() {
           {saving ? 'Saving...' : 'Save Settings'}
         </button>
       </form>
-
-      <div className="card" style={{ marginTop: '20px' }}>
-        <h2>Import from Bambuddy</h2>
-        <p style={{ fontSize: '0.9rem', color: '#ccc', marginBottom: '15px' }}>
-          Upload your <code>bambuddy.db</code> SQLite file to automatically import your Brands, Materials, and Spools.
-        </p>
-        <input 
-          type="file" 
-          accept=".db,.sqlite" 
-          onChange={handleUploadBambuddy} 
-          style={{ padding: '10px', backgroundColor: '#1a1a1a', borderRadius: '4px', width: '100%' }}
-        />
-      </div>
     </div>
   );
 }
