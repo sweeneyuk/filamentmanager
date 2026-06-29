@@ -17,25 +17,29 @@ const PrivateRoute = ({ children }) => {
 };
 
 function MainApp() {
+  const { user, setupRequired } = useAuth();
+  
   return (
     <Router>
       <div className="app-container">
-        <nav className="sidebar">
-          <h1>Filament Manager</h1>
-          <NavLink to="/print-status" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-            <Printer size={20} /> Print Status
-          </NavLink>
-          <NavLink to="/" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-            <Database size={20} /> Spool Inventory
-          </NavLink>
-          <NavLink to="/archive" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-            <ArchiveIcon size={20} /> Print Archive
-          </NavLink>
-          <div style={{ flex: 1 }}></div>
-          <NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-            <SettingsIcon size={20} /> Settings
-          </NavLink>
-        </nav>
+        {user && !setupRequired && (
+          <nav className="sidebar">
+            <h1>Filament Manager</h1>
+            <NavLink to="/print-status" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+              <Printer size={20} /> Print Status
+            </NavLink>
+            <NavLink to="/" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+              <Database size={20} /> Spool Inventory
+            </NavLink>
+            <NavLink to="/archive" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+              <ArchiveIcon size={20} /> Print Archive
+            </NavLink>
+            <div style={{ flex: 1 }}></div>
+            <NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+              <SettingsIcon size={20} /> Settings
+            </NavLink>
+          </nav>
+        )}
         
         <main className="main-content">
           <Routes>
