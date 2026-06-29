@@ -15,13 +15,21 @@ function FilamentManager() {
   const [editingSpool, setEditingSpool] = useState(null);
   const [filter, setFilter] = useState('Active'); // Active, Archived, All, Used, New, Low Stock
   const [viewMode, setViewMode] = useState(localStorage.getItem('fm_view_mode') || 'table');
-  const [sortConfig, setSortConfig] = useState({ key: 'id', direction: 'desc' });
+  const [showStats, setShowStats] = useState(false);
+  const [sortConfig, setSortConfig] = useState(() => {
+    const saved = localStorage.getItem('fm_sort_config');
+    return saved ? JSON.parse(saved) : { key: 'id', direction: 'desc' };
+  });
   
   const fileInputRef = useRef(null);
 
   useEffect(() => {
     localStorage.setItem('fm_view_mode', viewMode);
   }, [viewMode]);
+
+  useEffect(() => {
+    localStorage.setItem('fm_sort_config', JSON.stringify(sortConfig));
+  }, [sortConfig]);
 
   useEffect(() => {
     fetchData();
@@ -221,6 +229,9 @@ function FilamentManager() {
             <div style={{ fontSize: '0.85rem', color: '#888' }}>Track your spools, costs, and weights.</div>
           </div>
           <div className="fm-actions">
+            <button className="btn-secondary" onClick={() => setShowStats(!showStats)} style={{ marginRight: '10px' }}>
+              {showStats ? 'Hide Stats ▲' : 'Show Stats ▼'}
+            </button>
             <div className="view-toggle">
               <button className={`toggle-btn ${viewMode === 'table' ? 'active' : ''}`} onClick={() => setViewMode('table')}>≣</button>
               <button className={`toggle-btn ${viewMode === 'grid' ? 'active' : ''}`} onClick={() => setViewMode('grid')}>⊞</button>
@@ -233,33 +244,35 @@ function FilamentManager() {
         </div>
       </div>
 
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-title">TOTAL INVENTORY</div>
-          <div className="stat-value">{(totalInventoryWeight / 1000).toFixed(1)}kg</div>
-          <div className="stat-subtitle">{activeSpools.length} spools</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-title">TOTAL CONSUMED</div>
-          <div className="stat-value">{(totalConsumedWeight / 1000).toFixed(1)}kg</div>
-          <div className="stat-subtitle">Since tracking started</div>
-        </div>
-        <div className="stat-card" style={{ flex: 2 }}>
-          <div className="stat-title">BY MATERIAL</div>
-          <div className="stat-materials">
-            {Object.entries(materialStats).map(([mat, data]) => (
-              <span key={mat} className="material-badge" style={{borderColor: data.color}}>
-                <span style={{color: data.color, fontWeight: 'bold'}}>{mat}</span> {(data.weight/1000).toFixed(1)}kg
-              </span>
-            ))}
+      {showStats && (
+        <div className="stats-grid">
+          <div className="stat-card">
+            <div className="stat-title">TOTAL INVENTORY</div>
+            <div className="stat-value">{(totalInventoryWeight / 1000).toFixed(1)}kg</div>
+            <div className="stat-subtitle">{activeSpools.length} spools</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-title">TOTAL CONSUMED</div>
+            <div className="stat-value">{(totalConsumedWeight / 1000).toFixed(1)}kg</div>
+            <div className="stat-subtitle">Since tracking started</div>
+          </div>
+          <div className="stat-card" style={{ flex: 2 }}>
+            <div className="stat-title">BY MATERIAL</div>
+            <div className="stat-materials">
+              {Object.entries(materialStats).map(([mat, data]) => (
+                <span key={mat} className="material-badge" style={{borderColor: data.color}}>
+                  <span style={{color: data.color, fontWeight: 'bold'}}>{mat}</span> {(data.weight/1000).toFixed(1)}kg
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="stat-card" style={{ borderRight: '3px solid #ff9800' }}>
+            <div className="stat-title" style={{color: '#ff9800'}}>LOW STOCK</div>
+            <div className="stat-value" style={{color: '#ff9800'}}>{lowStockCount}</div>
+            <div className="stat-subtitle">&lt; 20% remaining</div>
           </div>
         </div>
-        <div className="stat-card" style={{ borderRight: '3px solid #ff9800' }}>
-          <div className="stat-title" style={{color: '#ff9800'}}>LOW STOCK</div>
-          <div className="stat-value" style={{color: '#ff9800'}}>{lowStockCount}</div>
-          <div className="stat-subtitle">&lt; 20% remaining</div>
-        </div>
-      </div>
+      )}
 
       <div className="tabs">
         {['Active', 'Archived', 'All', 'Used', 'New', 'Low Stock'].map(f => (
