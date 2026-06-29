@@ -195,6 +195,7 @@ const getPredictedWeights = async (gcodeFile, subtaskName) => {
   try {
     client = await connectFtp();
     let weights = null;
+    let successfulPath = null;
 
     let cleanPath = gcodeFile.startsWith('/data/') ? gcodeFile.substring(5) : gcodeFile;
     if (!cleanPath.startsWith('/')) cleanPath = '/' + cleanPath;
@@ -223,6 +224,7 @@ const getPredictedWeights = async (gcodeFile, subtaskName) => {
       const fn = isPathGcode ? extractWeightsFromGcode : extractWeightsFrom3mf;
       weights = await fn(client, p);
       if (weights) {
+        successfulPath = p;
         console.log(`Successfully extracted weights from ${p}`);
         break;
       }
@@ -233,11 +235,11 @@ const getPredictedWeights = async (gcodeFile, subtaskName) => {
     }
 
     client.close();
-    return weights;
+    return { weights, path: successfulPath };
   } catch (err) {
     if (client) client.close();
     console.error('FTP Error getting weights:', err.message);
-    return null;
+    return { weights: null, path: null };
   }
 };
 

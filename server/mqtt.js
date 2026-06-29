@@ -5,17 +5,17 @@ const { getPrinterEnergyUsage, getEnergyRate } = require('./ha');
 let client = null;
 let currentAmsData = {};
 let ioInstance = null;
+
 const IDLE_STATE = () => ({
   status: 'IDLE',
   name: '',
-  startTime: null,
-  startEnergy: 0,
-  predictedWeights: [], // Extracted from 3MF
-  activeTrays: [],      // Tray IDs being used (e.g., '0-0')
-  currentTrayId: null,  // The single tray actively feeding right now
-  lastFetchedGcode: null,
   progress: 0,
   remainingTime: 0,
+  startTime: null,
+  startEnergy: 0,
+  predictedWeights: [],
+  activeTrays: [],
+  currentTrayId: null,
   nozzleTemp: 0,
   nozzleTarget: 0,
   bedTemp: 0,
@@ -24,10 +24,38 @@ const IDLE_STATE = () => ({
   light: false,
   layerNum: 0,
   totalLayerNum: 0,
+  stage: 'Idle',
+  activeGcodeFile: null,
   raw: null
 });
 
 let printState = IDLE_STATE();
+
+const PRINT_STAGES = {
+  "-1": "Idle",
+  "0": "Printing",
+  "1": "Auto Bed Leveling",
+  "2": "Heating Bed",
+  "3": "Sweeping XY Mech Mode",
+  "4": "Changing Filament",
+  "5": "M400 Pause",
+  "6": "Paused (Filament Runout)",
+  "7": "Heating Hotend",
+  "8": "Calibrating Extrusion",
+  "9": "Scanning Bed Surface",
+  "10": "Inspecting First Layer",
+  "11": "Identifying Build Plate",
+  "12": "Calibrating Micro Lidar",
+  "13": "Homing Toolhead",
+  "14": "Cleaning Nozzle Tip",
+  "15": "Checking Extruder Temp",
+  "16": "Paused (User)",
+  "17": "Pause (Front Cover Falling)",
+  "18": "Calibrating Micro Lidar",
+  "19": "Calibrating Extrusion Flow",
+  "20": "Paused (Nozzle Temp Malfunction)",
+  "21": "Paused (Bed Temp Malfunction)"
+};
 
 // Helper to get settings
 const getSetting = (key) => {
@@ -110,6 +138,9 @@ const handlePrintStatus = async (printData) => {
   }
   if (printData.layer_num !== undefined) printState.layerNum = printData.layer_num;
   if (printData.total_layer_num !== undefined) printState.totalLayerNum = printData.total_layer_num;
+  if (printData.stg_cur !== undefined) {
+    printState.stage = PRINT_STAGES[printData.stg_cur.toString()] || `Stage ${printData.stg_cur}`;
+  }
 
   // Track exactly which spool is currently feeding (updates continuously)
   if (printData.ams && printData.ams.tray_now !== undefined) {
@@ -152,10 +183,11 @@ const handlePrintStatus = async (printData) => {
       if (printData.gcode_file && printState.lastFetchedGcode !== printData.gcode_file) {
         printState.lastFetchedGcode = printData.gcode_file;
         const { getPredictedWeights } = require('./ftp');
-        getPredictedWeights(printData.gcode_file, printData.subtask_name).then(weights => {
-          if (weights && Array.isArray(weights)) {
-            printState.predictedWeights = weights;
-            console.log('Successfully extracted predicted weights:', weights);
+        getPredictedWeights(printData.gcode_file, printData.subtask_name).then(res => {
+          if (res && res.weights && Array.isArray(res.weights)) {
+            printState.predictedWeights = res.weights;
+            if (res.path) printState.activeGcodeFile = res.path;
+            console.log('Successfully extracted predicted weights:', res.weights);
           }
         }).catch(err => console.log('Failed to fetch weights via FTP:', err.message));
       }
@@ -235,7 +267,9 @@ const handlePrintStatus = async (printData) => {
             setTimeout(async () => {
               try {
                 const { downloadLatestTimelapseAndPhoto } = require('./ftp');
-                const paths = await downloadLatestTimelapseAndPhoto(archivedState.name, archiveId, archivedState.raw.gcode_file);
+                // Use the successfully identified gcode file path from start of print, fallback to raw
+                const gcodePath = archivedState.activeGcodeFile || archivedState.raw.gcode_file;
+                const paths = await downloadLatestTimelapseAndPhoto(archivedState.name, archiveId, gcodePath);
                 
                 if (paths.timelapsePath || paths.photoPath) {
                   db.run(

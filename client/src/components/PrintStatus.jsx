@@ -95,12 +95,12 @@ function PrintStatus() {
         </div>
       </div>
 
-      {printState && printState.status !== 'IDLE' && (
+      {printState && (
         <div className="card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--primary-color)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
             <div>
-              <h2 style={{ margin: '0 0 5px 0', color: 'var(--primary-color)' }}>CURRENT PRINT ({printState.status})</h2>
-              <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.name || 'Unknown Print'}</div>
+              <h2 style={{ margin: '0 0 5px 0', color: 'var(--primary-color)' }}>CURRENT PRINT ({printState.stage || printState.status})</h2>
+              <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.name || 'Idle / No Active Print'}</div>
               <div style={{ fontSize: '0.85rem', color: '#888' }}>Started: {printState.startTime ? new Date(printState.startTime).toLocaleTimeString() : 'N/A'}</div>
             </div>
             <div style={{ textAlign: 'right' }}>
@@ -116,22 +116,40 @@ function PrintStatus() {
           </div>
 
           <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-            <div style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>🌡️ Nozzle</div>
-              <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.nozzleTemp || 0}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {printState.nozzleTarget || 0}°C</span></div>
-            </div>
+            {(() => {
+              const hasDualExtruder = printState.raw?.ext_info && Array.isArray(printState.raw.ext_info) && printState.raw.ext_info.length > 1;
+              if (hasDualExtruder) {
+                const labels = ['Left Nozzle', 'Right Nozzle'];
+                const extTarget = printState.raw.ext_target || [];
+                return printState.raw.ext_info.map((ext, i) => {
+                  const label = labels[i] || `Nozzle ${i + 1}`;
+                  const target = (Array.isArray(extTarget) && extTarget.length > i) ? extTarget[i] : (printState.raw.nozzle_target_temper || 0);
+                  return (
+                    <div key={`ext_${i}`} style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>🌡️ {label}</div>
+                      <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{ext.temp || 0}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {target}°C</span></div>
+                    </div>
+                  );
+                });
+              } else {
+                return (
+                  <div style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>🌡️ Nozzle</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.nozzleTemp || 0}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {printState.nozzleTarget || 0}°C</span></div>
+                  </div>
+                );
+              }
+            })()}
 
             <div style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
               <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>🛏️ Bed</div>
               <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.bedTemp || 0}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {printState.bedTarget || 0}°C</span></div>
             </div>
 
-            {printState.chamberTemp !== undefined && printState.chamberTemp > 0 && (
-              <div style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>📦 Chamber</div>
-                <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.chamberTemp}°C</div>
-              </div>
-            )}
+            <div style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>📦 Chamber</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.chamberTemp || 0}°C</div>
+            </div>
 
             <div style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
               <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>💡 Light</div>
@@ -139,47 +157,22 @@ function PrintStatus() {
             </div>
 
             {(() => {
-              const temps = [];
-              if (printState.raw) {
-                // Fan speeds
-                const speeds = {
-                  'cooling_fan_speed': '💨 Part Fan',
-                  'heatbreak_fan_speed': '💨 Hotend Fan',
-                  'big_fan1_speed': '💨 Aux Fan',
-                  'big_fan2_speed': '💨 Chamber Fan'
-                };
-                Object.entries(speeds).forEach(([key, title]) => {
-                  if (printState.raw[key] !== undefined && printState.raw[key] !== '0') {
-                    const rawSpeed = parseInt(printState.raw[key], 10);
-                    const speedPercent = rawSpeed === 0 ? "Off" : `${Math.round((rawSpeed / 15) * 100)}%`;
-                    temps.push(
-                      <div key={key} style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>{title}</div>
-                        <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{speedPercent}</div>
-                      </div>
-                    );
-                  }
-                });
-
-                // Dual extruder support
-                const hasDualExtruder = printState.raw.ext_info && Array.isArray(printState.raw.ext_info) && printState.raw.ext_info.length > 1;
-                if (hasDualExtruder) {
-                  const labels = ['Left Nozzle', 'Right Nozzle'];
-                  const extTarget = printState.raw.ext_target || [];
-                  printState.raw.ext_info.forEach((ext, i) => {
-                    if (ext.temp <= 0 || ext.temp >= 1000) return;
-                    const label = labels[i] || `Nozzle ${i + 1}`;
-                    const target = (Array.isArray(extTarget) && extTarget.length > i) ? extTarget[i] : (printState.raw.nozzle_target_temper || 0);
-                    temps.push(
-                      <div key={`ext_${i}`} style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>🌡️ {label}</div>
-                        <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{ext.temp}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {target}°C</span></div>
-                      </div>
-                    );
-                  });
-                }
-              }
-              return temps;
+              const speeds = {
+                'cooling_fan_speed': '💨 Part Fan',
+                'heatbreak_fan_speed': '💨 Hotend Fan',
+                'big_fan1_speed': '💨 Aux Fan',
+                'big_fan2_speed': '💨 Chamber Fan'
+              };
+              return Object.entries(speeds).map(([key, title]) => {
+                const rawSpeed = printState.raw ? parseInt(printState.raw[key] || 0, 10) : 0;
+                const speedPercent = rawSpeed === 0 ? "Off" : `${Math.round((rawSpeed / 15) * 100)}%`;
+                return (
+                  <div key={key} style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>{title}</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{speedPercent}</div>
+                  </div>
+                );
+              });
             })()}
 
             <div style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
