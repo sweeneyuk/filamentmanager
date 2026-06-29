@@ -151,6 +151,12 @@ const handlePrintStatus = async (printData) => {
   if (printData.stg_cur !== undefined) {
     printState.stage = PRINT_STAGES[printData.stg_cur.toString()] || `Stage ${printData.stg_cur}`;
   }
+  
+  if (printData.chamber_temper !== undefined) {
+    printState.chamberTemp = printData.chamber_temper;
+  } else if (printData.device?.ctc?.info?.temp !== undefined) {
+    printState.chamberTemp = printData.device.ctc.info.temp;
+  }
 
   // Track exactly which spool is currently feeding (updates continuously)
   if (printData.ams && printData.ams.tray_now !== undefined) {

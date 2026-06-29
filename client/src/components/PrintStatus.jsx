@@ -124,12 +124,16 @@ function PrintStatus() {
                 const labels = ['Left Nozzle', 'Right Nozzle'];
                 return extInfo.map((ext, i) => {
                   const label = labels[i] || `Nozzle ${i + 1}`;
-                  // Fall back to the main target if the individual target isn't present
-                  const target = ext.htar > 1 ? ext.htar : (printState.raw.nozzle_target_temper || 0);
+                  // Decode packed 32-bit temp if firmware sends it (e.g. 9175180)
+                  const isPacked = ext.temp > 1000;
+                  const currentTemp = isPacked ? (ext.temp & 0xFFFF) : (ext.temp || 0);
+                  const explicitTarget = isPacked ? (ext.temp >> 16) : ext.htar;
+                  const target = explicitTarget > 1 ? explicitTarget : (printState.raw.nozzle_target_temper || 0);
+                  
                   return (
                     <div key={`ext_${i}`} style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
                       <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>🌡️ {label}</div>
-                      <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{ext.temp || 0}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {target}°C</span></div>
+                      <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{currentTemp}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {target}°C</span></div>
                     </div>
                   );
                 });
