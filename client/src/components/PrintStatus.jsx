@@ -117,13 +117,15 @@ function PrintStatus() {
 
           <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
             {(() => {
-              const hasDualExtruder = printState.raw?.ext_info && Array.isArray(printState.raw.ext_info) && printState.raw.ext_info.length > 1;
+              const extInfo = printState.raw?.device?.extruder?.info;
+              const hasDualExtruder = extInfo && Array.isArray(extInfo) && extInfo.length > 1;
+              
               if (hasDualExtruder) {
                 const labels = ['Left Nozzle', 'Right Nozzle'];
-                const extTarget = printState.raw.ext_target || [];
-                return printState.raw.ext_info.map((ext, i) => {
+                return extInfo.map((ext, i) => {
                   const label = labels[i] || `Nozzle ${i + 1}`;
-                  const target = (Array.isArray(extTarget) && extTarget.length > i) ? extTarget[i] : (printState.raw.nozzle_target_temper || 0);
+                  // Fall back to the main target if the individual target isn't present
+                  const target = ext.htar > 1 ? ext.htar : (printState.raw.nozzle_target_temper || 0);
                   return (
                     <div key={`ext_${i}`} style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
                       <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>🌡️ {label}</div>
