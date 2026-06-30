@@ -52,6 +52,31 @@ function SpoolModal({ isOpen, onClose, editingSpool, brands, materials, onSave }
     });
   };
 
+  const handleAddBrand = async () => {
+    const name = window.prompt('Enter the name of the new Brand:');
+    if (!name) return;
+    const weight = window.prompt('Enter the default empty spool weight in grams (e.g. 200):', '250');
+    try {
+      const res = await axios.post('/api/brands', { name, default_empty_weight: parseFloat(weight) || 250 });
+      onSave(); // Refetch lists in parent
+      setNewSpool(prev => ({ ...prev, brand_id: res.data.id, empty_weight: res.data.default_empty_weight }));
+    } catch (e) {
+      alert('Failed to add brand');
+    }
+  };
+
+  const handleAddMaterial = async () => {
+    const name = window.prompt('Enter the name of the new Material (e.g. PLA+):');
+    if (!name) return;
+    try {
+      const res = await axios.post('/api/materials', { name });
+      onSave(); // Refetch lists in parent
+      setNewSpool(prev => ({ ...prev, material_id: res.data.id }));
+    } catch (e) {
+      alert('Failed to add material');
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -76,14 +101,20 @@ function SpoolModal({ isOpen, onClose, editingSpool, brands, materials, onSave }
         <form onSubmit={handleSubmit}>
           <div className="form-row">
             <div className="form-group">
-              <label>Brand</label>
+              <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                Brand
+                <span style={{ cursor: 'pointer', color: 'var(--primary-color)', fontSize: '0.8rem', fontWeight: 'bold' }} onClick={handleAddBrand}>+ Add New</span>
+              </label>
               <select value={newSpool.brand_id} onChange={handleBrandChange} required>
                 {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </div>
             
             <div className="form-group">
-              <label>Material</label>
+              <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                Material
+                <span style={{ cursor: 'pointer', color: 'var(--primary-color)', fontSize: '0.8rem', fontWeight: 'bold' }} onClick={handleAddMaterial}>+ Add New</span>
+              </label>
               <select value={newSpool.material_id} onChange={(e) => setNewSpool({...newSpool, material_id: e.target.value})} required>
                 {materials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>

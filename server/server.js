@@ -104,11 +104,33 @@ app.get('/api/brands', (req, res) => {
   });
 });
 
+// POST /api/brands
+app.post('/api/brands', (req, res) => {
+  const { name, default_empty_weight } = req.body;
+  if (!name) return res.status(400).json({ error: 'Name is required' });
+  
+  db.run('INSERT INTO brands (name, default_empty_weight) VALUES (?, ?)', [name, default_empty_weight || 250], function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ id: this.lastID, name, default_empty_weight });
+  });
+});
+
 // GET /api/materials
 app.get('/api/materials', (req, res) => {
   db.all('SELECT * FROM materials', [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
+  });
+});
+
+// POST /api/materials
+app.post('/api/materials', (req, res) => {
+  const { name } = req.body;
+  if (!name) return res.status(400).json({ error: 'Name is required' });
+  
+  db.run('INSERT INTO materials (name) VALUES (?)', [name], function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ id: this.lastID, name });
   });
 });
 
