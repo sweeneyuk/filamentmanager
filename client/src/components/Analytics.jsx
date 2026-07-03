@@ -1,9 +1,5 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line
-} from 'recharts';
 
 function Analytics() {
   const [data, setData] = useState([]);
@@ -18,32 +14,21 @@ function Analytics() {
 
   if (loading) return <div>Loading Analytics...</div>;
 
-  // Process data for charts
-  const materialDataMap = {};
-  const costDataMap = {}; // Group by month
+  // Calculate totals
+  let totalCost = 0;
+  let totalEnergy = 0;
+  let totalFilamentCost = 0;
+  let totalWeightG = 0;
   
   data.forEach(print => {
-    // Material Pie Chart
-    if (print.material) {
-      if (!materialDataMap[print.material]) {
-        materialDataMap[print.material] = { name: print.material, value: 0, color: print.color || '#8884d8' };
-      }
-      materialDataMap[print.material].value += (print.filament_used_g || 0);
-    }
-
-    // Cost Line Chart (Group by YYYY-MM)
-    const date = new Date(print.created_at);
-    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-    if (!costDataMap[monthKey]) {
-      costDataMap[monthKey] = { name: monthKey, energy: 0, filament: 0, total: 0 };
-    }
-    costDataMap[monthKey].energy += (print.energy_cost || 0);
-    costDataMap[monthKey].filament += (print.filament_cost || 0);
-    costDataMap[monthKey].total += (print.total_cost || 0);
+    totalCost += (print.total_cost || 0);
+    totalEnergy += (print.energy_cost || 0);
+    totalFilamentCost += (print.filament_cost || 0);
+    totalWeightG += (print.filament_used_g || 0);
   });
 
-  const materialData = Object.values(materialDataMap).sort((a, b) => b.value - a.value);
-  const costData = Object.values(costDataMap).sort((a, b) => a.name.localeCompare(b.name));
+  const totalWeightKg = (totalWeightG / 1000).toFixed(2);
+  const totalPrints = data.length;
 
   return (
     <div>
@@ -57,56 +42,27 @@ function Analytics() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 350px), 1fr))', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
         
-        <div className="card">
-          <h3>Filament Consumption by Material (g)</h3>
-          <div style={{ width: '100%', height: 300 }}>
-            {materialData.length > 0 ? (
-              <ResponsiveContainer>
-                <PieChart>
-                  <Pie
-                    data={materialData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={100}
-                    fill="#8884d8"
-                    dataKey="value"
-                    nameKey="name"
-                    label={({name, percent}) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  >
-                    {materialData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => `${value.toFixed(1)}g`} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : <div style={{ color: '#888', textAlign: 'center', marginTop: '100px' }}>No print data available</div>}
-          </div>
+        <div className="card" style={{ textAlign: 'center', padding: '30px' }}>
+          <div style={{ fontSize: '0.9rem', color: '#888', marginBottom: '10px' }}>TOTAL PRINTS</div>
+          <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'var(--primary-color)' }}>{totalPrints}</div>
         </div>
 
-        <div className="card">
-          <h3>Printing Costs over Time (£)</h3>
-          <div style={{ width: '100%', height: 300 }}>
-            {costData.length > 0 ? (
-              <ResponsiveContainer>
-                <BarChart data={costData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                  <XAxis dataKey="name" stroke="#888" />
-                  <YAxis stroke="#888" />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--border-color)' }}
-                    formatter={(value) => `£${value.toFixed(2)}`} 
-                  />
-                  <Legend />
-                  <Bar dataKey="filament" stackId="a" name="Filament Cost" fill="var(--primary-color)" />
-                  <Bar dataKey="energy" stackId="a" name="Energy Cost" fill="#f59e0b" />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : <div style={{ color: '#888', textAlign: 'center', marginTop: '100px' }}>No cost data available</div>}
-          </div>
+        <div className="card" style={{ textAlign: 'center', padding: '30px' }}>
+          <div style={{ fontSize: '0.9rem', color: '#888', marginBottom: '10px' }}>FILAMENT USED</div>
+          <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#8b5cf6' }}>{totalWeightKg} <span style={{ fontSize: '1rem' }}>kg</span></div>
+        </div>
+
+        <div className="card" style={{ textAlign: 'center', padding: '30px' }}>
+          <div style={{ fontSize: '0.9rem', color: '#888', marginBottom: '10px' }}>TOTAL COST</div>
+          <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#10b981' }}>£{totalCost.toFixed(2)}</div>
+          <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '10px' }}>Filament: £{totalFilamentCost.toFixed(2)}</div>
+        </div>
+
+        <div className="card" style={{ textAlign: 'center', padding: '30px' }}>
+          <div style={{ fontSize: '0.9rem', color: '#888', marginBottom: '10px' }}>ENERGY COST</div>
+          <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#f59e0b' }}>£{totalEnergy.toFixed(2)}</div>
         </div>
 
       </div>
