@@ -492,9 +492,7 @@ button.btn-primary:hover {
   right: 0;
   bottom: 0;
   background-color: rgba(0, 0, 0, 0.7);
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
+  display: block;
   padding: 40px 20px;
   overflow-y: auto;
   z-index: 1000;
@@ -506,11 +504,11 @@ button.btn-primary:hover {
   padding: 25px;
   border-radius: 8px;
   width: 100%;
-  max-width: 500px;
+  max-width: 650px;
   box-sizing: border-box;
   border: 1px solid var(--border-color);
   box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-  margin: auto;
+  margin: 0 auto;
 }
 
 .form-group {
