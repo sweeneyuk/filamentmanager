@@ -127,26 +127,8 @@ const initDb = () => {
 };
 
 const populateDefaults = () => {
-  const brands = [
-    { name: 'Bambu Lab', weight: 250 },
-    { name: 'eSUN', weight: 230 },
-    { name: 'Sunlu', weight: 240 },
-    { name: 'Polymaker', weight: 200 },
-    { name: 'Overture', weight: 250 },
-    { name: 'Hatchbox', weight: 230 }
-  ];
-
-  const materials = ['PLA', 'PETG', 'ABS', 'ASA', 'TPU', 'PC', 'PA'];
-
-  db.serialize(() => {
-    brands.forEach(brand => {
-      db.run(`INSERT OR IGNORE INTO brands (name, default_empty_weight) VALUES (?, ?)`, [brand.name, brand.weight]);
-    });
-    
-    materials.forEach(material => {
-      db.run(`INSERT OR IGNORE INTO materials (name) VALUES (?)`, [material]);
-    });
-  });
+  // We no longer hardcode defaults on every boot.
+  // Brands and materials are now populated via fetched data and user input.
 };
 
 module.exports = {
