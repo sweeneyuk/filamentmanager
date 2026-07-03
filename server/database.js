@@ -127,8 +127,45 @@ const initDb = () => {
 };
 
 const populateDefaults = () => {
-  // We no longer hardcode defaults on every boot.
-  // Brands and materials are now populated via fetched data and user input.
+  const defaultBrands = [
+    ['Bambu Lab', 256],
+    ['Creality', 140],
+    ['Elegoo', 138],
+    ['Eryone', 220],
+    ['eSUN (Cardboard)', 160],
+    ['eSUN (Plastic)', 224],
+    ['Geeetech', 230],
+    ['Hatchbox (Plastic)', 225],
+    ['Landu', 250],
+    ['MatterHackers (Build Series)', 213],
+    ['MatterHackers (Pro Series)', 312],
+    ['MatterHackers (Quantum)', 217],
+    ['Overture (Cardboard)', 165],
+    ['Overture (Plastic)', 237],
+    ['Polymaker (Cardboard)', 145],
+    ['Polymaker (Plastic)', 148],
+    ['Prusament', 201],
+    ['Sunlu (Cardboard)', 170],
+    ['Sunlu (Plastic)', 190],
+    ['Generic', 250]
+  ];
+  
+  db.get('SELECT COUNT(*) as count FROM brands', (err, row) => {
+    if (!err && row.count === 0) {
+      const stmt = db.prepare('INSERT INTO brands (name, default_empty_weight) VALUES (?, ?)');
+      defaultBrands.forEach(b => stmt.run(b[0], b[1]));
+      stmt.finalize();
+    }
+  });
+
+  const defaultMaterials = ['PLA', 'PETG', 'ABS', 'TPU', 'ASA', 'PC', 'Nylon'];
+  db.get('SELECT COUNT(*) as count FROM materials', (err, row) => {
+    if (!err && row.count === 0) {
+      const stmt = db.prepare('INSERT INTO materials (name) VALUES (?)');
+      defaultMaterials.forEach(m => stmt.run(m));
+      stmt.finalize();
+    }
+  });
 };
 
 module.exports = {
