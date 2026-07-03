@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import namer from 'color-namer';
 import { io } from 'socket.io-client';
+import { useAlert } from '../contexts/AlertContext';
 
 function PrintStatus() {
+  const { showAlert, showPrompt } = useAlert();
   const [amsData, setAmsData] = useState(null);
   const [amsAssignments, setAmsAssignments] = useState({});
   const [spools, setSpools] = useState([]);
@@ -48,18 +50,20 @@ function PrintStatus() {
     } catch (err) {}
   };
 
-  const handleRenameAms = async (amsId) => {
+  const handleRenameAms = (amsId) => {
     const defaultName = amsId === "128" || amsId === "255" ? "External Spool" : `AMS ${parseInt(amsId) + 1}`;
     const currentName = settings[`ams_name_${amsId}`] || defaultName;
-    const newName = prompt(`Enter a new name for this AMS (or clear to reset):`, currentName);
-    if (newName !== null) {
-      try {
-        await axios.post('/api/settings', { [`ams_name_${amsId}`]: newName.trim() });
-        fetchData();
-      } catch (err) {
-        alert('Failed to rename AMS');
+    
+    showPrompt(`Rename ${defaultName}`, 'Enter a new name for this AMS (or clear to reset):', currentName, async (newName) => {
+      if (newName !== null) {
+        try {
+          await axios.post('/api/settings', { [`ams_name_${amsId}`]: newName.trim() });
+          fetchData();
+        } catch (err) {
+          showAlert('Error', 'Failed to rename AMS', true);
+        }
       }
-    }
+    });
   };
 
   const handleAssignAms = async (trayId, spoolId) => {
@@ -67,7 +71,7 @@ function PrintStatus() {
       await axios.post('/api/ams/assignments', { tray_id: trayId, spool_id: spoolId });
       fetchData();
     } catch (err) {
-      alert('Failed to assign spool to AMS');
+      showAlert('Error', 'Failed to assign spool to AMS', true);
     }
   };
 

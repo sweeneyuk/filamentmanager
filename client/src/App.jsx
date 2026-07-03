@@ -7,6 +7,7 @@ import Settings from './components/Settings';
 import PrintStatus from './components/PrintStatus';
 import Login from './components/Login';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AlertProvider } from './contexts/AlertContext';
 
 const PrivateRoute = ({ children }) => {
   const { user, loading, setupRequired } = useAuth();
@@ -61,9 +62,11 @@ function MainApp() {
 
 function App() {
   return (
-    <AuthProvider>
-      <MainApp />
-    </AuthProvider>
+    <AlertProvider>
+      <AuthProvider>
+        <MainApp />
+      </AuthProvider>
+    </AlertProvider>
   );
 }
 

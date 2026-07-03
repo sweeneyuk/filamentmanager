@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useAlert } from '../contexts/AlertContext';
 
 function SpoolModal({ isOpen, onClose, editingSpool, brands, materials, onSave }) {
+  const { showAlert, showPrompt } = useAlert();
   const [newSpool, setNewSpool] = useState({
     brand_id: '',
     material_id: '',
@@ -52,29 +54,32 @@ function SpoolModal({ isOpen, onClose, editingSpool, brands, materials, onSave }
     });
   };
 
-  const handleAddBrand = async () => {
-    const name = window.prompt('Enter the name of the new Brand:');
-    if (!name) return;
-    const weight = window.prompt('Enter the default empty spool weight in grams (e.g. 200):', '250');
-    try {
-      const res = await axios.post('/api/brands', { name, default_empty_weight: parseFloat(weight) || 250 });
-      onSave(); // Refetch lists in parent
-      setNewSpool(prev => ({ ...prev, brand_id: res.data.id, empty_weight: res.data.default_empty_weight }));
-    } catch (e) {
-      alert('Failed to add brand');
-    }
+  const handleAddBrand = () => {
+    showPrompt('Add Brand', 'Enter the name of the new Brand:', '', (name) => {
+      if (!name) return;
+      showPrompt('Brand Weight', 'Enter the default empty spool weight in grams (e.g. 200):', '250', async (weight) => {
+        try {
+          const res = await axios.post('/api/brands', { name, default_empty_weight: parseFloat(weight) || 250 });
+          onSave(); // Refetch lists in parent
+          setNewSpool(prev => ({ ...prev, brand_id: res.data.id, empty_weight: res.data.default_empty_weight }));
+        } catch (e) {
+          showAlert('Error', 'Failed to add brand', true);
+        }
+      });
+    });
   };
 
-  const handleAddMaterial = async () => {
-    const name = window.prompt('Enter the name of the new Material (e.g. PLA+):');
-    if (!name) return;
-    try {
-      const res = await axios.post('/api/materials', { name });
-      onSave(); // Refetch lists in parent
-      setNewSpool(prev => ({ ...prev, material_id: res.data.id }));
-    } catch (e) {
-      alert('Failed to add material');
-    }
+  const handleAddMaterial = () => {
+    showPrompt('Add Material', 'Enter the name of the new Material (e.g. PLA+):', '', async (name) => {
+      if (!name) return;
+      try {
+        const res = await axios.post('/api/materials', { name });
+        onSave(); // Refetch lists in parent
+        setNewSpool(prev => ({ ...prev, material_id: res.data.id }));
+      } catch (e) {
+        showAlert('Error', 'Failed to add material', true);
+      }
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -88,7 +93,7 @@ function SpoolModal({ isOpen, onClose, editingSpool, brands, materials, onSave }
       onSave();
       onClose();
     } catch (err) {
-      alert('Failed to save spool');
+      showAlert('Error', 'Failed to save spool', true);
     }
   };
 

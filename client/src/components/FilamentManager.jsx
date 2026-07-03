@@ -2,8 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import SpoolModal from './SpoolModal';
 import { io } from 'socket.io-client';
+import { useAlert } from '../contexts/AlertContext';
 
 function FilamentManager() {
+  const { showAlert, showConfirm } = useAlert();
+  const [selectedSpoolIds, setSelectedSpoolIds] = useState([]);
   const [spools, setSpools] = useState([]);
   const [brands, setBrands] = useState([]);
   const [materials, setMaterials] = useState([]);
@@ -80,18 +83,20 @@ function FilamentManager() {
       await axios.post('/api/ams/assignments', { tray_id: trayId, spool_id: spoolId });
       fetchAms();
     } catch (err) {
-      alert('Failed to assign spool to AMS');
+      showAlert('Error', 'Failed to assign spool to AMS', true);
     }
   };
 
-  const handleDeleteSpool = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this spool? This cannot be undone.')) return;
-    try {
-      await axios.delete(`/api/spools/${id}`);
-      fetchData();
-    } catch (err) {
-      alert('Failed to delete spool');
-    }
+  const handleDeleteSpool = (id) => {
+    showConfirm('Delete Spool', 'Are you sure you want to delete this spool? This cannot be undone.', async () => {
+      try {
+        await axios.delete(`/api/spools/${id}`);
+        setSelectedSpoolIds(prev => prev.filter(sId => sId !== id));
+        fetchData();
+      } catch (err) {
+        showAlert('Error', 'Failed to delete spool', true);
+      }
+    }, true);
   };
 
   const handleArchiveToggle = async (spool) => {
@@ -99,7 +104,48 @@ function FilamentManager() {
       await axios.put(`/api/spools/${spool.id}/archive`, { archived: !spool.archived });
       fetchData();
     } catch (err) {
-      alert('Failed to update archive status');
+      showAlert('Error', 'Failed to update archive status', true);
+    }
+  };
+
+  const handleBulkAction = async (action) => {
+    if (selectedSpoolIds.length === 0) return;
+    
+    if (action === 'delete') {
+      showConfirm('Delete Selected', `Are you sure you want to delete ${selectedSpoolIds.length} spools? This cannot be undone.`, async () => {
+        try {
+          await Promise.all(selectedSpoolIds.map(id => axios.delete(`/api/spools/${id}`)));
+          setSelectedSpoolIds([]);
+          fetchData();
+          showAlert('Success', 'Selected spools deleted successfully.');
+        } catch (err) {
+          showAlert('Error', 'Failed to delete some spools.', true);
+        }
+      }, true);
+    } else if (action === 'archive' || action === 'unarchive') {
+      const archived = action === 'archive';
+      try {
+        await Promise.all(selectedSpoolIds.map(id => axios.put(`/api/spools/${id}/archive`, { archived })));
+        setSelectedSpoolIds([]);
+        fetchData();
+      } catch (err) {
+        showAlert('Error', `Failed to ${action} spools.`, true);
+      }
+    } else if (action === 'location') {
+      const newLoc = window.prompt("Enter new location for selected spools (e.g. Shelf B):");
+      if (newLoc === null) return; // cancelled
+      try {
+        await Promise.all(selectedSpoolIds.map(async id => {
+          const spool = spools.find(s => s.id === id);
+          if (spool) {
+            await axios.put(`/api/spools/${id}`, { ...spool, location: newLoc });
+          }
+        }));
+        setSelectedSpoolIds([]);
+        fetchData();
+      } catch (err) {
+        showAlert('Error', 'Failed to update locations.', true);
+      }
     }
   };
 
@@ -118,10 +164,10 @@ function FilamentManager() {
       await axios.post('/api/import/csv', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      alert('CSV imported successfully!');
+      showAlert('Success', 'CSV imported successfully!');
       fetchData();
     } catch (err) {
-      alert('Failed to import CSV: ' + (err.response?.data?.error || err.message));
+      showAlert('Error', 'Failed to import CSV: ' + (err.response?.data?.error || err.message), true);
     }
     
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -244,6 +290,21 @@ function FilamentManager() {
         </div>
       </div>
 
+      {selectedSpoolIds.length > 0 && (
+        <div className="card" style={{ marginBottom: '20px', backgroundColor: '#2a2a2a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <strong style={{ color: 'var(--primary-color)' }}>{selectedSpoolIds.length} spools selected</strong>
+          </div>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button className="btn-secondary" onClick={() => handleBulkAction('location')}>Set Location</button>
+            <button className="btn-secondary" onClick={() => handleBulkAction('archive')}>Archive</button>
+            <button className="btn-secondary" onClick={() => handleBulkAction('unarchive')}>Unarchive</button>
+            <button className="btn-secondary" style={{ color: '#f87171', borderColor: '#f87171' }} onClick={() => handleBulkAction('delete')}>Delete</button>
+            <button className="btn-secondary" onClick={() => setSelectedSpoolIds([])}>Clear</button>
+          </div>
+        </div>
+      )}
+
       <div className={`stats-grid-wrapper ${showStats ? 'open' : ''}`}>
         <div className="stats-grid">
           <div className="stat-card">
@@ -287,6 +348,19 @@ function FilamentManager() {
           <table className="fm-table">
             <thead>
               <tr>
+                <th style={{ width: '40px', textAlign: 'center' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={sortedSpools.length > 0 && selectedSpoolIds.length === sortedSpools.length}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedSpoolIds(sortedSpools.map(s => s.id));
+                      } else {
+                        setSelectedSpoolIds([]);
+                      }
+                    }}
+                  />
+                </th>
                 <SortHeader label="ID" sortKey="id" />
                 <SortHeader label="ADDED" sortKey="created_at" />
                 <SortHeader label="LAST USED" sortKey="last_used_at" />
@@ -310,7 +384,17 @@ function FilamentManager() {
                 else if (remainingPct < 40) pbColor = '#ff9800';
 
                 return (
-                  <tr key={spool.id} className={spool.archived ? 'archived-row' : ''}>
+                  <tr key={spool.id} className={spool.archived ? 'archived-row' : ''} style={selectedSpoolIds.includes(spool.id) ? { backgroundColor: 'rgba(76, 175, 80, 0.1)' } : {}}>
+                    <td style={{ textAlign: 'center' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={selectedSpoolIds.includes(spool.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) setSelectedSpoolIds(prev => [...prev, spool.id]);
+                          else setSelectedSpoolIds(prev => prev.filter(id => id !== spool.id));
+                        }}
+                      />
+                    </td>
                     <td>{spool.id}</td>
                     <td>{new Date(spool.created_at).toLocaleDateString()}</td>
                     <td title={spool.last_print_name || ''}>
@@ -361,7 +445,18 @@ function FilamentManager() {
             const isLowStock = remainingPct < 15 || remaining < 50;
             
             return (
-              <div key={spool.id} className={`spool-card ${spool.archived ? 'archived-card' : ''}`} style={isLowStock ? { border: '1px solid #f44336' } : {}}>
+              <div key={spool.id} className={`spool-card ${spool.archived ? 'archived-card' : ''}`} style={selectedSpoolIds.includes(spool.id) ? { border: '2px solid var(--primary-color)' } : isLowStock ? { border: '1px solid #f44336' } : {}}>
+                <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 10 }}>
+                  <input 
+                    type="checkbox" 
+                    checked={selectedSpoolIds.includes(spool.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) setSelectedSpoolIds(prev => [...prev, spool.id]);
+                      else setSelectedSpoolIds(prev => prev.filter(id => id !== spool.id));
+                    }}
+                    style={{ transform: 'scale(1.2)' }}
+                  />
+                </div>
                 <div className="spool-card-graphic" style={{ backgroundColor: spool.color }}>
                   <div className="spool-card-hole"></div>
                 </div>

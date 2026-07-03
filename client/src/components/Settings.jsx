@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useAlert } from '../contexts/AlertContext';
 
 function Settings() {
   const [settings, setSettings] = useState({
@@ -19,8 +20,8 @@ function Settings() {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [testModal, setTestModal] = useState({ open: false, title: '', message: '', isError: false });
   const { logout } = useAuth();
+  const { showAlert } = useAlert();
 
   useEffect(() => {
     axios.get('/api/settings').then(res => {
@@ -32,9 +33,9 @@ function Settings() {
   const testConnection = async (type) => {
     try {
       const res = await axios.post(`/api/test/${type}`, settings);
-      setTestModal({ open: true, title: 'Connection Test Successful', message: res.data.message, isError: false });
+      showAlert('Connection Test Successful', res.data.message);
     } catch (err) {
-      setTestModal({ open: true, title: 'Connection Test Failed', message: err.response?.data?.message || err.message, isError: true });
+      showAlert('Connection Test Failed', err.response?.data?.message || err.message, true);
     }
   };
 
@@ -47,9 +48,9 @@ function Settings() {
     setSaving(true);
     try {
       await axios.post('/api/settings', settings);
-      alert('Settings saved successfully!');
+      showAlert('Success', 'Settings saved successfully!');
     } catch (err) {
-      alert('Failed to save settings');
+      showAlert('Error', 'Failed to save settings', true);
     }
     setSaving(false);
   };
@@ -170,23 +171,6 @@ function Settings() {
           {saving ? 'Saving...' : 'Save Settings'}
         </button>
       </form>
-
-      {testModal.open && (
-        <div className="modal-overlay" onClick={() => setTestModal({ open: false })}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-              <h2 style={{ color: testModal.isError ? '#f87171' : '#4caf50' }}>{testModal.title}</h2>
-              <button className="btn-secondary" onClick={() => setTestModal({ open: false })}>Close</button>
-            </div>
-            <div style={{ padding: '20px 0' }}>
-              <p style={{ lineHeight: '1.5' }}>{testModal.message}</p>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
-              <button className="btn-primary" onClick={() => setTestModal({ open: false })}>OK</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
