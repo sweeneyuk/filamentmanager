@@ -1,21 +1,42 @@
+# Stage 1: Build the React Client
+FROM node:22-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files for both client and server
+COPY client/package*.json ./client/
+
+# Install client dependencies
+WORKDIR /app/client
+RUN npm install
+
+# Copy client source code
+COPY client/ ./
+# Build the React app
+RUN npm run build
+
+# Stage 2: Setup the Production Server
 FROM node:22-alpine
 
 WORKDIR /app
 
-# Copy server files and install dependencies
-COPY server/package*.json ./server/
-RUN cd server && npm install
+# Install backend dependencies
+WORKDIR /app/server
+COPY server/package*.json ./
+RUN npm install --production
 
-# Copy client files and install dependencies
-COPY client/package*.json ./client/
-RUN cd client && npm install
+# Copy backend source code
+COPY server/ ./
 
-# Copy the rest of the code
-COPY . .
+# Copy built React client from the builder stage
+COPY --from=builder /app/client/dist /app/client/dist
 
-# Build the client
-RUN cd client && npm run build
+# The DB is stored in /app/server/data
+# Ensure the directory exists and set permissions
+RUN mkdir -p /app/server/data
 
-# Start the server
+# Expose the API and Web port
 EXPOSE 3000
-CMD [ "node", "server/server.js" ]
+
+# Start the Node backend
+CMD ["node", "server.js"]
