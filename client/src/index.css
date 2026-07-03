@@ -632,3 +632,53 @@ input:focus, select:focus {
   }
 }
 
+
+/* Bulk Actions Animation */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.bulk-actions-bar {
+  margin-bottom: 20px;
+  background-color: #2a2a2a;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  animation: slideDown 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  border: 1px solid rgba(0, 255, 136, 0.3);
+}
+
+/* Custom Checkbox Animation */
+input[type="checkbox"] {
+  accent-color: var(--primary-color);
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+input[type="checkbox"]:active {
+  transform: scale(0.8) !important;
+}
+
+input[type="checkbox"]:checked {
+  animation: checkPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes checkPop {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.3);
+  }
+  100% {
+    transform: scale(1);
+  }
+}

@@ -291,7 +291,7 @@ function FilamentManager() {
       </div>
 
       {selectedSpoolIds.length > 0 && (
-        <div className="card" style={{ marginBottom: '20px', backgroundColor: '#2a2a2a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="card bulk-actions-bar">
           <div>
             <strong style={{ color: 'var(--primary-color)' }}>{selectedSpoolIds.length} spools selected</strong>
           </div>
