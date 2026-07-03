@@ -1,7 +1,8 @@
 import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
-import { Database, Archive as ArchiveIcon, Settings as SettingsIcon, Printer } from 'lucide-react';
+import { Database, Archive as ArchiveIcon, Settings as SettingsIcon, Printer, Activity } from 'lucide-react';
 import FilamentManager from './components/FilamentManager';
 import Archive from './components/Archive';
+import Analytics from './components/Analytics';
 import Settings from './components/Settings';
 import PrintStatus from './components/PrintStatus';
 import Login from './components/Login';
@@ -34,6 +35,9 @@ function MainApp() {
             <NavLink to="/archive" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               <ArchiveIcon size={20} /> Print Archive
             </NavLink>
+            <NavLink to="/analytics" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+              <Activity size={20} /> Analytics
+            </NavLink>
             <div style={{ flex: 1 }}></div>
             <NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               <SettingsIcon size={20} /> Settings
@@ -46,6 +50,7 @@ function MainApp() {
             <Route path="/" element={<PrivateRoute><FilamentManager /></PrivateRoute>} />
             <Route path="/print-status" element={<PrivateRoute><PrintStatus /></PrivateRoute>} />
             <Route path="/archive" element={<PrivateRoute><Archive /></PrivateRoute>} />
+            <Route path="/analytics" element={<PrivateRoute><Analytics /></PrivateRoute>} />
             <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
           </Routes>
         </main>

@@ -237,6 +237,33 @@ app.post('/api/archives', (req, res) => {
   });
 });
 
+// GET /api/analytics
+app.get('/api/analytics', (req, res) => {
+  const query = `
+    SELECT 
+      a.id,
+      a.created_at,
+      a.total_cost,
+      a.energy_cost,
+      a.filament_cost,
+      a.filament_used_g,
+      m.name as material,
+      b.name as brand,
+      sp.color
+    FROM archives a
+    LEFT JOIN archive_spools aps ON aps.archive_id = a.id
+    LEFT JOIN spools sp ON aps.spool_id = sp.id
+    LEFT JOIN brands b ON sp.brand_id = b.id
+    LEFT JOIN materials m ON sp.material_id = m.id
+    WHERE a.status = 'FINISH' OR a.status = 'COMPLETED'
+    ORDER BY a.created_at ASC
+  `;
+  db.all(query, [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
+});
+
 // GET /api/ams
 app.get('/api/ams', (req, res) => {
   res.json(getAmsStatus());
