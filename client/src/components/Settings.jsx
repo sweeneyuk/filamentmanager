@@ -11,6 +11,8 @@ function Settings() {
     ha_token: '',
     ha_energy_entity: '',
     ha_rate_entity: '',
+    energy_rate_source: 'ha',
+    manual_energy_rate: '',
     oidc_issuer: '',
     oidc_client_id: '',
     oidc_client_secret: ''
@@ -101,10 +103,43 @@ function Settings() {
             <label>Printer Energy Entity ID (kWh or W)</label>
             <input type="text" name="ha_energy_entity" value={settings.ha_energy_entity || ''} onChange={handleChange} placeholder="sensor.printer_energy" />
           </div>
-          <div className="form-group">
-            <label>Electricity Rate Entity ID</label>
-            <input type="text" name="ha_rate_entity" value={settings.ha_rate_entity || ''} onChange={handleChange} placeholder="sensor.electricity_price" />
+          <div className="form-group" style={{ marginBottom: '15px' }}>
+            <label>Electricity Rate Source</label>
+            <div style={{ display: 'flex', gap: '20px', marginTop: '8px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'normal' }}>
+                <input 
+                  type="radio" 
+                  name="energy_rate_source" 
+                  value="ha" 
+                  checked={settings.energy_rate_source !== 'manual'} 
+                  onChange={handleChange} 
+                /> 
+                Home Assistant Entity
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'normal' }}>
+                <input 
+                  type="radio" 
+                  name="energy_rate_source" 
+                  value="manual" 
+                  checked={settings.energy_rate_source === 'manual'} 
+                  onChange={handleChange} 
+                /> 
+                Manual Entry
+              </label>
+            </div>
           </div>
+
+          {settings.energy_rate_source !== 'manual' ? (
+            <div className="form-group">
+              <label>Electricity Rate Entity ID</label>
+              <input type="text" name="ha_rate_entity" value={settings.ha_rate_entity || ''} onChange={handleChange} placeholder="sensor.electricity_price" />
+            </div>
+          ) : (
+            <div className="form-group">
+              <label>Manual Electricity Rate (£/kWh)</label>
+              <input type="number" step="0.01" name="manual_energy_rate" value={settings.manual_energy_rate || ''} onChange={handleChange} placeholder="e.g. 0.25" />
+            </div>
+          )}
           <button type="button" onClick={() => testConnection('ha')} style={{ backgroundColor: '#2b2b2b', marginTop: '10px' }}>
             Test HA Connection
           </button>

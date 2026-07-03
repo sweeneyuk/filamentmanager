@@ -35,6 +35,14 @@ const getHaState = async (entityId) => {
 };
 
 const getEnergyRate = async () => {
+  const source = await getSetting('energy_rate_source');
+  
+  if (source === 'manual') {
+    const manualRate = await getSetting('manual_energy_rate');
+    return manualRate && !isNaN(parseFloat(manualRate)) ? parseFloat(manualRate) : 0;
+  }
+
+  // Default to Home Assistant
   const entityId = await getSetting('ha_rate_entity');
   if (!entityId) return 0;
   const state = await getHaState(entityId);
