@@ -124,14 +124,13 @@ function PrintStatus() {
                 const labels = ['Left Nozzle', 'Right Nozzle'];
                 return extInfo.map((ext, i) => {
                   const label = labels[i] || `Nozzle ${i + 1}`;
-                  // Decode packed 32-bit temp if firmware sends it (e.g. 9175180)
                   const isPacked = ext.temp > 1000;
                   const currentTemp = isPacked ? (ext.temp & 0xFFFF) : (ext.temp || 0);
                   const explicitTarget = isPacked ? (ext.temp >> 16) : ext.htar;
                   const target = explicitTarget > 1 ? explicitTarget : (printState.raw.nozzle_target_temper || 0);
                   
                   return (
-                    <div key={`ext_${i}`} style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+                    <div key={`ext_${i}`} className="printer-stat-card">
                       <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>🌡️ {label}</div>
                       <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{currentTemp}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {target}°C</span></div>
                     </div>
@@ -139,7 +138,7 @@ function PrintStatus() {
                 });
               } else {
                 return (
-                  <div style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+                  <div className="printer-stat-card">
                     <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>🌡️ Nozzle</div>
                     <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.nozzleTemp || 0}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {printState.nozzleTarget || 0}°C</span></div>
                   </div>
@@ -147,17 +146,17 @@ function PrintStatus() {
               }
             })()}
 
-            <div style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+            <div className="printer-stat-card">
               <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>🛏️ Bed</div>
               <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.bedTemp || 0}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {printState.bedTarget || 0}°C</span></div>
             </div>
 
-            <div style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+            <div className="printer-stat-card">
               <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>📦 Chamber</div>
               <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.chamberTemp || 0}°C</div>
             </div>
 
-            <div style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+            <div className="printer-stat-card">
               <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>💡 Light</div>
               <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.light ? 'On' : 'Off'}</div>
             </div>
@@ -173,7 +172,7 @@ function PrintStatus() {
                 const rawSpeed = printState.raw ? parseInt(printState.raw[key] || 0, 10) : 0;
                 const speedPercent = rawSpeed === 0 ? "Off" : `${Math.round((rawSpeed / 15) * 100)}%`;
                 return (
-                  <div key={key} style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+                  <div key={key} className="printer-stat-card">
                     <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>{title}</div>
                     <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{speedPercent}</div>
                   </div>
@@ -181,7 +180,7 @@ function PrintStatus() {
               });
             })()}
 
-            <div style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+            <div className="printer-stat-card">
               <div style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>📶 Layer</div>
               <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.layerNum || 0} <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {printState.totalLayerNum || 0}</span></div>
             </div>
@@ -189,7 +188,7 @@ function PrintStatus() {
         </div>
       )}
 
-      <div className="card">
+      <div className="card title-card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
           <h2>AMS Overview</h2>
           <button onClick={fetchData} style={{ padding: '4px 8px', fontSize: '0.8rem' }}>Refresh</button>
@@ -209,7 +208,16 @@ function PrintStatus() {
                     <span style={{fontSize: '0.8rem', opacity: 0.5}}>✎</span>
                   </h3>
                   <div style={{ display: 'flex', gap: '10px', fontSize: '0.8rem', color: '#888' }}>
-                    {amsUnit.humidity !== undefined && <span title="Humidity Index (1-5)">💧 {amsUnit.humidity}</span>}
+                    {amsUnit.humidity !== undefined && (
+                      <span title="Humidity Index (1-5)">
+                        💧 {amsUnit.humidity === "1" ? '< 20%' : 
+                            amsUnit.humidity === "2" ? '20-30%' : 
+                            amsUnit.humidity === "3" ? '30-40%' : 
+                            amsUnit.humidity === "4" ? '40-50%' : 
+                            amsUnit.humidity === "5" ? '> 50%' : 
+                            `${amsUnit.humidity}%`}
+                      </span>
+                    )}
                     {amsUnit.temp !== undefined && <span title="Internal Temperature">🌡️ {amsUnit.temp}°C</span>}
                   </div>
                 </div>
@@ -220,7 +228,7 @@ function PrintStatus() {
                     const trayId = `${amsUnit.id}-${tIndex}`;
                     const isActive = printState && printState.status === 'RUNNING' && printState.currentTrayId === trayId;
                     return (
-                      <div key={tIndex} style={{ 
+                      <div key={tIndex} className="filament-slot" style={{ 
                         flex: 1, 
                         textAlign: 'center',
                         backgroundColor: isActive ? `${hexColor}22` : (hasFilament ? 'rgba(255,255,255,0.03)' : 'transparent'),
@@ -228,7 +236,6 @@ function PrintStatus() {
                         borderRadius: '6px',
                         border: isActive ? `2px solid ${hexColor}` : (hasFilament ? `1px solid ${hexColor}` : '1px dashed var(--border-color)'),
                         boxShadow: isActive ? `0 0 12px ${hexColor}66` : 'none',
-                        transition: 'all 0.3s ease',
                         position: 'relative'
                       }}>
                         {isActive && (

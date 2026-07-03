@@ -303,6 +303,31 @@ button.btn-primary:hover {
   border-color: rgba(255,255,255,0.1);
 }
 
+.printer-stat-card {
+  flex: 1;
+  background-color: var(--secondary-bg);
+  padding: 15px;
+  border-radius: 8px;
+  text-align: center;
+  transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;
+}
+
+.printer-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  background-color: var(--hover-bg);
+}
+
+.filament-slot {
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.filament-slot:hover {
+  transform: scale(1.02) translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
+  z-index: 10;
+}
+
 .stat-card {
   background-color: var(--card-bg);
   border-radius: 8px;
