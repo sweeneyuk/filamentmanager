@@ -281,8 +281,7 @@ function PrintStatus() {
                                     {assignedSpool.brand_name} {assignedSpool.material_name}
                                   </div>
                                   <div style={{ marginTop: '4px', textAlign: 'left' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: '#888', marginBottom: '2px' }}>
-                                      <span>Rem</span>
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: '0.65rem', color: '#888', marginBottom: '2px' }}>
                                       <span>{remaining.toFixed(0)}g</span>
                                     </div>
                                     <div className="progress-bar-container" style={{ height: '4px' }}>
