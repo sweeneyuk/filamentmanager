@@ -208,13 +208,14 @@ function PrintStatus() {
                     <span style={{fontSize: '0.8rem', opacity: 0.5}}>✎</span>
                   </h3>
                   <div style={{ display: 'flex', gap: '10px', fontSize: '0.8rem', color: '#888' }}>
-                    {amsUnit.humidity !== undefined && (
-                      <span title="Humidity Index (1-5)">
-                        💧 {amsUnit.humidity === "1" ? '< 20%' : 
-                            amsUnit.humidity === "2" ? '20-30%' : 
+                    {(amsUnit.humidity_raw !== undefined || amsUnit.humidity !== undefined) && (
+                      <span title="Humidity">
+                        💧 {amsUnit.humidity_raw !== undefined ? `${amsUnit.humidity_raw}%` : 
+                            amsUnit.humidity === "1" ? '> 50%' : 
+                            amsUnit.humidity === "2" ? '40-50%' : 
                             amsUnit.humidity === "3" ? '30-40%' : 
-                            amsUnit.humidity === "4" ? '40-50%' : 
-                            amsUnit.humidity === "5" ? '> 50%' : 
+                            amsUnit.humidity === "4" ? '20-30%' : 
+                            amsUnit.humidity === "5" ? '< 20%' : 
                             `${amsUnit.humidity}%`}
                       </span>
                     )}
