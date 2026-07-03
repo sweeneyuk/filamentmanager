@@ -551,6 +551,7 @@ input:focus, select:focus {
   
   .sidebar {
     width: 100%;
+    box-sizing: border-box;
     height: auto;
     flex-direction: row;
     padding: 10px;
@@ -584,7 +585,9 @@ input:focus, select:focus {
 
   .main-content {
     padding: 15px;
-    margin-bottom: 70px;
+    padding-bottom: 90px; /* Space for bottom nav */
+    margin-bottom: 0;
+    box-sizing: border-box;
   }
 
   .title-card > div {
