@@ -502,8 +502,9 @@ button.btn-primary:hover {
   background-color: var(--card-bg);
   padding: 25px;
   border-radius: 8px;
-  width: 100%;
+  width: calc(100% - 40px);
   max-width: 500px;
+  box-sizing: border-box;
   border: 1px solid var(--border-color);
   box-shadow: 0 10px 30px rgba(0,0,0,0.5);
 }
