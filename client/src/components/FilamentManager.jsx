@@ -10,6 +10,7 @@ function FilamentManager() {
   const [spools, setSpools] = useState([]);
   const [brands, setBrands] = useState([]);
   const [materials, setMaterials] = useState([]);
+  const [totalConsumedWeight, setTotalConsumedWeight] = useState(0);
   const [amsData, setAmsData] = useState(null);
   const [amsAssignments, setAmsAssignments] = useState({});
   const [settings, setSettings] = useState({});
@@ -52,14 +53,18 @@ function FilamentManager() {
 
   const fetchData = async () => {
     try {
-      const [spoolsRes, brandsRes, materialsRes] = await Promise.all([
+      const [spoolsRes, brandsRes, materialsRes, analyticsRes] = await Promise.all([
         axios.get('/api/spools'),
         axios.get('/api/brands'),
-        axios.get('/api/materials')
+        axios.get('/api/materials'),
+        axios.get('/api/analytics')
       ]);
       setSpools(spoolsRes.data);
       setBrands(brandsRes.data);
       setMaterials(materialsRes.data);
+      
+      const totalWeightG = analyticsRes.data.reduce((acc, print) => acc + (print.filament_used_g || 0), 0);
+      setTotalConsumedWeight(totalWeightG);
     } catch (err) {
       console.error(err);
     }
@@ -176,7 +181,6 @@ function FilamentManager() {
   // Stats Calculations
   const activeSpools = spools.filter(s => !s.archived);
   const totalInventoryWeight = activeSpools.reduce((acc, s) => acc + (s.total_weight - s.used_weight), 0);
-  const totalConsumedWeight = spools.reduce((acc, s) => acc + s.used_weight, 0);
   const lowStockCount = activeSpools.filter(s => ((s.total_weight - s.used_weight) / (s.total_weight || 1)) < 0.2).length;
   
   // Material breakdown
