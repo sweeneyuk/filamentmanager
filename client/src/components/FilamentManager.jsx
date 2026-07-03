@@ -221,7 +221,7 @@ function FilamentManager() {
 
   return (
     <div className="filament-manager">
-      <div className="card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--primary-color)' }}>
+      <div className="card title-card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--primary-color)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <h2 style={{ margin: '0 0 5px 0', color: 'var(--primary-color)' }}>Spool Inventory</h2>
