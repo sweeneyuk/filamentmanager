@@ -358,15 +358,20 @@ function FilamentManager() {
             if (remainingPct < 20) pbColor = '#f44336';
             else if (remainingPct < 40) pbColor = '#ff9800';
             
+            const isLowStock = remainingPct < 15 || remaining < 50;
+            
             return (
-              <div key={spool.id} className={`spool-card ${spool.archived ? 'archived-card' : ''}`}>
+              <div key={spool.id} className={`spool-card ${spool.archived ? 'archived-card' : ''}`} style={isLowStock ? { border: '1px solid #f44336' } : {}}>
                 <div className="spool-card-graphic" style={{ backgroundColor: spool.color }}>
                   <div className="spool-card-hole"></div>
                 </div>
                 
                 <div className="spool-card-content">
                   <div className="spool-card-header">
-                    <div className="spool-title">{spool.brand_name} {spool.material_name}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div className="spool-title">{spool.brand_name} {spool.material_name}</div>
+                      {isLowStock && <span style={{ backgroundColor: 'rgba(244,67,54,0.2)', color: '#f87171', fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(244,67,54,0.4)', fontWeight: 'bold' }}>Low Stock</span>}
+                    </div>
                     <div className="spool-subtitle">{spool.subtype || 'Basic'} • {spool.color_name || 'Unknown Color'}</div>
                   </div>
                   

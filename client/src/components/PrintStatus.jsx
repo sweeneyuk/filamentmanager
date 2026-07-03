@@ -265,11 +265,22 @@ function PrintStatus() {
                         {(() => {
                           const assignedSpoolId = amsAssignments[trayId];
                           const assignedSpool = spools.find(s => s.id == assignedSpoolId);
+                          let isLowStock = false;
+                          if (assignedSpool) {
+                            const remaining = assignedSpool.total_weight - assignedSpool.used_weight;
+                            const remainingPct = Math.max(0, Math.min(100, (remaining / assignedSpool.total_weight) * 100));
+                            isLowStock = remainingPct < 15 || remaining < 50;
+                          }
                           return (
                             <div>
                               {assignedSpool ? (
                                 <div style={{ fontSize: '0.75rem', marginBottom: '5px', color: isActive ? hexColor : 'var(--primary-color)', fontWeight: isActive ? 'bold' : 'normal' }}>
                                   {assignedSpool.brand_name} {assignedSpool.material_name}
+                                  {isLowStock && (
+                                    <div style={{ marginTop: '4px' }}>
+                                      <span style={{ backgroundColor: 'rgba(244,67,54,0.2)', color: '#f87171', fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(244,67,54,0.4)', fontWeight: 'bold' }}>Low Stock</span>
+                                    </div>
+                                  )}
                                 </div>
                               ) : (
                                 <div style={{ fontSize: '0.75rem', marginBottom: '5px', color: '#666' }}>
