@@ -19,6 +19,7 @@ function Settings() {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [testModal, setTestModal] = useState({ open: false, title: '', message: '', isError: false });
   const { logout } = useAuth();
 
   useEffect(() => {
@@ -30,10 +31,10 @@ function Settings() {
 
   const testConnection = async (type) => {
     try {
-      const res = await axios.get(`/api/test/${type}`);
-      alert(res.data.message);
+      const res = await axios.post(`/api/test/${type}`, settings);
+      setTestModal({ open: true, title: 'Connection Test Successful', message: res.data.message, isError: false });
     } catch (err) {
-      alert(`Connection failed: ${err.response?.data?.message || err.message}`);
+      setTestModal({ open: true, title: 'Connection Test Failed', message: err.response?.data?.message || err.message, isError: true });
     }
   };
 
@@ -169,6 +170,23 @@ function Settings() {
           {saving ? 'Saving...' : 'Save Settings'}
         </button>
       </form>
+
+      {testModal.open && (
+        <div className="modal-overlay" onClick={() => setTestModal({ open: false })}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <h2 style={{ color: testModal.isError ? '#f87171' : '#4caf50' }}>{testModal.title}</h2>
+              <button className="btn-secondary" onClick={() => setTestModal({ open: false })}>Close</button>
+            </div>
+            <div style={{ padding: '20px 0' }}>
+              <p style={{ lineHeight: '1.5' }}>{testModal.message}</p>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
+              <button className="btn-primary" onClick={() => setTestModal({ open: false })}>OK</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

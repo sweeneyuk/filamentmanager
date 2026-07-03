@@ -438,25 +438,27 @@ app.post('/api/import/csv', upload.single('csvFile'), (req, res) => {
     });
 });
 
-// GET /api/test/ha
-app.get('/api/test/ha', async (req, res) => {
+// POST /api/test/ha
+app.post('/api/test/ha', async (req, res) => {
   const { getEnergyRate, getPrinterEnergyUsage } = require('./ha');
+  const overrides = req.body || {};
   try {
-    const rate = await getEnergyRate();
-    const usage = await getPrinterEnergyUsage();
+    const rate = await getEnergyRate(overrides);
+    const usage = await getPrinterEnergyUsage(overrides);
     res.json({ success: true, message: `Successfully connected to HA. Rate: ${rate}, Printer Energy: ${usage} kWh` });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// GET /api/test/bambu
-app.get('/api/test/bambu', async (req, res) => {
+// POST /api/test/bambu
+app.post('/api/test/bambu', async (req, res) => {
   const { connectFtp } = require('./ftp');
   const { db } = require('./database');
+  const overrides = req.body || {};
   
   try {
-    const ftpClient = await connectFtp();
+    const ftpClient = await connectFtp(overrides);
     ftpClient.close();
     res.json({ success: true, message: 'Successfully connected to Bambu Lab Printer (MQTT/FTPS verified)' });
   } catch (err) {

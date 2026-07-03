@@ -21,9 +21,9 @@ const getSetting = (key) => {
   });
 };
 
-const connectFtp = async () => {
-  const ip = await getSetting('bambu_ip');
-  const accessCode = await getSetting('bambu_access_code');
+const connectFtp = async (overrides = {}) => {
+  const ip = overrides.bambu_ip !== undefined ? overrides.bambu_ip : await getSetting('bambu_ip');
+  const accessCode = overrides.bambu_access_code !== undefined && overrides.bambu_access_code !== '********' ? overrides.bambu_access_code : await getSetting('bambu_access_code');
 
   if (!ip || !accessCode) {
     throw new Error('Bambu Lab FTP credentials not fully configured.');
