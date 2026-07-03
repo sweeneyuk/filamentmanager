@@ -244,7 +244,7 @@ function FilamentManager() {
         </div>
       </div>
 
-      {showStats && (
+      <div className={`stats-grid-wrapper ${showStats ? 'open' : ''}`}>
         <div className="stats-grid">
           <div className="stat-card">
             <div className="stat-title">TOTAL INVENTORY</div>
@@ -272,7 +272,7 @@ function FilamentManager() {
             <div className="stat-subtitle">&lt; 20% remaining</div>
           </div>
         </div>
-      )}
+      </div>
 
       <div className="tabs">
         {['Active', 'Archived', 'All', 'Used', 'New', 'Low Stock'].map(f => (

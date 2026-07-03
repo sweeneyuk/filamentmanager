@@ -268,11 +268,25 @@ button.btn-primary:hover {
   background-color: var(--primary-hover);
 }
 
-/* Stats Grid */
+/* Stats Grid Animation */
+.stats-grid-wrapper {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s cubic-bezier(0.4, 0, 0.2, 1), margin-bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+  margin-bottom: 0px;
+  opacity: 0;
+}
+
+.stats-grid-wrapper.open {
+  grid-template-rows: 1fr;
+  margin-bottom: 20px;
+  opacity: 1;
+}
+
 .stats-grid {
   display: flex;
   gap: 15px;
-  margin-bottom: 20px;
+  overflow: hidden;
 }
 
 .card {
@@ -291,6 +305,13 @@ button.btn-primary:hover {
   flex-direction: column;
   justify-content: center;
   border: 1px solid var(--border-color);
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+  border-color: rgba(255,255,255,0.1);
 }
 
 .stat-title {
