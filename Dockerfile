@@ -25,6 +25,9 @@ WORKDIR /app/server
 COPY server/package*.json ./
 RUN npm install --production
 
+# Link GHCR package to the GitHub repository
+LABEL org.opencontainers.image.source="https://github.com/sweeneyuk/filamentmanager"
+
 # Copy backend source code
 COPY server/ ./
 
