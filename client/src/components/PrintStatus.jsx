@@ -266,16 +266,29 @@ function PrintStatus() {
                           const assignedSpoolId = amsAssignments[trayId];
                           const assignedSpool = spools.find(s => s.id == assignedSpoolId);
                           let isLowStock = false;
+                          let remaining = 0;
+                          let remainingPct = 0;
                           if (assignedSpool) {
-                            const remaining = assignedSpool.total_weight - assignedSpool.used_weight;
-                            const remainingPct = Math.max(0, Math.min(100, (remaining / assignedSpool.total_weight) * 100));
+                            remaining = assignedSpool.total_weight - assignedSpool.used_weight;
+                            remainingPct = Math.max(0, Math.min(100, (remaining / assignedSpool.total_weight) * 100));
                             isLowStock = remainingPct < 15 || remaining < 50;
                           }
                           return (
                             <div>
                               {assignedSpool ? (
-                                <div style={{ fontSize: '0.75rem', marginBottom: '5px', color: isActive ? hexColor : 'var(--primary-color)', fontWeight: isActive ? 'bold' : 'normal' }}>
-                                  {assignedSpool.brand_name} {assignedSpool.material_name}
+                                <div style={{ fontSize: '0.75rem', marginBottom: '5px' }}>
+                                  <div style={{ color: isActive ? hexColor : 'var(--primary-color)', fontWeight: isActive ? 'bold' : 'normal' }}>
+                                    {assignedSpool.brand_name} {assignedSpool.material_name}
+                                  </div>
+                                  <div style={{ marginTop: '4px', textAlign: 'left' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: '#888', marginBottom: '2px' }}>
+                                      <span>Rem</span>
+                                      <span>{remaining.toFixed(0)}g</span>
+                                    </div>
+                                    <div className="progress-bar-container" style={{ height: '4px' }}>
+                                      <div className="progress-bar" style={{ width: `${remainingPct}%`, backgroundColor: isLowStock ? '#f44336' : (remainingPct < 40 ? '#ff9800' : '#4caf50') }}></div>
+                                    </div>
+                                  </div>
                                   {isLowStock && (
                                     <div style={{ marginTop: '4px' }}>
                                       <span style={{ backgroundColor: 'rgba(244,67,54,0.2)', color: '#f87171', fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(244,67,54,0.4)', fontWeight: 'bold' }}>Low Stock</span>
