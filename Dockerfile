@@ -23,6 +23,7 @@ WORKDIR /app
 # Install backend dependencies
 WORKDIR /app/server
 COPY server/package*.json ./
+RUN apk add --no-cache ffmpeg
 RUN npm install --production
 
 # Link GHCR package to the GitHub repository

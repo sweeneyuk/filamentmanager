@@ -54,6 +54,7 @@ const getPrinterEnergyUsage = async (overrides = {}) => {
   if (!entityId) return 0;
   
   const state = await getHaState(entityId, overrides);
+  console.log(`[HA Debug] getPrinterEnergyUsage for entity '${entityId}':`, state);
   // Returns total kWh if it's an energy entity, or W if it's a power entity.
   // We assume the user configures an energy entity (kWh) that tracks cumulative energy.
   return state && !isNaN(parseFloat(state.state)) ? parseFloat(state.state) : 0;
