@@ -5,6 +5,7 @@ const multer = require('multer');
 const { db, initDb, populateDefaults } = require('./database');
 const { connectMqtt, getAmsStatus, getPrintState, setIo } = require('./mqtt');
 const { getBambuVariantId } = require('./bambuCatalog');
+const { resolveVariantId } = require('./geminiVariant');
 const http = require('http');
 const { Server } = require('socket.io');
 
@@ -205,6 +206,20 @@ app.delete('/api/spools/:id', (req, res) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ success: true });
   });
+});
+
+// POST /api/gemini/resolve-variant
+app.post('/api/gemini/resolve-variant', async (req, res) => {
+  try {
+    const { materialName, subtype, colorName } = req.body;
+    if (!colorName) {
+      return res.status(400).json({ error: 'Color Name is required to search for a Variant ID.' });
+    }
+    const variantId = await resolveVariantId(materialName, subtype, colorName);
+    res.json({ variantId });
+  } catch (error) {
+    res.status(500).json({ error: error.message || 'Failed to resolve variant ID' });
+  }
 });
 
 // GET /api/archives

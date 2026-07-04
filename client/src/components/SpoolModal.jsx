@@ -10,11 +10,14 @@ function SpoolModal({ isOpen, onClose, editingSpool, brands, materials, onSave }
     subtype: '',
     location: '',
     color: '#ffffff',
+    color_name: '',
     cost: '',
     total_weight: 1000,
     empty_weight: '',
-    used_weight: 0
+    used_weight: 0,
+    shopify_variant_id: ''
   });
+  const [isDetecting, setIsDetecting] = useState(false);
 
   useEffect(() => {
     if (editingSpool) {
@@ -84,6 +87,35 @@ function SpoolModal({ isOpen, onClose, editingSpool, brands, materials, onSave }
         showAlert('Error', 'Failed to add material', true);
       }
     });
+  };
+
+  const handleAutoDetect = async () => {
+    if (!newSpool.color_name) {
+      showAlert('Missing Info', 'Please enter a Color Name first.', true);
+      return;
+    }
+    
+    const material = materials.find(m => m.id.toString() === newSpool.material_id?.toString())?.name;
+    if (!material) {
+      showAlert('Missing Info', 'Please select a Material first.', true);
+      return;
+    }
+
+    setIsDetecting(true);
+    try {
+      const res = await axios.post('/api/gemini/resolve-variant', {
+        materialName: material,
+        subtype: newSpool.subtype,
+        colorName: newSpool.color_name
+      });
+      if (res.data.variantId) {
+        setNewSpool(prev => ({ ...prev, shopify_variant_id: res.data.variantId }));
+      }
+    } catch (e) {
+      showAlert('Auto-Detect Failed', e.response?.data?.error || 'Failed to detect variant ID. Ensure your Gemini API Key is configured in Settings.', true);
+    } finally {
+      setIsDetecting(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -175,14 +207,29 @@ function SpoolModal({ isOpen, onClose, editingSpool, brands, materials, onSave }
           )}
 
           <div className="form-group" style={{ marginTop: '10px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              Shopify Variant ID (Optional)
-              <span style={{ fontSize: '0.75rem', color: '#ff9800', border: '1px solid #ff9800', padding: '2px 4px', borderRadius: '4px' }}>Auto-Restock</span>
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                Bambu Variant ID (Optional)
+                <span style={{ fontSize: '0.75rem', color: '#ff9800', border: '1px solid #ff9800', padding: '2px 4px', borderRadius: '4px' }}>Auto-Restock</span>
+              </div>
+              <button 
+                type="button" 
+                onClick={handleAutoDetect} 
+                disabled={isDetecting}
+                style={{ 
+                  background: 'none', 
+                  border: '1px solid var(--primary-color)', 
+                  color: 'var(--primary-color)', 
+                  padding: '2px 8px', 
+                  fontSize: '0.8rem', 
+                  borderRadius: '4px',
+                  cursor: isDetecting ? 'not-allowed' : 'pointer',
+                  opacity: isDetecting ? 0.5 : 1
+                }}>
+                {isDetecting ? 'Detecting...' : '✨ Auto-Detect'}
+              </button>
             </label>
             <input type="text" value={newSpool.shopify_variant_id || ''} onChange={(e) => setNewSpool({...newSpool, shopify_variant_id: e.target.value})} placeholder="e.g. 43105581957262" />
-            <div style={{ fontSize: '0.75rem', color: '#888', marginTop: '4px' }}>
-              Add <code>.json</code> to a Bambu product URL to find your color's 14-digit variant ID.
-            </div>
           </div>
 
           <div className="modal-actions" style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end' }}>
