@@ -216,8 +216,42 @@ const handlePrintStatus = async (printData) => {
         }).catch(err => console.log('Failed to fetch thumbnail via FTP:', err.message));
       }
 
-    } else if ((newStatus === 'FINISH' || newStatus === 'FAILED') && printState.status === 'RUNNING') {
+    } else if ((newStatus === 'FINISH' || newStatus === 'FAILED') && printState.status !== 'FINISH' && printState.status !== 'FAILED') {
       // Print completed or failed
+      
+      // Ensure we have basic state if we missed the RUNNING phase (e.g. backend restarted during print)
+      if (!printState.name) printState.name = subTaskName || 'Unknown Print';
+      if (!printState.startTime) printState.startTime = new Date(); // Best guess if missed
+      if (printState.startEnergy === undefined) printState.startEnergy = await getPrinterEnergyUsage();
+      
+      if (!printState.activeTrays || printState.activeTrays.length === 0) {
+        const mappingArray = printData.mapping || printData.ams_mapping;
+        if (mappingArray && Array.isArray(mappingArray)) {
+          printState.activeTrays = mappingArray.map(m => {
+            if (m === 255 || m === 65535) return null;
+            return `${Math.floor(m / 4)}-${m % 4}`;
+          }).filter(Boolean);
+        } else if (printData.vt_tray && printData.vt_tray.id !== 255) {
+          printState.activeTrays = [`0-${printData.vt_tray.id}`];
+        } else {
+          printState.activeTrays = [];
+        }
+      }
+      
+      if ((!printState.predictedWeights || printState.predictedWeights.length === 0) && printData.gcode_file) {
+        console.log('Fetching predicted weights at finish line because they were missing...');
+        const { getPredictedWeights } = require('./ftp');
+        try {
+          const res = await getPredictedWeights(printData.gcode_file, printData.subtask_name);
+          if (res && res.weights && Array.isArray(res.weights)) {
+            printState.predictedWeights = res.weights;
+            if (res.path) printState.activeGcodeFile = res.path;
+          }
+        } catch (err) {
+          console.log('Failed to fetch weights at finish line:', err.message);
+        }
+      }
+
       const endTime = new Date();
       const endEnergy = await getPrinterEnergyUsage();
       const durationSeconds = Math.round((endTime - printState.startTime) / 1000);
