@@ -103,7 +103,7 @@ function Settings() {
           </div>
           <div className="form-group">
             <label>Printer Energy Entity ID (kWh or W)</label>
-            <input type="text" name="ha_energy_entity" value={settings.ha_energy_entity || ''} onChange={handleChange} placeholder="sensor.printer_energy" />
+            <input type="text" name="ha_printer_energy_entity" value={settings.ha_printer_energy_entity || ''} onChange={handleChange} placeholder="sensor.printer_energy" />
           </div>
           <div className="form-group" style={{ marginBottom: '15px' }}>
             <label>Electricity Rate Source</label>
