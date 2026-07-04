@@ -237,6 +237,41 @@ app.post('/api/archives', (req, res) => {
   });
 });
 
+// DELETE /api/archives/:id
+app.delete('/api/archives/:id', (req, res) => {
+  const id = req.params.id;
+  
+  // First, fetch the media paths so we can delete the files
+  db.get('SELECT timelapse_path, photo_path, thumbnail_path FROM archives WHERE id = ?', [id], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!row) return res.status(404).json({ error: 'Archive not found' });
+    
+    // Delete media files to free up disk space
+    const fs = require('fs');
+    const path = require('path');
+    const mediaDir = path.join(__dirname, 'data');
+    
+    [row.timelapse_path, row.photo_path, row.thumbnail_path].forEach(p => {
+      if (p) {
+        // Paths are stored like /media/1_photo.png, we need to strip the leading /
+        const localPath = path.join(mediaDir, p.replace(/^\//, ''));
+        if (fs.existsSync(localPath)) {
+          try { fs.unlinkSync(localPath); } catch (e) { console.error('Failed to delete media:', e.message); }
+        }
+      }
+    });
+
+    // Delete from database
+    db.run('DELETE FROM archives WHERE id = ?', [id], (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      // Also delete from archive_spools junction table
+      db.run('DELETE FROM archive_spools WHERE archive_id = ?', [id], () => {
+        res.json({ success: true });
+      });
+    });
+  });
+});
+
 // GET /api/analytics
 app.get('/api/analytics', (req, res) => {
   const query = `

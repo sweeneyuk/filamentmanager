@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useAlert } from '../contexts/AlertContext';
 
 function Archive() {
   const [archives, setArchives] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const { showAlert } = useAlert();
 
   useEffect(() => {
     fetchArchives();
@@ -18,6 +20,18 @@ function Archive() {
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const handleDeleteArchive = (id) => {
+    showAlert('Delete Archive?', 'Are you sure you want to delete this archived print? This will also permanently delete the associated timelapse video and photos from the server. This action cannot be undone.', async () => {
+      try {
+        await axios.delete(`/api/archives/${id}`);
+        fetchArchives();
+      } catch (err) {
+        console.error(err);
+        showAlert('Error', 'Failed to delete archive: ' + err.message);
+      }
+    });
   };
 
   const formatDuration = (seconds) => {
@@ -122,6 +136,31 @@ function Archive() {
                 <div style={{ position: 'absolute', top: '10px', left: '10px' }}>
                   {getStatusBadge(arch.status)}
                 </div>
+
+                {/* Delete Button */}
+                <button 
+                  onClick={() => handleDeleteArchive(arch.id)}
+                  style={{
+                    position: 'absolute',
+                    top: '10px',
+                    right: '10px',
+                    backgroundColor: 'rgba(220,53,69,0.8)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: '28px',
+                    height: '28px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    backdropFilter: 'blur(4px)',
+                    fontSize: '0.9rem'
+                  }}
+                  title="Delete Archive"
+                >
+                  🗑️
+                </button>
               </div>
 
               {/* Details Content */}
