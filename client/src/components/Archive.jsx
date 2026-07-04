@@ -8,6 +8,36 @@ function Archive() {
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const { showAlert } = useAlert();
+  const [selectedArchives, setSelectedArchives] = useState([]);
+
+  const handleToggleSelect = (id) => {
+    setSelectedArchives(prev =>
+      prev.includes(id) ? prev.filter(spoolId => spoolId !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedArchives.length === archives.length) {
+      setSelectedArchives([]);
+    } else {
+      setSelectedArchives(archives.map(a => a.id));
+    }
+  };
+
+  const handleBulkDelete = () => {
+    showAlert('Delete Selected Archives?', `Are you sure you want to delete ${selectedArchives.length} archived print(s)? This will also permanently delete the associated timelapse videos and photos from the server. This action cannot be undone.`, async () => {
+      try {
+        for (const id of selectedArchives) {
+          await axios.delete(`/api/archives/${id}`);
+        }
+        setSelectedArchives([]);
+        fetchArchives();
+      } catch (err) {
+        console.error(err);
+        showAlert('Error', 'Failed to delete some archives: ' + err.message);
+      }
+    });
+  };
 
   useEffect(() => {
     fetchArchives();
@@ -84,6 +114,29 @@ function Archive() {
         </div>
       </div>
       
+      {selectedArchives.length > 0 && (
+        <div className="bulk-actions-bar" style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          backgroundColor: 'var(--card-bg)', padding: '12px 20px', borderRadius: '8px',
+          marginBottom: '20px', border: '1px solid var(--border-color)',
+          boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <span style={{ fontWeight: 'bold', color: 'var(--primary-color)' }}>
+              {selectedArchives.length} selected
+            </span>
+            <button onClick={handleSelectAll} style={{ backgroundColor: 'transparent', border: '1px solid var(--border-color)', padding: '4px 10px', fontSize: '0.85rem' }}>
+              {selectedArchives.length === archives.length ? 'Deselect All' : 'Select All'}
+            </button>
+          </div>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button onClick={handleBulkDelete} style={{ backgroundColor: 'var(--danger-color)', padding: '6px 15px' }}>
+              Delete Selected
+            </button>
+          </div>
+        </div>
+      )}
+
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
@@ -94,9 +147,23 @@ function Archive() {
           const d = new Date(arch.created_at);
           // If the final photo wasn't extracted successfully, fallback to thumbnail for the modal
           const modalPhoto = arch.photo_path || arch.thumbnail_path;
+          const isSelected = selectedArchives.includes(arch.id);
           
           return (
-            <div key={arch.id} className="card" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div 
+              key={arch.id} 
+              className={`card ${isSelected ? 'selected' : ''}`}
+              onClick={() => handleToggleSelect(arch.id)}
+              style={{ 
+                padding: 0, 
+                overflow: 'hidden', 
+                display: 'flex', 
+                flexDirection: 'column',
+                cursor: 'pointer',
+                border: isSelected ? '2px solid var(--primary-color)' : '1px solid var(--border-color)',
+                transition: 'border-color 0.2s ease'
+              }}
+            >
               
               {/* Thumbnail Header Area */}
               <div style={{ position: 'relative', width: '100%', height: '220px', backgroundColor: 'var(--secondary-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -114,32 +181,56 @@ function Archive() {
                 <div style={{ position: 'absolute', bottom: '10px', right: '10px', display: 'flex', gap: '8px' }}>
                   {arch.timelapse_path && (
                     <button 
-                      onClick={() => setSelectedVideo(arch.timelapse_path)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedVideo(arch.timelapse_path);
+                      }}
                       style={{ 
-                        backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer', padding: '6px 10px', borderRadius: '6px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px', backdropFilter: 'blur(4px)'
+                        backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer', padding: '6px 10px', borderRadius: '6px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px', backdropFilter: 'blur(4px)', zIndex: 10
                       }}>
                       🎥 Video
                     </button>
                   )}
                   {modalPhoto && (
                     <button 
-                      onClick={() => setSelectedPhoto(modalPhoto)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedPhoto(modalPhoto);
+                      }}
                       style={{ 
-                        backgroundColor: 'rgba(0,255,136,0.2)', color: '#fff', border: '1px solid rgba(0,255,136,0.4)', cursor: 'pointer', padding: '6px 10px', borderRadius: '6px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px', backdropFilter: 'blur(4px)'
+                        backgroundColor: 'rgba(0,255,136,0.2)', color: '#fff', border: '1px solid rgba(0,255,136,0.4)', cursor: 'pointer', padding: '6px 10px', borderRadius: '6px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px', backdropFilter: 'blur(4px)', zIndex: 10
                       }}>
                       📸 Photo
                     </button>
                   )}
                 </div>
                 
+                {/* Multi-Select Checkbox */}
+                <div style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 10 }}>
+                  <input 
+                    type="checkbox" 
+                    checked={isSelected}
+                    onChange={() => handleToggleSelect(arch.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      width: '20px',
+                      height: '20px',
+                      cursor: 'pointer'
+                    }}
+                  />
+                </div>
+
                 {/* Status Badge */}
-                <div style={{ position: 'absolute', top: '10px', left: '10px' }}>
+                <div style={{ position: 'absolute', top: '10px', left: '40px' }}>
                   {getStatusBadge(arch.status)}
                 </div>
 
                 {/* Delete Button */}
                 <button 
-                  onClick={() => handleDeleteArchive(arch.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteArchive(arch.id);
+                  }}
                   style={{
                     position: 'absolute',
                     top: '10px',
@@ -155,7 +246,8 @@ function Archive() {
                     justifyContent: 'center',
                     cursor: 'pointer',
                     backdropFilter: 'blur(4px)',
-                    fontSize: '0.9rem'
+                    fontSize: '0.9rem',
+                    zIndex: 10
                   }}
                   title="Delete Archive"
                 >
