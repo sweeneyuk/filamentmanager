@@ -9,6 +9,21 @@ function Archive() {
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const { showAlert, showConfirm } = useAlert();
   const [selectedArchives, setSelectedArchives] = useState([]);
+  const [openMenuId, setOpenMenuId] = useState(null);
+
+  const handleRegenerateImage = async (id) => {
+    try {
+      showAlert('Processing', 'Extracting image from timelapse video...', false);
+      const res = await axios.post(`/api/archives/${id}/regenerate-image`);
+      if (res.data.success) {
+        showAlert('Success', 'Image regenerated successfully!');
+        fetchArchives(); // Refresh to show new image
+      }
+    } catch (err) {
+      console.error(err);
+      showAlert('Error', err.response?.data?.error || err.message, true);
+    }
+  };
 
   const handleToggleSelect = (id) => {
     setSelectedArchives(prev =>
@@ -225,34 +240,47 @@ function Archive() {
                   {getStatusBadge(arch.status)}
                 </div>
 
-                {/* Delete Button */}
-                <button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteArchive(arch.id);
-                  }}
-                  style={{
-                    position: 'absolute',
-                    top: '10px',
-                    right: '10px',
-                    backgroundColor: 'rgba(220,53,69,0.8)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '50%',
-                    width: '28px',
-                    height: '28px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    backdropFilter: 'blur(4px)',
-                    fontSize: '0.9rem',
-                    zIndex: 10
-                  }}
-                  title="Delete Archive"
-                >
-                  🗑️
-                </button>
+                {/* Three-Dot Menu */}
+                <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 11 }}>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenMenuId(openMenuId === arch.id ? null : arch.id);
+                    }}
+                    style={{
+                      background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', 
+                      width: '28px', height: '28px', borderRadius: '50%', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      backdropFilter: 'blur(4px)'
+                    }}>
+                    ⋮
+                  </button>
+                  {openMenuId === arch.id && (
+                    <div style={{
+                      position: 'absolute', top: '35px', right: '0', 
+                      background: 'var(--card-bg)', border: '1px solid var(--border-color)', 
+                      borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', 
+                      padding: '5px', minWidth: '160px', zIndex: 12
+                    }}>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleRegenerateImage(arch.id); }}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', background: 'transparent', border: 'none', color: 'var(--text-color)', cursor: 'pointer', borderRadius: '4px' }}
+                        onMouseOver={(e) => e.target.style.background = 'rgba(255,255,255,0.1)'}
+                        onMouseOut={(e) => e.target.style.background = 'transparent'}
+                      >
+                        📸 Regenerate Image
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleDeleteArchive(arch.id); }}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', background: 'transparent', border: 'none', color: 'var(--danger-color)', cursor: 'pointer', borderRadius: '4px', marginTop: '4px' }}
+                        onMouseOver={(e) => e.target.style.background = 'rgba(220,53,69,0.2)'}
+                        onMouseOut={(e) => e.target.style.background = 'transparent'}
+                      >
+                        ❌ Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Details Content */}

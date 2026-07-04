@@ -272,6 +272,43 @@ app.delete('/api/archives/:id', (req, res) => {
   });
 });
 
+// POST /api/archives/:id/regenerate-image
+app.post('/api/archives/:id/regenerate-image', (req, res) => {
+  const { id } = req.params;
+  db.get('SELECT timelapse_path FROM archives WHERE id = ?', [id], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!row || !row.timelapse_path) return res.status(404).json({ error: 'No timelapse video found for this archive.' });
+    
+    const fs = require('fs');
+    const path = require('path');
+    const { execSync } = require('child_process');
+    
+    const mediaDir = path.join(__dirname, 'data');
+    const localTimelapsePath = path.join(mediaDir, row.timelapse_path.replace(/^\//, ''));
+    
+    if (!fs.existsSync(localTimelapsePath)) {
+      return res.status(404).json({ error: 'Timelapse file does not exist on disk.' });
+    }
+    
+    const photoFileName = `media/${id}_photo.jpg`;
+    const localPhotoPath = path.join(mediaDir, photoFileName);
+    
+    try {
+      execSync(`ffmpeg -y -sseof -1 -i "${localTimelapsePath}" -update 1 -q:v 2 "${localPhotoPath}"`, { stdio: 'ignore' });
+      
+      db.run('UPDATE archives SET photo_path = ?, thumbnail_path = ? WHERE id = ?', [`/${photoFileName}`, `/${photoFileName}`, id], (updateErr) => {
+        if (updateErr) return res.status(500).json({ error: updateErr.message });
+        
+        // Return the new photo path so UI can update
+        res.json({ success: true, photo_path: `/${photoFileName}` });
+      });
+    } catch (ffmpegErr) {
+      console.error('ffmpeg error:', ffmpegErr);
+      res.status(500).json({ error: 'Failed to extract image with ffmpeg.' });
+    }
+  });
+});
+
 // GET /api/analytics
 app.get('/api/analytics', (req, res) => {
   const query = `
