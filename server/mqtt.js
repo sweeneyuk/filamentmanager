@@ -361,10 +361,17 @@ const handlePrintStatus = async (printData) => {
         });
       });
 
-      // Reset state synchronously to prepare for next print
-      printState = IDLE_STATE();
-    } else {
+      // We DO NOT reset printState to IDLE_STATE() here.
+      // We must let the printer naturally transition back to IDLE,
+      // otherwise we will trigger an infinite loop of archiving.
       printState.status = newStatus;
+    } else {
+      // For all other transitions (e.g. FINISH -> IDLE, PREPARE -> RUNNING)
+      if (newStatus === 'IDLE' && printState.status !== 'IDLE') {
+        printState = IDLE_STATE();
+      } else {
+        printState.status = newStatus;
+      }
     }
   }
 

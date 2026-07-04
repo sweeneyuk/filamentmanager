@@ -41,8 +41,7 @@ const connectFtp = async (overrides = {}) => {
       port: 990,
       secure: 'implicit',
       secureOptions: {
-        rejectUnauthorized: false, // Ignore self-signed certs
-        maxVersion: 'TLSv1.2'      // Fix for "522 SSL connection failed: session reuse required" on Node 22 / Alpine
+        rejectUnauthorized: false // Ignore self-signed certs
       }
     });
     return client;
