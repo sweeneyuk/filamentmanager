@@ -30,6 +30,7 @@ const IDLE_STATE = () => ({
 });
 
 let printState = IDLE_STATE();
+let isFirstPayload = true;
 
 const PRINT_STAGES = {
   "-1": "Idle",
@@ -71,6 +72,8 @@ const connectMqtt = async () => {
   if (client) {
     client.end();
   }
+  
+  isFirstPayload = true;
 
   const ip = await getSetting('bambu_ip');
   const serial = await getSetting('bambu_serial');
@@ -131,6 +134,11 @@ const handlePrintStatus = async (printData) => {
   // Handle print lifecycle
   const newStatus = printData.gcode_state;
   const subTaskName = printData.subtask_name;
+  
+  if (newStatus && isFirstPayload) {
+    printState.status = newStatus;
+    isFirstPayload = false;
+  }
 
   // Save raw data for dynamic rendering in the UI
   printState.raw = printData;
