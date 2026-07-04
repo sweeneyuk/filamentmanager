@@ -7,7 +7,7 @@ function Archive() {
   const [loading, setLoading] = useState(true);
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
-  const { showAlert } = useAlert();
+  const { showAlert, showConfirm } = useAlert();
   const [selectedArchives, setSelectedArchives] = useState([]);
 
   const handleToggleSelect = (id) => {
@@ -25,7 +25,7 @@ function Archive() {
   };
 
   const handleBulkDelete = () => {
-    showAlert('Delete Selected Archives?', `Are you sure you want to delete ${selectedArchives.length} archived print(s)? This will also permanently delete the associated timelapse videos and photos from the server. This action cannot be undone.`, async () => {
+    showConfirm('Delete Selected Archives?', `Are you sure you want to delete ${selectedArchives.length} archived print(s)? This will also permanently delete the associated timelapse videos and photos from the server. This action cannot be undone.`, async () => {
       try {
         for (const id of selectedArchives) {
           await axios.delete(`/api/archives/${id}`);
@@ -34,7 +34,7 @@ function Archive() {
         fetchArchives();
       } catch (err) {
         console.error(err);
-        showAlert('Error', 'Failed to delete some archives: ' + err.message);
+        showAlert('Error', 'Failed to delete some archives: ' + err.message, true);
       }
     });
   };
@@ -53,13 +53,13 @@ function Archive() {
   };
 
   const handleDeleteArchive = (id) => {
-    showAlert('Delete Archive?', 'Are you sure you want to delete this archived print? This will also permanently delete the associated timelapse video and photos from the server. This action cannot be undone.', async () => {
+    showConfirm('Delete Archive?', 'Are you sure you want to delete this archived print? This will also permanently delete the associated timelapse video and photos from the server. This action cannot be undone.', async () => {
       try {
         await axios.delete(`/api/archives/${id}`);
         fetchArchives();
       } catch (err) {
         console.error(err);
-        showAlert('Error', 'Failed to delete archive: ' + err.message);
+        showAlert('Error', 'Failed to delete archive: ' + err.message, true);
       }
     });
   };
