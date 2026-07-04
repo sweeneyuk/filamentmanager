@@ -39,7 +39,7 @@ const connectFtp = async (overrides = {}) => {
       user: 'bblp',
       password: accessCode,
       port: 990,
-      secure: 'implicit',
+      secure: true, // Some new Bambu firmwares expect Explicit FTPS on port 990
       secureOptions: {
         rejectUnauthorized: false // Ignore self-signed certs
       }
