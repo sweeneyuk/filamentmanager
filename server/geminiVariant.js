@@ -64,7 +64,7 @@ async function resolveVariantId(materialName, subtype, colorName) {
         console.log(`Fetching product HTML from ${url}`);
         const html = await fetchHTML(url);
         
-        const schemaRegex = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/g;
+        const schemaRegex = /<script[^>]*application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi;
         let match;
         let jsonSchema = '';
         
