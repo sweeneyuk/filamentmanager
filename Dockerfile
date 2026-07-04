@@ -1,5 +1,5 @@
 # Stage 1: Build the React Client
-FROM node:20-slim AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -16,18 +16,14 @@ COPY client/ ./
 RUN npm run build
 
 # Stage 2: Setup the Production Server
-FROM node:20-slim
+FROM node:20-alpine
 
 WORKDIR /app
 
 # Install backend dependencies
 WORKDIR /app/server
 COPY server/package*.json ./
-RUN apt-get update && apt-get install -y python3 make g++ \
-    && npm install --production --build-from-source=sqlite3 \
-    && apt-get remove -y python3 make g++ \
-    && apt-get autoremove -y \
-    && rm -rf /var/lib/apt/lists/*
+RUN npm install --production
 
 # Link GHCR package to the GitHub repository
 LABEL org.opencontainers.image.source="https://github.com/sweeneyuk/filamentmanager"
