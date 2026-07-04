@@ -69,7 +69,7 @@ async function resolveVariantId(materialName, subtype, colorName) {
         let jsonSchema = '';
         
         while ((match = schemaRegex.exec(html)) !== null) {
-          if (match[1].includes('"@type":"Product"')) {
+          if (match[1].includes('"@type"') && match[1].includes('"Product"')) {
             jsonSchema = match[1];
             break;
           }
