@@ -209,7 +209,7 @@ function SpoolModal({ isOpen, onClose, editingSpool, brands, materials, onSave }
           <div className="form-group" style={{ marginTop: '10px' }}>
             <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                Bambu Variant ID (Optional)
+                Variant ID or URL
                 <span style={{ fontSize: '0.75rem', color: '#ff9800', border: '1px solid #ff9800', padding: '2px 4px', borderRadius: '4px' }}>Auto-Restock</span>
               </div>
               <button 
@@ -229,7 +229,7 @@ function SpoolModal({ isOpen, onClose, editingSpool, brands, materials, onSave }
                 {isDetecting ? 'Detecting...' : '✨ Auto-Detect'}
               </button>
             </label>
-            <input type="text" value={newSpool.shopify_variant_id || ''} onChange={(e) => setNewSpool({...newSpool, shopify_variant_id: e.target.value})} placeholder="e.g. 43105581957262" />
+            <input type="text" value={newSpool.shopify_variant_id || ''} onChange={(e) => setNewSpool({...newSpool, shopify_variant_id: e.target.value})} placeholder="e.g. 43105581957262 or https://amazon..." />
           </div>
 
           <div className="modal-actions" style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end' }}>

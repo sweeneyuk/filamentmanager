@@ -273,6 +273,10 @@ function FilamentManager() {
   );
 
   const getBambuProductUrl = (spool) => {
+    if (!spool.shopify_variant_id) return null;
+    if (spool.shopify_variant_id.startsWith('http')) {
+      return spool.shopify_variant_id;
+    }
     const baseUrl = settings.bambu_store_region || 'https://uk.store.bambulab.com';
     const mat = (spool.material_name || '').toLowerCase();
     const sub = (spool.subtype || 'basic').toLowerCase();
