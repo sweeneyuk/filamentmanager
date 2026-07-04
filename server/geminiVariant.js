@@ -80,7 +80,7 @@ async function resolveVariantId(materialName, subtype, colorName) {
         }
 
         const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+        let model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
         const prompt = `
 You are an expert data extractor. I am going to provide you with a JSON-LD schema extracted from the Bambu Lab store.
@@ -100,7 +100,19 @@ Output ONLY the numerical SKU string. Do NOT output any markdown, explanations, 
 If you cannot find a match, output "NOT_FOUND".
 `;
 
-        const result = await model.generateContent(prompt);
+        let result;
+        try {
+          result = await model.generateContent(prompt);
+        } catch (e) {
+          if (e.message && e.message.includes('404 Not Found')) {
+            console.log('gemini-1.5-flash not found (likely regional restriction). Falling back to gemini-pro...');
+            model = genAI.getGenerativeModel({ model: "gemini-pro" });
+            result = await model.generateContent(prompt);
+          } else {
+            throw e;
+          }
+        }
+
         const text = result.response.text().trim();
         
         if (text === 'NOT_FOUND' || !/^\d+$/.test(text)) {
