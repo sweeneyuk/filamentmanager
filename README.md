@@ -23,12 +23,24 @@ Filament Manager acts as a local hub to monitor your printer's activity, track h
 
 ## ⚙️ Getting Started (Docker)
 
-The application is designed to be run via Docker Compose for easy deployment.
+The application is distributed as a pre-built Docker image via GitHub Container Registry (GHCR) for easy deployment.
 
-1. Clone the repository.
-2. Build and run the containers:
+1. Create a `docker-compose.yml` file:
+   ```yaml
+   version: '3.8'
+   services:
+     filamentmanager:
+       image: ghcr.io/sweeneyuk/filamentmanager:latest
+       container_name: filamentmanager
+       ports:
+         - "3000:3000"
+       volumes:
+         - ./data:/app/server/data
+       restart: unless-stopped
+   ```
+2. Start the container:
    ```bash
-   docker-compose up -d --build
+   docker-compose up -d
    ```
 3. Access the web interface at `http://localhost:3000` (or the port defined in your configuration).
 4. Navigate to the **Settings** page (gear icon) to configure:
