@@ -272,6 +272,15 @@ function FilamentManager() {
     </th>
   );
 
+  const getBambuProductUrl = (spool) => {
+    const baseUrl = settings.bambu_store_region || 'https://uk.store.bambulab.com';
+    const mat = (spool.material_name || '').toLowerCase();
+    const sub = (spool.subtype || 'basic').toLowerCase();
+    let slug = `${mat}-${sub}`;
+    if (slug === 'pla-basic') slug = 'pla-basic-filament';
+    return `${baseUrl}/products/${slug}?variant=${spool.shopify_variant_id}`;
+  };
+
   return (
     <div className="filament-manager">
       <div className="card title-card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--primary-color)' }}>
@@ -311,28 +320,6 @@ function FilamentManager() {
           </div>
         </div>
       )}
-
-      {restockSpools.length > 0 && (
-        <div className="card restock-bar" style={{ marginBottom: '20px', border: '1px solid #ff9800', backgroundColor: 'rgba(255, 152, 0, 0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <strong style={{ color: '#ff9800' }}>🛒 Restock Recommended</strong>
-            <div style={{ fontSize: '0.85rem', color: '#ccc', marginTop: '4px' }}>
-              {restockSpools.length} configured {restockSpools.length === 1 ? 'spool is' : 'spools are'} below the {lowStockThreshold}g threshold.
-            </div>
-          </div>
-          <button 
-            className="btn-primary" 
-            style={{ backgroundColor: '#ff9800', color: '#000', fontWeight: 'bold' }}
-            onClick={() => {
-              const baseUrl = settings.bambu_store_region || 'https://uk.bambulab.com';
-              const query = restockSpools.map(s => `items[][id]=${s.shopify_variant_id}&items[][quantity]=1`).join('&');
-              const restockUrl = `${baseUrl}/cart/add?${query}&return_to=/cart`;
-              window.open(restockUrl, '_blank');
-            }}
-          >
-            Add to Bambu Cart
-          </button>
-        </div>
       )}
 
       <div className={`stats-grid-wrapper ${showStats ? 'open' : ''}`}>
@@ -452,7 +439,7 @@ function FilamentManager() {
                           {spool.archived ? '📦↑' : '📦↓'}
                         </button>
                         {spool.shopify_variant_id && isLowStock && (
-                          <button style={{ color: '#ff9800', borderColor: '#ff9800' }} onClick={() => window.open(`${settings.bambu_store_region || 'https://uk.bambulab.com'}/cart/add?id=${spool.shopify_variant_id}&quantity=1&return_to=/cart`, '_blank')} title="Add to Cart">🛒</button>
+                          <button style={{ color: '#ff9800', borderColor: '#ff9800' }} onClick={() => window.open(getBambuProductUrl(spool), '_blank')} title="Restock Spool">🛒</button>
                         )}
                         <button onClick={() => handleDeleteSpool(spool.id)} className="danger" title="Delete">🗑</button>
                       </div>
@@ -523,7 +510,7 @@ function FilamentManager() {
 
                 <div className="spool-card-actions">
                   {spool.shopify_variant_id && isLowStock && (
-                    <button style={{color: '#ff9800', borderColor: '#ff9800'}} onClick={() => window.open(`${settings.bambu_store_region || 'https://uk.bambulab.com'}/cart/add?id=${spool.shopify_variant_id}&quantity=1&return_to=/cart`, '_blank')} title="Add to Cart">🛒 Cart</button>
+                    <button style={{color: '#ff9800', borderColor: '#ff9800'}} onClick={() => window.open(getBambuProductUrl(spool), '_blank')} title="Restock Spool">🛒 Restock</button>
                   )}
                   <button onClick={() => { setEditingSpool(spool); setIsModalOpen(true); }} title="Edit">✎ Edit</button>
                   <button onClick={() => handleArchiveToggle(spool)} title={spool.archived ? "Unarchive" : "Archive"}>

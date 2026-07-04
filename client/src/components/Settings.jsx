@@ -171,9 +171,9 @@ function Settings() {
           </div>
           <div className="form-group">
             <label>Bambu Store Base URL</label>
-            <input type="text" name="bambu_store_region" value={settings.bambu_store_region || ''} onChange={handleChange} placeholder="https://uk.bambulab.com" />
+            <input type="text" name="bambu_store_region" value={settings.bambu_store_region || ''} onChange={handleChange} placeholder="https://uk.store.bambulab.com" />
             <div style={{ fontSize: '0.8rem', color: '#888', marginTop: '4px' }}>
-              Leave blank to default to https://uk.bambulab.com
+              Leave blank to default to https://uk.store.bambulab.com
             </div>
           </div>
         </div>
