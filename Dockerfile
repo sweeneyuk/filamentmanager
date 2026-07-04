@@ -23,7 +23,11 @@ WORKDIR /app
 # Install backend dependencies
 WORKDIR /app/server
 COPY server/package*.json ./
-RUN npm install --production
+RUN apt-get update && apt-get install -y python3 make g++ \
+    && npm install --production --build-from-source=sqlite3 \
+    && apt-get remove -y python3 make g++ \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
 
 # Link GHCR package to the GitHub repository
 LABEL org.opencontainers.image.source="https://github.com/sweeneyuk/filamentmanager"
