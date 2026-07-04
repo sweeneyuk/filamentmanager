@@ -125,7 +125,7 @@ function PrintStatus() {
               const hasDualExtruder = extInfo && Array.isArray(extInfo) && extInfo.length > 1;
               
               if (hasDualExtruder) {
-                const labels = ['Left Nozzle', 'Right Nozzle'];
+                const labels = ['Right Nozzle', 'Left Nozzle'];
                 return extInfo.map((ext, i) => {
                   const label = labels[i] || `Nozzle ${i + 1}`;
                   const isPacked = ext.temp > 1000;
