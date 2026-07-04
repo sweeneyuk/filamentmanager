@@ -160,8 +160,8 @@ function Settings() {
         </div>
 
         <div className="settings-section">
-          <h3>Auto-Restock Configuration</h3>
-          <p className="settings-desc">Configure the shopping cart permalink parameters to automatically restock low-weight spools.</p>
+          <h3>Stock</h3>
+          <p className="settings-desc">Configure the low stock threshold and store links.</p>
           <div className="form-group">
             <label>Low Stock Threshold (g)</label>
             <input type="number" name="low_stock_threshold" value={settings.low_stock_threshold || ''} onChange={handleChange} placeholder="200" />
