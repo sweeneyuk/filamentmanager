@@ -80,7 +80,7 @@ async function resolveVariantId(materialName, subtype, colorName) {
         }
 
         const genAI = new GoogleGenerativeAI(apiKey);
-        let model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        let model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
         const prompt = `
 You are an expert data extractor. I am going to provide you with a JSON-LD schema extracted from the Bambu Lab store.
@@ -100,36 +100,7 @@ Output ONLY the numerical SKU string. Do NOT output any markdown, explanations, 
 If you cannot find a match, output "NOT_FOUND".
 `;
 
-        let result;
-        try {
-          result = await model.generateContent(prompt);
-        } catch (e) {
-          if (e.message && e.message.includes('404 Not Found')) {
-            // Fetch available models
-            const https = require('https');
-            const availableModels = await new Promise((res, rej) => {
-              https.get(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`, (response) => {
-                let d = '';
-                response.on('data', c => d += c);
-                response.on('end', () => {
-                  try {
-                    const json = JSON.parse(d);
-                    if (json.models) {
-                      const names = json.models.filter(m => m.supportedGenerationMethods.includes('generateContent')).map(m => m.name.replace('models/', ''));
-                      res(names.join(', '));
-                    } else {
-                      res('Unknown');
-                    }
-                  } catch(err) { res('Error parsing models'); }
-                });
-              }).on('error', () => res('Network error'));
-            });
-            throw new Error(`Model not found. Available models for your API key: ${availableModels}`);
-          } else {
-            throw e;
-          }
-        }
-
+        const result = await model.generateContent(prompt);
         const text = result.response.text().trim();
         
         if (text === 'NOT_FOUND' || !/^\d+$/.test(text)) {
