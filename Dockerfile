@@ -1,5 +1,5 @@
 # Stage 1: Build the React Client
-FROM node:22-alpine AS builder
+FROM node:20-slim AS builder
 
 WORKDIR /app
 
@@ -16,7 +16,7 @@ COPY client/ ./
 RUN npm run build
 
 # Stage 2: Setup the Production Server
-FROM node:22-alpine
+FROM node:20-slim
 
 WORKDIR /app
 

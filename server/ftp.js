@@ -41,7 +41,8 @@ const connectFtp = async (overrides = {}) => {
       port: 990,
       secure: 'implicit',
       secureOptions: {
-        rejectUnauthorized: false // Ignore self-signed certs
+        rejectUnauthorized: false, // Ignore self-signed certs
+        ciphers: 'DEFAULT:@SECLEVEL=0' // Lower security level for Bambu compatibility
       }
     });
     return client;
