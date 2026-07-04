@@ -181,7 +181,10 @@ function FilamentManager() {
   // Stats Calculations
   const activeSpools = spools.filter(s => !s.archived);
   const totalInventoryWeight = activeSpools.reduce((acc, s) => acc + (s.total_weight - s.used_weight), 0);
-  const lowStockCount = activeSpools.filter(s => ((s.total_weight - s.used_weight) / (s.total_weight || 1)) < 0.2).length;
+  const lowStockThreshold = settings.low_stock_threshold ? parseInt(settings.low_stock_threshold) : 200;
+  const isLowStock = (s) => (s.total_weight - s.used_weight) < lowStockThreshold;
+  const lowStockCount = activeSpools.filter(isLowStock).length;
+  const restockSpools = activeSpools.filter(s => isLowStock(s) && s.shopify_variant_id);
   
   // Material breakdown
   const materialStats = {};
@@ -219,7 +222,7 @@ function FilamentManager() {
   else if (filter === 'Archived') filteredSpools = spools.filter(s => s.archived);
   else if (filter === 'Used') filteredSpools = spools.filter(s => !s.archived && s.used_weight > 0);
   else if (filter === 'New') filteredSpools = spools.filter(s => !s.archived && s.used_weight === 0);
-  else if (filter === 'Low Stock') filteredSpools = activeSpools.filter(s => ((s.total_weight - s.used_weight) / (s.total_weight || 1)) < 0.2);
+  else if (filter === 'Low Stock') filteredSpools = activeSpools.filter(isLowStock);
 
   // Sorting Logic
   const handleSort = (key) => {
@@ -309,6 +312,29 @@ function FilamentManager() {
         </div>
       )}
 
+      {restockSpools.length > 0 && (
+        <div className="card restock-bar" style={{ marginBottom: '20px', border: '1px solid #ff9800', backgroundColor: 'rgba(255, 152, 0, 0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <strong style={{ color: '#ff9800' }}>🛒 Restock Recommended</strong>
+            <div style={{ fontSize: '0.85rem', color: '#ccc', marginTop: '4px' }}>
+              {restockSpools.length} configured {restockSpools.length === 1 ? 'spool is' : 'spools are'} below the {lowStockThreshold}g threshold.
+            </div>
+          </div>
+          <button 
+            className="btn-primary" 
+            style={{ backgroundColor: '#ff9800', color: '#000', fontWeight: 'bold' }}
+            onClick={() => {
+              const baseUrl = settings.bambu_store_region || 'https://uk.bambulab.com';
+              const variants = restockSpools.map(s => `${s.shopify_variant_id}:1`).join(',');
+              const restockUrl = `${baseUrl}/cart/${variants}?return_to=/cart`;
+              window.open(restockUrl, '_blank');
+            }}
+          >
+            Add to Bambu Cart
+          </button>
+        </div>
+      )}
+
       <div className={`stats-grid-wrapper ${showStats ? 'open' : ''}`}>
         <div className="stats-grid">
           <div className="stat-card">
@@ -334,7 +360,7 @@ function FilamentManager() {
           <div className="stat-card" style={{ borderRight: '3px solid #ff9800' }}>
             <div className="stat-title" style={{color: '#ff9800'}}>LOW STOCK</div>
             <div className="stat-value" style={{color: '#ff9800'}}>{lowStockCount}</div>
-            <div className="stat-subtitle">&lt; 20% remaining</div>
+            <div className="stat-subtitle">&lt; {lowStockThreshold}g remaining</div>
           </div>
         </div>
       </div>

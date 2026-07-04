@@ -170,6 +170,17 @@ function SpoolModal({ isOpen, onClose, editingSpool, brands, materials, onSave }
             </div>
           )}
 
+          <div className="form-group" style={{ marginTop: '10px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              Shopify Variant ID (Optional)
+              <span style={{ fontSize: '0.75rem', color: '#ff9800', border: '1px solid #ff9800', padding: '2px 4px', borderRadius: '4px' }}>Auto-Restock</span>
+            </label>
+            <input type="text" value={newSpool.shopify_variant_id || ''} onChange={(e) => setNewSpool({...newSpool, shopify_variant_id: e.target.value})} placeholder="e.g. 43105581957262" />
+            <div style={{ fontSize: '0.75rem', color: '#888', marginTop: '4px' }}>
+              Add <code>.json</code> to a Bambu product URL to find your color's 14-digit variant ID.
+            </div>
+          </div>
+
           <div className="modal-actions" style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end' }}>
             <button type="button" onClick={onClose} style={{ backgroundColor: '#444' }}>Cancel</button>
             <button type="submit" style={{ backgroundColor: 'var(--primary-color)' }}>{editingSpool ? 'Save Changes' : 'Add Spool'}</button>

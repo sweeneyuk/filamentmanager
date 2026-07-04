@@ -160,6 +160,25 @@ function Settings() {
         </div>
 
         <div className="settings-section">
+          <h3>Auto-Restock Configuration</h3>
+          <p className="settings-desc">Configure the shopping cart permalink parameters to automatically restock low-weight spools.</p>
+          <div className="form-group">
+            <label>Low Stock Threshold (g)</label>
+            <input type="number" name="low_stock_threshold" value={settings.low_stock_threshold || ''} onChange={handleChange} placeholder="200" />
+            <div style={{ fontSize: '0.8rem', color: '#888', marginTop: '4px' }}>
+              Spools with a remaining weight below this threshold will appear in the Restock Dashboard.
+            </div>
+          </div>
+          <div className="form-group">
+            <label>Bambu Store Base URL</label>
+            <input type="text" name="bambu_store_region" value={settings.bambu_store_region || ''} onChange={handleChange} placeholder="https://uk.bambulab.com" />
+            <div style={{ fontSize: '0.8rem', color: '#888', marginTop: '4px' }}>
+              Leave blank to default to https://uk.bambulab.com
+            </div>
+          </div>
+        </div>
+
+        <div className="settings-section">
           <h2>Authentication & Security</h2>
           <p className="settings-desc">Optional: Configure an OpenID Connect (OIDC) provider like Authentik for SSO.</p>
           <div className="form-group">

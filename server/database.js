@@ -60,6 +60,7 @@ const initDb = () => {
           total_weight REAL,
           empty_weight REAL,
           used_weight REAL DEFAULT 0,
+          shopify_variant_id TEXT,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (brand_id) REFERENCES brands(id),
           FOREIGN KEY (material_id) REFERENCES materials(id)
@@ -121,6 +122,7 @@ const initDb = () => {
       db.run('ALTER TABLE spools ADD COLUMN location TEXT', (err) => { /* ignore */ });
       db.run('ALTER TABLE spools ADD COLUMN last_used_at DATETIME', (err) => { /* ignore */ });
       db.run('ALTER TABLE spools ADD COLUMN last_print_name TEXT', (err) => { /* ignore */ });
+      db.run('ALTER TABLE spools ADD COLUMN shopify_variant_id TEXT', (err) => { /* ignore */ });
       db.run('ALTER TABLE spools ADD COLUMN color_name TEXT', (err) => {
         resolve(); // Resolve promise after the last query in serialize block finishes
       });

@@ -4,6 +4,7 @@ const path = require('path');
 const multer = require('multer');
 const { db, initDb, populateDefaults } = require('./database');
 const { connectMqtt, getAmsStatus, getPrintState, setIo } = require('./mqtt');
+const { getBambuVariantId } = require('./bambuCatalog');
 const http = require('http');
 const { Server } = require('socket.io');
 
@@ -150,26 +151,42 @@ app.get('/api/spools', (req, res) => {
 
 // POST /api/spools
 app.post('/api/spools', (req, res) => {
-  const { brand_id, material_id, subtype, color, color_name, cost, total_weight, empty_weight, used_weight, location } = req.body;
-  db.run(`
-    INSERT INTO spools (brand_id, material_id, subtype, color, color_name, cost, total_weight, empty_weight, used_weight, location)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, [brand_id, material_id, subtype, color, color_name, cost, total_weight, empty_weight, used_weight || 0, location], function(err) {
-    if (err) res.status(500).json({ error: err.message });
-    else res.json({ id: this.lastID });
+  const { brand_id, material_id, subtype, color, color_name, cost, total_weight, empty_weight, used_weight, location, shopify_variant_id } = req.body;
+  
+  db.get('SELECT b.name as brand, m.name as material FROM brands b, materials m WHERE b.id = ? AND m.id = ?', [brand_id, material_id], (err, row) => {
+    let finalVariantId = shopify_variant_id || null;
+    if (row && row.brand.includes('Bambu Lab') && !finalVariantId) {
+      finalVariantId = getBambuVariantId(row.material, subtype, color) || null;
+    }
+    
+    db.run(`
+      INSERT INTO spools (brand_id, material_id, subtype, color, color_name, cost, total_weight, empty_weight, used_weight, location, shopify_variant_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [brand_id, material_id, subtype, color, color_name, cost, total_weight, empty_weight, used_weight || 0, location, finalVariantId], function(err) {
+      if (err) res.status(500).json({ error: err.message });
+      else res.json({ id: this.lastID });
+    });
   });
 });
 
 // PUT /api/spools/:id
 app.put('/api/spools/:id', (req, res) => {
-  const { brand_id, material_id, subtype, color, color_name, cost, total_weight, empty_weight, used_weight, location } = req.body;
-  db.run(`
-    UPDATE spools 
-    SET brand_id = ?, material_id = ?, subtype = ?, color = ?, color_name = ?, cost = ?, total_weight = ?, empty_weight = ?, used_weight = ?, location = ?
-    WHERE id = ?
-  `, [brand_id, material_id, subtype, color, color_name, cost, total_weight, empty_weight, used_weight, location, req.params.id], (err) => {
-    if (err) res.status(500).json({ error: err.message });
-    else res.json({ success: true });
+  const { brand_id, material_id, subtype, color, color_name, cost, total_weight, empty_weight, used_weight, location, shopify_variant_id } = req.body;
+  
+  db.get('SELECT b.name as brand, m.name as material FROM brands b, materials m WHERE b.id = ? AND m.id = ?', [brand_id, material_id], (err, row) => {
+    let finalVariantId = shopify_variant_id || null;
+    if (row && row.brand.includes('Bambu Lab') && !finalVariantId) {
+      finalVariantId = getBambuVariantId(row.material, subtype, color) || null;
+    }
+
+    db.run(`
+      UPDATE spools 
+      SET brand_id = ?, material_id = ?, subtype = ?, color = ?, color_name = ?, cost = ?, total_weight = ?, empty_weight = ?, used_weight = ?, location = ?, shopify_variant_id = ?
+      WHERE id = ?
+    `, [brand_id, material_id, subtype, color, color_name, cost, total_weight, empty_weight, used_weight, location, finalVariantId, req.params.id], (err) => {
+      if (err) res.status(500).json({ error: err.message });
+      else res.json({ success: true });
+    });
   });
 });
 
