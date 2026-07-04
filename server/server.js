@@ -23,9 +23,7 @@ const io = new Server(server, {
 setIo(io);
 
 io.on('connection', (socket) => {
-  // console.log('Client connected to WebSocket');
   socket.on('disconnect', () => {
-    // console.log('Client disconnected');
   });
 });
 
@@ -64,7 +62,7 @@ app.get('/api/settings', (req, res) => {
   db.all('SELECT key, value FROM settings', [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     const settings = {};
-    const sensitiveKeys = ['access_code', 'password', 'token', 'gemini_api_key'];
+    const sensitiveKeys = ['access_code', 'password', 'token', 'secret', 'gemini_api_key'];
     rows.forEach(r => {
       if (sensitiveKeys.some(k => r.key.toLowerCase().includes(k)) && r.value) {
         settings[r.key] = '********';
@@ -285,8 +283,12 @@ app.delete('/api/archives/:id', (req, res) => {
     
     [row.timelapse_path, row.photo_path, row.thumbnail_path].forEach(p => {
       if (p) {
-        // Paths are stored like /media/1_photo.png, we need to strip the leading /
-        const localPath = path.join(mediaDir, p.replace(/^\//, ''));
+        const localPath = path.resolve(path.join(mediaDir, p.replace(/^\//, '')));
+        // Path traversal protection: ensure the resolved path is within mediaDir
+        if (!localPath.startsWith(path.resolve(mediaDir))) {
+          console.error('Suspicious path rejected during media delete:', localPath);
+          return;
+        }
         if (fs.existsSync(localPath)) {
           try { fs.unlinkSync(localPath); } catch (e) { console.error('Failed to delete media:', e.message); }
         }
@@ -313,7 +315,6 @@ app.post('/api/archives/:id/regenerate-image', (req, res) => {
     
     const fs = require('fs');
     const path = require('path');
-    const { execSync } = require('child_process');
     
     const mediaDir = path.join(__dirname, 'data');
     const localTimelapsePath = path.join(mediaDir, row.timelapse_path.replace(/^\//, ''));
@@ -325,8 +326,14 @@ app.post('/api/archives/:id/regenerate-image', (req, res) => {
     const photoFileName = `media/${id}_photo.jpg`;
     const localPhotoPath = path.join(mediaDir, photoFileName);
     
+    const resolvedTimelapse = path.resolve(localTimelapsePath);
+    if (!resolvedTimelapse.startsWith(path.resolve(mediaDir))) {
+      return res.status(400).json({ error: 'Invalid timelapse path.' });
+    }
+    
     try {
-      execSync(`ffmpeg -y -sseof -1 -i "${localTimelapsePath}" -update 1 -q:v 2 "${localPhotoPath}"`, { stdio: 'ignore' });
+      const { execFileSync } = require('child_process');
+      execFileSync('ffmpeg', ['-y', '-sseof', '-1', '-i', localTimelapsePath, '-update', '1', '-q:v', '2', localPhotoPath], { stdio: 'ignore' });
       
       db.run('UPDATE archives SET photo_path = ?, thumbnail_path = ? WHERE id = ?', [`/${photoFileName}`, `/${photoFileName}`, id], (updateErr) => {
         if (updateErr) return res.status(500).json({ error: updateErr.message });
@@ -466,7 +473,16 @@ app.get('/api/export/csv', (req, res) => {
 });
 
 // POST /api/import/csv
-const upload = multer({ dest: 'uploads/' });
+const upload = multer({
+  dest: 'uploads/',
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    if (!file.originalname.match(/\.csv$/i)) {
+      return cb(new Error('Only CSV files are allowed'));
+    }
+    cb(null, true);
+  }
+});
 app.post('/api/import/csv', upload.single('csvFile'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No CSV file uploaded' });
   const csv = require('csv-parser');
@@ -533,12 +549,15 @@ app.post('/api/import/csv', upload.single('csvFile'), (req, res) => {
             });
             insertSpool.finalize();
             db.run('COMMIT', () => {
-              fs.unlinkSync(req.file.path);
+              fs.unlink(req.file.path, () => {}); // Clean up temp file
               res.json({ success: true, message: 'CSV imported successfully!' });
             });
           });
         });
       });
+    }).on('error', (err) => {
+      fs.unlink(req.file.path, () => {}); // Clean up temp file on parse error
+      res.status(400).json({ error: 'Failed to parse CSV: ' + err.message });
     });
 });
 

@@ -441,7 +441,7 @@ function FilamentManager() {
                         <button onClick={() => handleArchiveToggle(spool)} title={spool.archived ? "Unarchive" : "Archive"}>
                           {spool.archived ? '📦↑' : '📦↓'}
                         </button>
-                        {spool.shopify_variant_id && isLowStock && (
+                        {spool.shopify_variant_id && isLowStock(spool) && (
                           <button style={{ color: '#ff9800', borderColor: '#ff9800' }} onClick={() => window.open(getBambuProductUrl(spool), '_blank')} title="Restock Spool">🛒</button>
                         )}
                         <button onClick={() => handleDeleteSpool(spool.id)} className="danger" title="Delete">🗑</button>

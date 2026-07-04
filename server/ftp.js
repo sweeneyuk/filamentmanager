@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const AdmZip = require('adm-zip');
 const { db } = require('./database');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 
 // Ensure media directory exists
 const mediaDir = path.join(__dirname, 'data', 'media');
@@ -85,7 +85,7 @@ const downloadLatestTimelapseAndPhoto = async (printName, archiveId, gcodeFile =
         const localPhotoPath = path.join(mediaDir, `${archiveId}_photo.jpg`);
         const localTimelapsePath = path.join(mediaDir, `${archiveId}_timelapse.mp4`);
         // Grab frames from the last 1 second, updating the same file so the last frame remains
-        execSync(`ffmpeg -y -sseof -1 -i "${localTimelapsePath}" -update 1 -q:v 2 "${localPhotoPath}"`, { stdio: 'ignore' });
+        execFileSync('ffmpeg', ['-y', '-sseof', '-1', '-i', localTimelapsePath, '-update', '1', '-q:v', '2', localPhotoPath], { stdio: 'ignore' });
         photoPath = `/media/${archiveId}_photo.jpg`;
         console.log(`Successfully extracted final frame from timelapse.`);
       } catch (err) {

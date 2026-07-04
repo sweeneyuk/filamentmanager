@@ -3,12 +3,13 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { db } = require('./database');
 
 // Helper to fetch HTML from Bambu Lab store
-function fetchHTML(url) {
+function fetchHTML(url, redirectDepth = 0) {
   return new Promise((resolve, reject) => {
+    if (redirectDepth > 5) return reject(new Error('Too many redirects'));
     https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } }, (res) => {
       let data = '';
       if (res.statusCode === 301 || res.statusCode === 302) {
-        return fetchHTML(res.headers.location).then(resolve).catch(reject);
+        return fetchHTML(res.headers.location, redirectDepth + 1).then(resolve).catch(reject);
       }
       res.on('data', chunk => data += chunk);
       res.on('end', () => resolve(data));

@@ -115,16 +115,7 @@ const connectMqtt = async () => {
   });
 };
 
-let hasLoggedKeys = false;
 const handlePrintStatus = async (printData) => {
-  if (!hasLoggedKeys) {
-    const fs = require('fs');
-    fs.writeFileSync('C:\\Users\\micha\\.gemini\\antigravity\\brain\\cf39f222-2d73-4673-b082-d7930f2024d0\\scratch\\printData.json', JSON.stringify(printData, null, 2));
-    console.log("DEBUG: printData keys =", Object.keys(printData));
-    const temps = Object.keys(printData).filter(k => k.includes('temp') || k.includes('nozzle') || k.includes('ext'));
-    console.log("DEBUG: Temperature related keys =", temps.map(k => `${k}: ${JSON.stringify(printData[k])}`));
-    hasLoggedKeys = true;
-  }
 
   // Extract AMS data if present
   if (printData.ams && printData.ams.ams) {

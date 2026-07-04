@@ -2,3 +2,9 @@ node_modules
 dist
 .env
 data/
+uploads/
+*.sqlite
+*.db
+server/raw_mqtt_dump.json
+server/testModels.js
+server/ftp-test.js
