@@ -325,8 +325,8 @@ function FilamentManager() {
             style={{ backgroundColor: '#ff9800', color: '#000', fontWeight: 'bold' }}
             onClick={() => {
               const baseUrl = settings.bambu_store_region || 'https://uk.bambulab.com';
-              const variants = restockSpools.map(s => `${s.shopify_variant_id}:1`).join(',');
-              const restockUrl = `${baseUrl}/cart/${variants}?return_to=/cart`;
+              const query = restockSpools.map(s => `items[][id]=${s.shopify_variant_id}&items[][quantity]=1`).join('&');
+              const restockUrl = `${baseUrl}/cart/add?${query}&return_to=/cart`;
               window.open(restockUrl, '_blank');
             }}
           >
@@ -451,6 +451,9 @@ function FilamentManager() {
                         <button onClick={() => handleArchiveToggle(spool)} title={spool.archived ? "Unarchive" : "Archive"}>
                           {spool.archived ? '📦↑' : '📦↓'}
                         </button>
+                        {spool.shopify_variant_id && isLowStock && (
+                          <button style={{ color: '#ff9800', borderColor: '#ff9800' }} onClick={() => window.open(`${settings.bambu_store_region || 'https://uk.bambulab.com'}/cart/add?id=${spool.shopify_variant_id}&quantity=1&return_to=/cart`, '_blank')} title="Add to Cart">🛒</button>
+                        )}
                         <button onClick={() => handleDeleteSpool(spool.id)} className="danger" title="Delete">🗑</button>
                       </div>
                     </td>
@@ -519,6 +522,9 @@ function FilamentManager() {
                 </div>
 
                 <div className="spool-card-actions">
+                  {spool.shopify_variant_id && isLowStock && (
+                    <button style={{color: '#ff9800', borderColor: '#ff9800'}} onClick={() => window.open(`${settings.bambu_store_region || 'https://uk.bambulab.com'}/cart/add?id=${spool.shopify_variant_id}&quantity=1&return_to=/cart`, '_blank')} title="Add to Cart">🛒 Cart</button>
+                  )}
                   <button onClick={() => { setEditingSpool(spool); setIsModalOpen(true); }} title="Edit">✎ Edit</button>
                   <button onClick={() => handleArchiveToggle(spool)} title={spool.archived ? "Unarchive" : "Archive"}>
                     {spool.archived ? '📦 Restore' : '📦 Archive'}
