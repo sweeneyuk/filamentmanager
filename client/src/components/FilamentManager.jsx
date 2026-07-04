@@ -320,7 +320,6 @@ function FilamentManager() {
           </div>
         </div>
       )}
-      )}
 
       <div className={`stats-grid-wrapper ${showStats ? 'open' : ''}`}>
         <div className="stats-grid">
