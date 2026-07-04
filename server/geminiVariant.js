@@ -105,9 +105,26 @@ If you cannot find a match, output "NOT_FOUND".
           result = await model.generateContent(prompt);
         } catch (e) {
           if (e.message && e.message.includes('404 Not Found')) {
-            console.log('gemini-1.5-flash not found (likely regional restriction). Falling back to gemini-pro...');
-            model = genAI.getGenerativeModel({ model: "gemini-pro" });
-            result = await model.generateContent(prompt);
+            // Fetch available models
+            const https = require('https');
+            const availableModels = await new Promise((res, rej) => {
+              https.get(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`, (response) => {
+                let d = '';
+                response.on('data', c => d += c);
+                response.on('end', () => {
+                  try {
+                    const json = JSON.parse(d);
+                    if (json.models) {
+                      const names = json.models.filter(m => m.supportedGenerationMethods.includes('generateContent')).map(m => m.name.replace('models/', ''));
+                      res(names.join(', '));
+                    } else {
+                      res('Unknown');
+                    }
+                  } catch(err) { res('Error parsing models'); }
+                });
+              }).on('error', () => res('Network error'));
+            });
+            throw new Error(`Model not found. Available models for your API key: ${availableModels}`);
           } else {
             throw e;
           }
