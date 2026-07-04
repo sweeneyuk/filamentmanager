@@ -24,10 +24,12 @@ function SpoolModal({ isOpen, onClose, editingSpool, brands, materials, onSave }
         subtype: editingSpool.subtype || '',
         location: editingSpool.location || '',
         color: editingSpool.color || '#ffffff',
+        color_name: editingSpool.color_name || '',
         cost: editingSpool.cost || '',
         total_weight: editingSpool.total_weight || 1000,
         empty_weight: editingSpool.empty_weight || 250,
-        used_weight: editingSpool.used_weight || 0
+        used_weight: editingSpool.used_weight || 0,
+        shopify_variant_id: editingSpool.shopify_variant_id || ''
       });
     } else {
       setNewSpool({ 
@@ -36,10 +38,12 @@ function SpoolModal({ isOpen, onClose, editingSpool, brands, materials, onSave }
         subtype: '',
         location: '',
         color: '#ffffff', 
+        color_name: '',
         cost: '', 
         total_weight: 1000, 
         empty_weight: brands[0]?.default_empty_weight || 250, 
-        used_weight: 0 
+        used_weight: 0,
+        shopify_variant_id: ''
       });
     }
   }, [editingSpool, brands, materials, isOpen]);
