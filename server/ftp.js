@@ -119,22 +119,73 @@ const downloadLatestTimelapseAndPhoto = async (printName, archiveId, gcodeFile =
   }
 };
 
+const findRemotePrintFile = async (client, gcodeFile, subtaskName) => {
+  let cleanPath = gcodeFile.startsWith('/data/') ? gcodeFile.substring(5) : gcodeFile;
+  if (!cleanPath.startsWith('/')) cleanPath = '/' + cleanPath;
+  
+  const pathsToTry = [];
+  pathsToTry.push(gcodeFile.startsWith('/') ? gcodeFile : '/' + gcodeFile);
+  pathsToTry.push(cleanPath);
+  pathsToTry.push(`/tasks${cleanPath}`);
+
+  if (subtaskName) {
+    const sub = subtaskName.trim();
+    pathsToTry.push(`/${sub}.gcode.3mf`);
+    pathsToTry.push(`/cache/${sub}.gcode.3mf`);
+    pathsToTry.push(`/${sub}.3mf`);
+    pathsToTry.push(`/cache/${sub}.3mf`);
+  }
+
+  // 1. Try explicit paths
+  for (const p of pathsToTry) {
+    try {
+      await client.size(p); // Throws if file does not exist
+      return p;
+    } catch(e) {}
+  }
+  
+  // 2. Try fuzzy match or fallback to the newest .3mf file in root
+  try {
+    const rootFiles = await client.list('/');
+    const candidates = rootFiles.filter(f => f.name.toLowerCase().endsWith('.3mf'));
+    
+    if (subtaskName) {
+      const subClean = subtaskName.trim().toLowerCase();
+      const bestMatch = candidates.find(f => f.name.toLowerCase().includes(subClean));
+      if (bestMatch) return `/${bestMatch.name}`;
+    }
+    
+    if (candidates.length > 0) {
+      // rawModifiedAt is usually like 'Jul 02 17:18'
+      candidates.sort((a, b) => new Date(b.rawModifiedAt) - new Date(a.rawModifiedAt));
+      return `/${candidates[0].name}`;
+    }
+  } catch (e) {
+    console.error('Fallback search failed:', e.message);
+  }
+  
+  return null;
+};
+
 /**
  * Extracts the 3MF thumbnail at the start of a print.
  */
-const extractThumbnailFrom3mf = async (gcodeFile, prefix) => {
+const extractThumbnailFrom3mf = async (gcodeFile, prefix, subtaskName = null) => {
   if (!gcodeFile || !gcodeFile.toLowerCase().endsWith('.3mf')) return null;
   
   let client;
   try {
     client = await connectFtp();
+    const remotePath = await findRemotePrintFile(client, gcodeFile, subtaskName);
+    if (!remotePath) {
+      console.log(`Could not find remote file for thumbnail extraction.`);
+      client.close();
+      return null;
+    }
+    
     const localTemp3mf = path.join(mediaDir, `${prefix}_temp_thumb.3mf`);
-    
-    let cleanPath = gcodeFile.startsWith('/data/') ? gcodeFile.substring(5) : gcodeFile;
-    if (!cleanPath.startsWith('/')) cleanPath = '/' + cleanPath;
-    
-    console.log(`Attempting to extract initial thumbnail from ${cleanPath}`);
-    await client.downloadTo(localTemp3mf, cleanPath);
+    console.log(`Attempting to extract initial thumbnail from ${remotePath}`);
+    await client.downloadTo(localTemp3mf, remotePath);
     
     const zip = new AdmZip(localTemp3mf);
     const zipEntries = zip.getEntries();
@@ -222,48 +273,26 @@ const getPredictedWeights = async (gcodeFile, subtaskName) => {
   let client;
   try {
     client = await connectFtp();
-    let weights = null;
-    let successfulPath = null;
-
-    let cleanPath = gcodeFile.startsWith('/data/') ? gcodeFile.substring(5) : gcodeFile;
-    if (!cleanPath.startsWith('/')) cleanPath = '/' + cleanPath;
-    const isGcode = cleanPath.toLowerCase().endsWith('.gcode');
-    const extractFn = isGcode ? extractWeightsFromGcode : extractWeightsFrom3mf;
-
-    const pathsToTry = [];
+    const remotePath = await findRemotePrintFile(client, gcodeFile, subtaskName);
     
-    // Exact paths
-    pathsToTry.push(gcodeFile.startsWith('/') ? gcodeFile : '/' + gcodeFile);
-    pathsToTry.push(cleanPath);
-    pathsToTry.push(`/tasks${cleanPath}`);
-
-    // Fallback paths based on subtask_name
-    if (subtaskName) {
-      const sub = subtaskName.trim();
-      pathsToTry.push(`/${sub}.gcode.3mf`);
-      pathsToTry.push(`/cache/${sub}.gcode.3mf`);
-      pathsToTry.push(`/${sub}.3mf`);
-      pathsToTry.push(`/cache/${sub}.3mf`);
+    if (!remotePath) {
+      console.log(`Could not find remote file for weight extraction.`);
+      client.close();
+      return { weights: null, path: null };
     }
 
-    for (const p of pathsToTry) {
-      // Determine extraction method based on the specific path we are trying
-      const isPathGcode = p.toLowerCase().endsWith('.gcode');
-      const fn = isPathGcode ? extractWeightsFromGcode : extractWeightsFrom3mf;
-      weights = await fn(client, p);
-      if (weights) {
-        successfulPath = p;
-        console.log(`Successfully extracted weights from ${p}`);
-        break;
-      }
-    }
-
-    if (!weights) {
-      console.log(`Could not extract weights across any expected FTP paths.`);
+    const isGcode = remotePath.toLowerCase().endsWith('.gcode');
+    const extractFn = isGcode ? extractWeightsFromGcode : extractWeightsFrom3mf;
+    
+    const weights = await extractFn(client, remotePath);
+    if (weights) {
+      console.log(`Successfully extracted weights from ${remotePath}`);
+    } else {
+      console.log(`Failed to parse weights inside ${remotePath}`);
     }
 
     client.close();
-    return { weights, path: successfulPath };
+    return { weights, path: remotePath };
   } catch (err) {
     if (client) client.close();
     console.error('FTP Error getting weights:', err.message);
