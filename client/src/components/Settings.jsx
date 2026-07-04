@@ -148,6 +148,18 @@ function Settings() {
         </div>
 
         <div className="settings-section">
+          <h3>Gemini AI Integration</h3>
+          <p className="settings-desc">Enable smart print failure analysis. The server will send the final print photo to Gemini to determine if the print was successful or failed (spaghetti, stringing, warping).</p>
+          <div className="form-group">
+            <label>Gemini API Key</label>
+            <input type="password" name="gemini_api_key" value={settings.gemini_api_key || ''} onChange={handleChange} placeholder="AIzaSy..." />
+            <div style={{ fontSize: '0.8rem', color: '#888', marginTop: '4px' }}>
+              You can get a free API key from <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" style={{ color: 'var(--primary-color)' }}>Google AI Studio</a>.
+            </div>
+          </div>
+        </div>
+
+        <div className="settings-section">
           <h2>Authentication & Security</h2>
           <p className="settings-desc">Optional: Configure an OpenID Connect (OIDC) provider like Authentik for SSO.</p>
           <div className="form-group">

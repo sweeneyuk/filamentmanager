@@ -62,7 +62,7 @@ app.get('/api/settings', (req, res) => {
   db.all('SELECT key, value FROM settings', [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     const settings = {};
-    const sensitiveKeys = ['access_code', 'password', 'token'];
+    const sensitiveKeys = ['access_code', 'password', 'token', 'gemini_api_key'];
     rows.forEach(r => {
       if (sensitiveKeys.some(k => r.key.toLowerCase().includes(k)) && r.value) {
         settings[r.key] = '********';

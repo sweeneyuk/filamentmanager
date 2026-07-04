@@ -195,6 +195,46 @@ function Archive() {
                   ) : <span style={{ color: '#555' }}>None recorded</span>}
                 </div>
 
+                {/* AI Analysis Section */}
+                {arch.ai_analysis && (() => {
+                  let ai = null;
+                  try { ai = JSON.parse(arch.ai_analysis); } catch(e){}
+                  if (!ai) return null;
+                  
+                  let bgColor = 'rgba(255,255,255,0.05)';
+                  let color = '#ccc';
+                  let icon = '🤖';
+                  
+                  if (ai.status === 'SUCCESS') {
+                    bgColor = 'rgba(0,174,66,0.1)';
+                    color = '#4ade80';
+                    icon = '✨';
+                  } else if (ai.status === 'SPAGHETTI') {
+                    bgColor = 'rgba(220,53,69,0.15)';
+                    color = '#f87171';
+                    icon = '🍝';
+                  } else if (ai.status === 'STRINGING') {
+                    bgColor = 'rgba(255,193,7,0.15)';
+                    color = '#fbbf24';
+                    icon = '🕸️';
+                  } else if (ai.status === 'WARPED' || ai.status === 'LAYER_SHIFT') {
+                    bgColor = 'rgba(255,153,0,0.15)';
+                    color = '#f97316';
+                    icon = '⚠️';
+                  }
+
+                  return (
+                    <div style={{ backgroundColor: bgColor, border: `1px solid ${color}40`, padding: '10px', borderRadius: '8px', fontSize: '0.85rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', color: color, marginBottom: '4px' }}>
+                        <span>{icon}</span> AI Analysis: {ai.status}
+                      </div>
+                      <div style={{ color: '#ccc', fontStyle: 'italic', lineHeight: '1.4' }}>
+                        "{ai.reason}"
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <div style={{ flex: 1 }}></div>
 
                 {/* Cost Breakdown */}

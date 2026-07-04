@@ -325,6 +325,8 @@ const handlePrintStatus = async (printData) => {
             setTimeout(async () => {
               try {
                 const { downloadLatestTimelapseAndPhoto } = require('./ftp');
+                const { analyzePrint } = require('./ai');
+                
                 // Use the successfully identified gcode file path from start of print, fallback to raw
                 const gcodePath = archivedState.activeGcodeFile || archivedState.raw.gcode_file;
                 const paths = await downloadLatestTimelapseAndPhoto(archivedState.name, archiveId, gcodePath);
@@ -332,11 +334,27 @@ const handlePrintStatus = async (printData) => {
                 if (paths.timelapsePath || paths.photoPath) {
                   db.run(
                     'UPDATE archives SET timelapse_path = ?, photo_path = ? WHERE id = ?',
-                    [paths.timelapsePath, paths.photoPath, archiveId]
+                    [paths.timelapsePath, paths.photoPath, archiveId],
+                    async () => {
+                      // Trigger AI Analysis if a photo was successfully captured
+                      if (paths.photoPath) {
+                        const path = require('path');
+                        // paths.photoPath is like "/media/X_photo.jpg", we need absolute path
+                        const absolutePhotoPath = path.join(__dirname, 'data', paths.photoPath.replace(/^\//, ''));
+                        
+                        const aiResult = await analyzePrint(absolutePhotoPath, archivedState.name, durationSeconds);
+                        if (aiResult) {
+                          db.run(
+                            'UPDATE archives SET ai_analysis = ? WHERE id = ?',
+                            [JSON.stringify(aiResult), archiveId]
+                          );
+                        }
+                      }
+                    }
                   );
                 }
               } catch (e) {
-                console.error('Failed to download timelapse asynchronously:', e);
+                console.error('Failed to download timelapse or analyze print asynchronously:', e);
               }
             }, 60000);
           }

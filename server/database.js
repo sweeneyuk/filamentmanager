@@ -112,6 +112,8 @@ const initDb = () => {
       // Attempt to add new columns to an existing archives table (fails silently if they exist)
       db.run("ALTER TABLE archives ADD COLUMN timelapse_path TEXT", () => {});
       db.run("ALTER TABLE archives ADD COLUMN photo_path TEXT", () => {});
+      db.run("ALTER TABLE archives ADD COLUMN thumbnail_path TEXT", () => {});
+      db.run("ALTER TABLE archives ADD COLUMN ai_analysis TEXT", () => {});
 
       // Migrations for existing databases
       db.run('ALTER TABLE spools ADD COLUMN archived INTEGER DEFAULT 0', (err) => { /* ignore if exists */ });
