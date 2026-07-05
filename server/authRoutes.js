@@ -107,10 +107,14 @@ router.get('/oidc/callback', async (req, res) => {
     console.log('[OIDC] Processing callback for redirect URI:', redirectUri);
     
     const client = await initOidcClient(redirectUri);
-    if (!client) return res.status(400).send('OIDC not configured');
+    if (!client) {
+      return res.status(400).send(`<h2>OIDC Configuration Error</h2><p>Failed to initialize OIDC client. Check your backend logs for "Failed to initialize OIDC Client". Ensure your Issuer URL is reachable from inside the Docker container.</p>`);
+    }
 
     const params = client.callbackParams(req);
-    const tokenSet = await client.callback(redirectUri, params);
+    const checks = { state: params.state }; // Authentik often sends state, we must pass it to verify
+    
+    const tokenSet = await client.callback(redirectUri, params, checks);
     const claims = tokenSet.claims();
     
     // Check if username exists (preferred_username or name or email)
@@ -126,11 +130,20 @@ router.get('/oidc/callback', async (req, res) => {
     const secret = await getJwtSecret();
     const token = jwt.sign({ id: user.id, username: user.username, is_admin: user.is_admin }, secret, { expiresIn: '7d' });
     
-    // Redirect to frontend with token in hash or query (query is easier for client to parse)
+    // Redirect to frontend with token in hash or query
     res.redirect(`/?token=${token}`);
   } catch (err) {
     console.error('OIDC Callback Error:', err);
-    res.redirect('/login?error=OIDC+Authentication+Failed');
+    res.status(500).send(`
+      <div style="font-family: sans-serif; padding: 40px;">
+        <h2 style="color: #ff5555;">OIDC Authentication Failed</h2>
+        <p><strong>Error:</strong> ${err.message}</p>
+        <p><strong>Details:</strong> ${err.stack}</p>
+        <hr />
+        <p>If you see "redirect_uri mismatch", ensure that Authentik's Allowed Redirect URIs exactly matches the URI used in the request.</p>
+        <a href="/login">Return to Login</a>
+      </div>
+    `);
   }
 });
 
