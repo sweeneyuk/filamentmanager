@@ -20,7 +20,7 @@ body {
   color: var(--text-color);
   margin: 0;
   padding: 0;
-  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -560,8 +560,56 @@ input:focus, select:focus {
   border-color: var(--primary-color);
 }
 
+.nav-spacer {
+  flex: 1;
+}
+
+.settings-layout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.settings-tabs {
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 15px;
+}
+
+.settings-tabs button {
+  text-align: left;
+}
+
+.settings-content {
+  flex: 1;
+  min-width: 0;
+}
+
 /* Mobile Responsiveness */
 @media (max-width: 768px) {
+  .nav-spacer {
+    display: none;
+  }
+
+  .settings-layout {
+    flex-direction: column;
+  }
+
+  .settings-tabs {
+    flex-direction: row;
+    overflow-x: auto;
+    width: 100%;
+    min-width: unset;
+    padding: 10px;
+  }
+
+  .settings-tabs button {
+    text-align: center !important;
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
   .app-container {
     flex-direction: column;
   }

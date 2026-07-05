@@ -70,33 +70,33 @@ function Settings() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
+      <div className="settings-layout">
         {/* Sidebar Tabs */}
-        <div className="card no-hover" style={{ minWidth: '220px', display: 'flex', flexDirection: 'column', gap: '8px', padding: '15px' }}>
+        <div className="card no-hover settings-tabs">
           <button 
             className={`btn-secondary`} 
-            style={{ textAlign: 'left', fontWeight: activeTab === 'printers' ? 'bold' : 'normal', backgroundColor: activeTab === 'printers' ? 'var(--hover-bg)' : 'transparent', border: activeTab === 'printers' ? '1px solid var(--primary-color)' : '1px solid transparent' }} 
+            style={{ fontWeight: activeTab === 'printers' ? 'bold' : 'normal', backgroundColor: activeTab === 'printers' ? 'var(--hover-bg)' : 'transparent', border: activeTab === 'printers' ? '1px solid var(--primary-color)' : '1px solid transparent' }} 
             onClick={() => setActiveTab('printers')}
           >
             Printer Fleet
           </button>
           <button 
             className={`btn-secondary`} 
-            style={{ textAlign: 'left', fontWeight: activeTab === 'integrations' ? 'bold' : 'normal', backgroundColor: activeTab === 'integrations' ? 'var(--hover-bg)' : 'transparent', border: activeTab === 'integrations' ? '1px solid var(--primary-color)' : '1px solid transparent' }} 
+            style={{ fontWeight: activeTab === 'integrations' ? 'bold' : 'normal', backgroundColor: activeTab === 'integrations' ? 'var(--hover-bg)' : 'transparent', border: activeTab === 'integrations' ? '1px solid var(--primary-color)' : '1px solid transparent' }} 
             onClick={() => setActiveTab('integrations')}
           >
             Integrations
           </button>
           <button 
             className={`btn-secondary`} 
-            style={{ textAlign: 'left', fontWeight: activeTab === 'stock' ? 'bold' : 'normal', backgroundColor: activeTab === 'stock' ? 'var(--hover-bg)' : 'transparent', border: activeTab === 'stock' ? '1px solid var(--primary-color)' : '1px solid transparent' }} 
+            style={{ fontWeight: activeTab === 'stock' ? 'bold' : 'normal', backgroundColor: activeTab === 'stock' ? 'var(--hover-bg)' : 'transparent', border: activeTab === 'stock' ? '1px solid var(--primary-color)' : '1px solid transparent' }} 
             onClick={() => setActiveTab('stock')}
           >
             Stock & Prefs
           </button>
           <button 
             className={`btn-secondary`} 
-            style={{ textAlign: 'left', fontWeight: activeTab === 'security' ? 'bold' : 'normal', backgroundColor: activeTab === 'security' ? 'var(--hover-bg)' : 'transparent', border: activeTab === 'security' ? '1px solid var(--primary-color)' : '1px solid transparent' }} 
+            style={{ fontWeight: activeTab === 'security' ? 'bold' : 'normal', backgroundColor: activeTab === 'security' ? 'var(--hover-bg)' : 'transparent', border: activeTab === 'security' ? '1px solid var(--primary-color)' : '1px solid transparent' }} 
             onClick={() => setActiveTab('security')}
           >
             Security & SSO
@@ -104,7 +104,7 @@ function Settings() {
         </div>
 
         {/* Main Content Area */}
-        <div style={{ flex: 1 }}>
+        <div className="settings-content">
           {activeTab === 'printers' && (
             <div className="card no-hover">
               <PrintersManagement />

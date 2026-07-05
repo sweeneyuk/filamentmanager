@@ -45,7 +45,7 @@ function MainApp() {
             <NavLink to="/analytics" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               <Activity size={20} /> Analytics
             </NavLink>
-            <div style={{ flex: 1 }}></div>
+            <div className="nav-spacer"></div>
             <NavLink to="/profile" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               <User size={20} /> Profile
             </NavLink>
