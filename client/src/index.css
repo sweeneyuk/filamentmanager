@@ -684,3 +684,11 @@ input[type="checkbox"] {
     display: grid;
   }
 }
+.floating-assistant-btn, .floating-assistant-window {
+  bottom: 20px;
+}
+@media (max-width: 768px) {
+  .floating-assistant-btn, .floating-assistant-window {
+    bottom: 90px;
+  }
+}

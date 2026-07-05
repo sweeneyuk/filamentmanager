@@ -48,9 +48,10 @@ function FloatingAssistant() {
       {/* Floating Action Button */}
       {!isOpen && (
         <button 
+          className="floating-assistant-btn"
           onClick={() => setIsOpen(true)}
           style={{
-            position: 'fixed', bottom: '20px', right: '20px', zIndex: 9999,
+            position: 'fixed', right: '20px', zIndex: 9999,
             width: '60px', height: '60px', borderRadius: '50%',
             backgroundColor: 'var(--primary-color)', color: '#000',
             border: 'none', boxShadow: '0 4px 12px rgba(0,255,136,0.3)',
@@ -64,8 +65,10 @@ function FloatingAssistant() {
 
       {/* Chat Window */}
       {isOpen && (
-        <div style={{
-          position: 'fixed', bottom: '20px', right: '20px', zIndex: 9999,
+        <div 
+          className="floating-assistant-window"
+          style={{
+          position: 'fixed', right: '20px', zIndex: 9999,
           width: '350px', height: '500px', backgroundColor: 'var(--card-bg)',
           borderRadius: '12px', border: '1px solid var(--border-color)',
           boxShadow: '0 8px 24px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column',
