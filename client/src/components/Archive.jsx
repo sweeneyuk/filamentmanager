@@ -249,12 +249,16 @@ function Archive() {
                       setOpenMenuId(openMenuId === arch.id ? null : arch.id);
                     }}
                     style={{
-                      background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', 
-                      width: '32px', height: '32px', borderRadius: '6px', cursor: 'pointer',
+                      background: 'transparent', border: 'none', color: '#fff', 
+                      width: '32px', height: '32px', cursor: 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      backdropFilter: 'blur(4px)'
-                    }}>
-                    <MoreVertical size={16} />
+                      opacity: 0.8, transition: 'opacity 0.2s', padding: 0,
+                      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))'
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.opacity = 1}
+                    onMouseOut={(e) => e.currentTarget.style.opacity = 0.8}
+                  >
+                    <MoreVertical size={24} />
                   </button>
                   {openMenuId === arch.id && (
                     <div style={{
