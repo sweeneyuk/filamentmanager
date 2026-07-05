@@ -54,10 +54,10 @@ function ScrapSaver() {
   const getRemainingWeight = (s) => (s.total_weight - s.used_weight).toFixed(1);
 
   return (
-    <div style={{ display: 'flex', gap: '20px', padding: '20px', height: '100%', flexDirection: 'row', flexWrap: 'wrap' }}>
+    <div style={{ paddingBottom: '20px' }}>
       
       {/* Title Card */}
-      <div className="card title-card" style={{ marginBottom: '0', borderLeft: '4px solid var(--primary-color)', width: '100%' }}>
+      <div className="card title-card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--primary-color)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <h2 style={{ margin: '0 0 5px 0', color: 'var(--primary-color)' }}>Scrap Saver</h2>
@@ -67,8 +67,9 @@ function ScrapSaver() {
         </div>
       </div>
 
-      {/* Left: Scrap Spools */}
-      <div style={{ flex: '1 1 300px', backgroundColor: 'var(--card-bg)', borderRadius: '12px', padding: '20px', overflowY: 'auto' }}>
+      <div style={{ display: 'flex', gap: '20px', flexDirection: 'row', flexWrap: 'wrap' }}>
+        {/* Left: Scrap Spools */}
+        <div style={{ flex: '1 1 300px', backgroundColor: 'var(--card-bg)', borderRadius: '12px', padding: '20px', overflowY: 'auto' }}>
         <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--primary-color)' }}>
           <RefreshCw /> Scrap Dashboard
         </h2>
