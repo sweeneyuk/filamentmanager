@@ -9,6 +9,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [setupRequired, setSetupRequired] = useState(false);
+  const [ssoConfigured, setSsoConfigured] = useState(false);
 
   useEffect(() => {
     // Check if token in URL hash/query (from OIDC redirect)
@@ -43,6 +44,8 @@ export const AuthProvider = ({ children }) => {
     const checkAuth = async () => {
       try {
         const res = await axios.get('/api/auth/setup-check');
+        if (res.data.ssoConfigured) setSsoConfigured(true);
+        
         if (res.data.setupRequired) {
           setSetupRequired(true);
           setLoading(false);
@@ -102,7 +105,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, setupRequired, login, setup, logout }}>
+    <AuthContext.Provider value={{ user, loading, setupRequired, ssoConfigured, login, setup, logout }}>
       {children}
     </AuthContext.Provider>
   );

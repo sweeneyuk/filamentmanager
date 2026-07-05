@@ -10,3 +10,4 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
+      - DOMAIN=fm.msglover.me

@@ -19,7 +19,8 @@ function PrintStatus() {
 
   useEffect(() => {
     fetchData();
-    const socket = io();
+    const token = localStorage.getItem('token');
+    const socket = io({ auth: { token } });
 
     socket.on('print_state_update', (data) => {
       setPrintStates(prev => ({ ...prev, [data.printer_id]: data.state }));

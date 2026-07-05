@@ -4,23 +4,41 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { db } = require('./database');
 const { getJwtSecret, initOidcClient } = require('./auth');
+const rateLimit = require('express-rate-limit');
+
+// Rate limiter for local login and setup (5 requests per 15 minutes)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { error: 'Too many login attempts, please try again after 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Helper
 const runQuery = (query, params) => new Promise((resolve, reject) => db.run(query, params, function(err) { err ? reject(err) : resolve(this) }));
 const getQuery = (query, params) => new Promise((resolve, reject) => db.get(query, params, (err, row) => err ? reject(err) : resolve(row)));
 
-// Check if setup is required
+// Check if setup is required and if SSO is configured
 router.get('/setup-check', async (req, res) => {
   try {
     const row = await getQuery("SELECT COUNT(*) as count FROM users");
-    res.json({ setupRequired: row.count === 0 });
+    const issuerUrl = await getQuery("SELECT value FROM settings WHERE key = 'oidc_issuer'");
+    const clientId = await getQuery("SELECT value FROM settings WHERE key = 'oidc_client_id'");
+    
+    const ssoConfigured = Boolean(issuerUrl?.value && clientId?.value);
+    
+    res.json({ 
+      setupRequired: row.count === 0,
+      ssoConfigured: ssoConfigured
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // Initial Setup
-router.post('/setup', async (req, res) => {
+router.post('/setup', authLimiter, async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
 
@@ -42,7 +60,7 @@ router.post('/setup', async (req, res) => {
 });
 
 // Local Login
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
 

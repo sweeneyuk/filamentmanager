@@ -36,7 +36,8 @@ const authenticateToken = async (req, res, next) => {
     }
 
     const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
+    const headerToken = authHeader && authHeader.split(' ')[1];
+    const token = headerToken || req.query.token;
 
     if (!token) {
       return res.status(401).json({ error: 'Access denied, token missing' });

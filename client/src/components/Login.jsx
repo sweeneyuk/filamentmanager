@@ -8,14 +8,18 @@ function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showLocal, setShowLocal] = useState(false);
 
   useEffect(() => {
-    // Check if error passed from OIDC redirect
+    // Check if error passed from OIDC redirect or local override
     const urlParams = new URLSearchParams(window.location.search);
     const urlError = urlParams.get('error');
     if (urlError) {
       setError(urlError);
       window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    if (urlParams.get('local') === 'true') {
+      setShowLocal(true);
     }
   }, []);
 
@@ -80,54 +84,59 @@ function Login() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            <label style={{ fontSize: '0.85rem', color: '#ccc' }}>Username</label>
-            <input 
-              type="text" 
-              value={username} 
-              onChange={e => setUsername(e.target.value)} 
-              required 
-              autoFocus
-              style={{ padding: '10px', borderRadius: '4px', border: '1px solid #333', backgroundColor: '#1a1a1a', color: '#fff' }}
-            />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            <label style={{ fontSize: '0.85rem', color: '#ccc' }}>Password</label>
-            <input 
-              type="password" 
-              value={password} 
-              onChange={e => setPassword(e.target.value)} 
-              required 
-              style={{ padding: '10px', borderRadius: '4px', border: '1px solid #333', backgroundColor: '#1a1a1a', color: '#fff' }}
-            />
-          </div>
-          <button 
-            type="submit" 
-            disabled={loading}
-            style={{ 
-              padding: '12px', borderRadius: '4px', border: 'none', backgroundColor: 'var(--primary-color)', 
-              color: '#000', fontWeight: 'bold', cursor: loading ? 'not-allowed' : 'pointer', marginTop: '10px' 
-            }}
-          >
-            {loading ? 'Please wait...' : (setupRequired ? 'Complete Setup' : 'Login')}
-          </button>
-        </form>
+        {(!ssoConfigured || setupRequired || showLocal) && (
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <label style={{ fontSize: '0.85rem', color: '#ccc' }}>Username</label>
+              <input 
+                type="text" 
+                value={username} 
+                onChange={e => setUsername(e.target.value)} 
+                required 
+                autoFocus
+                style={{ padding: '10px', borderRadius: '4px', border: '1px solid #333', backgroundColor: '#1a1a1a', color: '#fff' }}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <label style={{ fontSize: '0.85rem', color: '#ccc' }}>Password</label>
+              <input 
+                type="password" 
+                value={password} 
+                onChange={e => setPassword(e.target.value)} 
+                required 
+                style={{ padding: '10px', borderRadius: '4px', border: '1px solid #333', backgroundColor: '#1a1a1a', color: '#fff' }}
+              />
+            </div>
+            <button 
+              type="submit" 
+              disabled={loading}
+              style={{ 
+                padding: '12px', borderRadius: '4px', border: 'none', backgroundColor: 'var(--primary-color)', 
+                color: '#000', fontWeight: 'bold', cursor: loading ? 'not-allowed' : 'pointer', marginTop: '10px' 
+              }}
+            >
+              {loading ? 'Please wait...' : (setupRequired ? 'Complete Setup' : 'Login')}
+            </button>
+          </form>
+        )}
 
         {!setupRequired && (
           <>
-            <div style={{ display: 'flex', alignItems: 'center', margin: '10px 0' }}>
-              <div style={{ flex: 1, height: '1px', backgroundColor: '#333' }}></div>
-              <span style={{ margin: '0 10px', color: '#666', fontSize: '0.85rem' }}>OR</span>
-              <div style={{ flex: 1, height: '1px', backgroundColor: '#333' }}></div>
-            </div>
+            {!ssoConfigured && (
+              <div style={{ display: 'flex', alignItems: 'center', margin: '10px 0' }}>
+                <div style={{ flex: 1, height: '1px', backgroundColor: '#333' }}></div>
+                <span style={{ margin: '0 10px', color: '#666', fontSize: '0.85rem' }}>OR</span>
+                <div style={{ flex: 1, height: '1px', backgroundColor: '#333' }}></div>
+              </div>
+            )}
             
             <button 
               onClick={handleOidcLogin}
               type="button"
               style={{ 
-                padding: '12px', borderRadius: '4px', border: '1px solid #333', backgroundColor: '#1a1a1a', 
-                color: '#fff', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px'
+                padding: '12px', borderRadius: '4px', border: '1px solid #333', backgroundColor: ssoConfigured ? 'var(--primary-color)' : '#1a1a1a', 
+                color: ssoConfigured ? '#000' : '#fff', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px',
+                marginTop: ssoConfigured ? '10px' : '0'
               }}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -136,6 +145,18 @@ function Login() {
               </svg>
               Login with Authentik (SSO)
             </button>
+            
+            {ssoConfigured && (
+              <div style={{ textAlign: 'center', marginTop: '10px' }}>
+                <button 
+                  type="button"
+                  onClick={() => window.location.href = '?local=true'}
+                  style={{ background: 'none', border: 'none', color: '#666', fontSize: '0.75rem', cursor: 'pointer', textDecoration: 'underline' }}
+                >
+                  Admin Local Login
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>

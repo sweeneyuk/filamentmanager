@@ -161,8 +161,11 @@ function Archive() {
       }}>
         {archives.map(arch => {
           const d = new Date(arch.created_at);
+          
+          const getTokenUrl = (url) => url ? `${url}?token=${localStorage.getItem('token')}` : url;
+          
           // If the final photo wasn't extracted successfully, fallback to thumbnail for the modal
-          const modalPhoto = arch.photo_path || arch.thumbnail_path;
+          const modalPhoto = getTokenUrl(arch.photo_path || arch.thumbnail_path);
           const isSelected = selectedArchives.includes(arch.id);
           
           return (
@@ -185,7 +188,7 @@ function Archive() {
               <div style={{ position: 'relative', width: '100%', height: '220px', backgroundColor: 'var(--secondary-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {arch.thumbnail_path ? (
                   <img 
-                    src={arch.thumbnail_path} 
+                    src={getTokenUrl(arch.thumbnail_path)} 
                     alt="Print Thumbnail" 
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
                   />
@@ -199,7 +202,7 @@ function Archive() {
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
-                        setSelectedVideo(arch.timelapse_path);
+                        setSelectedVideo(getTokenUrl(arch.timelapse_path));
                       }}
                       style={{ 
                         backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer', padding: '6px 10px', borderRadius: '6px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px', backdropFilter: 'blur(4px)', zIndex: 10

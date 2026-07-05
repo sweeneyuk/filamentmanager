@@ -13,11 +13,45 @@ const app = express();
 const port = 3000;
 
 const server = http.createServer(app);
+
+app.disable('x-powered-by');
+
+const customDomain = process.env.DOMAIN 
+  ? (process.env.DOMAIN.startsWith('http') ? process.env.DOMAIN : `https://${process.env.DOMAIN}`) 
+  : 'https://fm.msglover.me';
+
+const allowedOrigins = [customDomain, 'http://localhost:5173', 'http://localhost:3000'];
+
 const io = new Server(server, {
   cors: {
-    origin: '*',
+    origin: allowedOrigins,
     methods: ['GET', 'POST', 'PUT', 'DELETE']
   }
+});
+
+const { getJwtSecret, authenticateToken } = require('./auth');
+const jwt = require('jsonwebtoken');
+
+io.use(async (socket, next) => {
+  // Always allow if no users exist (setup mode)
+  db.get("SELECT COUNT(*) as count FROM users", async (err, row) => {
+    if (err) return next(new Error('Database error'));
+    if (row.count === 0) return next();
+
+    const token = socket.handshake.auth?.token;
+    if (!token) return next(new Error('Authentication error: Token missing'));
+
+    try {
+      const secret = await getJwtSecret();
+      jwt.verify(token, secret, (err, user) => {
+        if (err) return next(new Error('Authentication error: Invalid token'));
+        socket.user = user;
+        next();
+      });
+    } catch (err) {
+      next(new Error('Authentication error'));
+    }
+  });
 });
 
 setIo(io);
@@ -28,7 +62,7 @@ io.on('connection', (socket) => {
 });
 
 // Middleware
-app.use(cors());
+app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -39,7 +73,6 @@ app.use((req, res, next) => {
 
 const authRoutes = require('./authRoutes');
 const printersRoutes = require('./printersRoutes');
-const { authenticateToken } = require('./auth');
 
 // Auth routes (unprotected)
 app.use('/api/auth', authRoutes);
@@ -567,7 +600,7 @@ function broadcastAmsAssignments() {
 }
 
 // Serve Media directory
-app.use('/media', express.static(path.join(__dirname, 'data/media')));
+app.use('/media', authenticateToken, express.static(path.join(__dirname, 'data/media')));
 
 // GET /api/export/csv
 app.get('/api/export/csv', (req, res) => {
