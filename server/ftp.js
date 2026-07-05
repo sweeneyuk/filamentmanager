@@ -269,6 +269,7 @@ const getPredictedWeights = async (gcodeFile, subtaskName) => {
 };
 
 module.exports = {
+  connectFtp,
   getPredictedWeights,
   extractThumbnailFrom3mf,
   downloadLatestTimelapse
