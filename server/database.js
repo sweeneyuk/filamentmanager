@@ -120,6 +120,17 @@ const initDb = () => {
         )
       `);
       
+      // Create scrap_models table for Scrap Saver
+      db.run(`
+        CREATE TABLE IF NOT EXISTS scrap_models (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          weight_g REAL NOT NULL,
+          url TEXT,
+          description TEXT
+        )
+      `);
+      
       // Create brand_knowledge_overrides table
       db.run(`
         CREATE TABLE IF NOT EXISTS brand_knowledge_overrides (

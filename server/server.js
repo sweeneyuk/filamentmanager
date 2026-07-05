@@ -165,6 +165,32 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
+// GET /api/scrapsaver/models
+app.get('/api/scrapsaver/models', (req, res) => {
+  db.all('SELECT * FROM scrap_models ORDER BY weight_g ASC', [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
+});
+
+// POST /api/scrapsaver/models
+app.post('/api/scrapsaver/models', (req, res) => {
+  const { name, weight_g, url, description } = req.body;
+  if (!name || !weight_g) return res.status(400).json({ error: 'Name and weight are required' });
+  
+  db.run('INSERT INTO scrap_models (name, weight_g, url, description) VALUES (?, ?, ?, ?)', [name, parseFloat(weight_g), url, description], function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ id: this.lastID, name, weight_g, url, description });
+  });
+});
+
+// DELETE /api/scrapsaver/models/:id
+app.delete('/api/scrapsaver/models/:id', (req, res) => {
+  db.run('DELETE FROM scrap_models WHERE id = ?', [req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ success: true });
+  });
+});
 
 // POST /api/brands
 app.post('/api/brands', (req, res) => {

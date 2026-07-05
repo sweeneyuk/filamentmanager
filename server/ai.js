@@ -1,6 +1,7 @@
 const { GoogleGenAI } = require('@google/genai');
 const fs = require('fs');
 const { db } = require('./database');
+const { getPrintState, getAmsStatus } = require('./mqtt');
 
 // Helper to get setting from DB
 const getSetting = (key) => {
@@ -138,6 +139,28 @@ const getPrintHistory = () => {
   });
 };
 
+const getScrapModels = () => {
+  return new Promise((resolve) => {
+    db.all(`SELECT id, name, weight_g, url, description FROM scrap_models ORDER BY weight_g ASC`, [], (err, rows) => {
+      if (err) resolve(JSON.stringify({ error: err.message }));
+      else resolve(JSON.stringify(rows.length > 0 ? rows : { message: 'No scrap models found in the Scrap Book.' }));
+    });
+  });
+};
+
+const getAssignedSpools = () => {
+  return new Promise((resolve) => {
+    db.all(`
+      SELECT a.ams_tray, s.id as spool_id, b.name as brand, m.name as material, s.color_name, (s.total_weight - s.used_weight) as remaining_weight
+      FROM ams_assignments a
+      JOIN spools s ON a.spool_id = s.id
+    `, [], (err, rows) => {
+      if (err) resolve(JSON.stringify({ error: err.message }));
+      else resolve(JSON.stringify(rows));
+    });
+  });
+};
+
 const readMemory = (topic) => {
   return new Promise((resolve) => {
     db.all(`SELECT topic, insight_text FROM ai_memory WHERE topic LIKE ?`, [`%${topic}%`], (err, rows) => {
@@ -174,6 +197,21 @@ const tools = [{
       parameters: { type: 'OBJECT', properties: {} }
     },
     {
+      name: 'get_current_printer_status',
+      description: 'Gets the live, current printing status of the 3D printer (temperatures, progress, state).',
+      parameters: { type: 'OBJECT', properties: {} }
+    },
+    {
+      name: 'get_scrap_models',
+      description: 'Gets the user\'s personal Scrap Book of saved 3D models and their exact weights.',
+      parameters: { type: 'OBJECT', properties: {} }
+    },
+    {
+      name: 'get_ams_status',
+      description: 'Gets the current physical spools loaded into the AMS (Automatic Material System) unit on the printer.',
+      parameters: { type: 'OBJECT', properties: {} }
+    },
+    {
       name: 'read_memory',
       description: 'Reads a saved insight or memory about a specific topic from the local ai_memory database.',
       parameters: {
@@ -202,6 +240,9 @@ const tools = [{
 const executeTool = async (call) => {
   if (call.name === 'get_inventory_summary') return await getInventorySummary();
   if (call.name === 'get_print_history') return await getPrintHistory();
+  if (call.name === 'get_current_printer_status') return JSON.stringify(getPrintState() || { status: 'UNKNOWN' });
+  if (call.name === 'get_scrap_models') return await getScrapModels();
+  if (call.name === 'get_ams_status') return await getAssignedSpools();
   if (call.name === 'read_memory') return await readMemory(call.args.topic);
   if (call.name === 'save_memory') return await saveMemory(call.args.topic, call.args.insight_text);
   return JSON.stringify({ error: 'Unknown tool' });
@@ -223,10 +264,12 @@ const chatWithAssistant = async (messages) => {
 
     const systemInstruction = `You are Filament Manager's AI Assistant. 
 CRITICAL RULES:
-1. You DO have access to the user's inventory and print history via your tools!
-2. ALWAYS use the get_inventory_summary tool BEFORE answering questions about what spools the user has, which one has the most/least filament, etc. Do NOT hallucinate spool names.
-3. If the user asks about a print, use get_print_history.
-4. If the data from the tool is empty, tell the user they have no spools/prints. Do not invent data.`;
+1. You DO have access to the user's inventory, printer status, AMS status, print history, and personal Scrap Book via your tools!
+2. ALWAYS use the get_inventory_summary tool BEFORE answering questions about what spools the user has.
+3. If asked about the current print, use get_current_printer_status.
+4. If asked what is loaded in the printer, use get_ams_status.
+5. If the user asks about using scrap filament or what to print, use get_scrap_models to see their saved models. Suggest generic ideas (e.g. keychains, bins) and generate MakerWorld search URLs for them!
+6. If the data from the tool is empty, tell the user they have no spools/prints/models. Do not invent data.`;
 
     const reqConfig = {
       model: 'gemini-2.5-flash',
