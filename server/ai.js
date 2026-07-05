@@ -81,7 +81,7 @@ Respond in JSON format ONLY with exactly these two keys:
     });
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.5-flash-8b',
       contents: [
         {
           role: 'user',
