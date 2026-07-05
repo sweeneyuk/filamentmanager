@@ -87,7 +87,7 @@ function FilamentManager() {
       setAmsData(amsRes.data);
       setAmsAssignments(assignRes.data);
       setSettings(settingsRes.data);
-      setPrinters(printersRes.data);
+      setPrinters(printersRes.data.printers || []);
     } catch (err) {}
   };
 
@@ -227,7 +227,7 @@ function FilamentManager() {
     for (const [printerId, trays] of Object.entries(amsAssignments)) {
       for (const [trayId, sId] of Object.entries(trays)) {
         if (sId == spoolId) {
-          const printer = printers.find(p => p.id.toString() === printerId);
+          const printer = Array.isArray(printers) ? printers.find(p => p.id.toString() === printerId) : null;
           const printerName = printer ? printer.name : `Printer ${printerId}`;
           const parts = trayId.split('-');
           if (parts.length === 2) {
