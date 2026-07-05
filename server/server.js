@@ -373,44 +373,52 @@ app.post('/api/archives/:id/regenerate-image', async (req, res) => {
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
 
   try {
-    const { connectFtp } = require('./ftp');
-    const fs = require('fs');
+    const { captureCameraSnapshot, extractFrameFromMp4 } = require('./camera');
     const path = require('path');
+    
+    // 1. Try RTSP Snapshot First
+    const rtspPhotoPath = await captureCameraSnapshot(id);
+    if (rtspPhotoPath) {
+      db.run('UPDATE archives SET photo_path = ? WHERE id = ?', [rtspPhotoPath, id]);
+      return res.json({ success: true, photo_path: rtspPhotoPath });
+    }
 
-    const client = await connectFtp();
-    const mediaDir = path.join(__dirname, 'data');
-
-    try {
-      // List the thumbnails folder and grab the most recent one
-      const list = await client.list('/timelapse/thumbnail');
-      const jpgs = list.filter(f => f.name.endsWith('.jpg')).sort((a, b) => b.name.localeCompare(a.name));
-
-      if (jpgs.length === 0) {
-        client.close();
-        return res.status(404).json({ error: 'No thumbnails found in /timelapse/thumbnail on the printer.' });
+    // 2. Fallback: Try to extract from an existing timelapse
+    db.get('SELECT timelapse_path FROM archives WHERE id = ?', [id], async (err, row) => {
+      if (!err && row && row.timelapse_path) {
+        // Construct the absolute path to the MP4
+        const absoluteMp4Path = path.join(__dirname, 'data', row.timelapse_path.replace(/^\//, ''));
+        const fallbackPhotoPath = path.join(__dirname, 'data', 'media', `${id}_photo.jpg`);
+        
+        const extracted = await extractFrameFromMp4(absoluteMp4Path, fallbackPhotoPath);
+        if (extracted) {
+          const relativePhotoPath = `/media/${id}_photo.jpg`;
+          db.run('UPDATE archives SET photo_path = ? WHERE id = ?', [relativePhotoPath, id]);
+          return res.json({ success: true, photo_path: relativePhotoPath });
+        }
       }
 
-      const latestThumb = jpgs[0];
-      const photoFileName = `media/${id}_photo.jpg`;
-      const localPhotoPath = path.join(mediaDir, photoFileName);
-
-      await client.downloadTo(localPhotoPath, `/timelapse/thumbnail/${latestThumb.name}`);
-      client.close();
-
-      db.run('UPDATE archives SET photo_path = ?, thumbnail_path = ? WHERE id = ?',
-        [`/${photoFileName}`, `/${photoFileName}`, id],
-        (updateErr) => {
-          if (updateErr) return res.status(500).json({ error: updateErr.message });
-          res.json({ success: true, photo_path: `/${photoFileName}` });
-        });
-
-    } catch (ftpErr) {
-      client.close();
-      throw ftpErr;
-    }
+      // 3. Fallback: Attempt to download latest MP4 and extract
+      const { downloadLatestTimelapse } = require('./ftp');
+      db.get('SELECT print_name FROM archives WHERE id = ?', [id], async (err, archive) => {
+        if (!err && archive) {
+          const paths = await downloadLatestTimelapse(archive.print_name, id);
+          if (paths.localPath) {
+            const fallbackPhotoPath = path.join(__dirname, 'data', 'media', `${id}_photo.jpg`);
+            const extracted = await extractFrameFromMp4(paths.localPath, fallbackPhotoPath);
+            if (extracted) {
+              const relativePhotoPath = `/media/${id}_photo.jpg`;
+              db.run('UPDATE archives SET timelapse_path = ?, photo_path = ? WHERE id = ?', 
+                [paths.timelapsePath, relativePhotoPath, id]);
+              return res.json({ success: true, photo_path: relativePhotoPath });
+            }
+          }
+        }
+        res.status(500).json({ error: 'Failed to capture RTSP snapshot and failed to extract frame from timelapse.' });
+      });
+    });
   } catch (err) {
-    console.error('Regenerate image error:', err.message);
-    res.status(500).json({ error: 'Failed to fetch thumbnail from printer: ' + err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 

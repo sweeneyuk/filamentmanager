@@ -53,16 +53,15 @@ const connectFtp = async (overrides = {}) => {
 /**
  * Downloads the most recent timelapse from the /timelapse folder.
  */
-const downloadLatestTimelapseAndPhoto = async (printName, archiveId, gcodeFile = null) => {
+const downloadLatestTimelapse = async (printName, archiveId) => {
   let client;
   try {
     client = await connectFtp();
     
     let timelapsePath = null;
-    let photoPath = null;
+    let localPath = null;
     
-    // 1. Try to fetch the latest timelapse from /timelapse
-    let latestMp4Name = null;
+    // Try to fetch the latest timelapse from /timelapse
     try {
       const list = await client.list('/timelapse');
       // Filter for mp4 and sort alphabetically descending to get the latest
@@ -70,8 +69,7 @@ const downloadLatestTimelapseAndPhoto = async (printName, archiveId, gcodeFile =
       
       if (mp4s.length > 0) {
         const latestMp4 = mp4s[0];
-        latestMp4Name = latestMp4.name;
-        const localPath = path.join(mediaDir, `${archiveId}_timelapse.mp4`);
+        localPath = path.join(mediaDir, `${archiveId}_timelapse.mp4`);
         await client.downloadTo(localPath, `/timelapse/${latestMp4.name}`);
         timelapsePath = `/media/${archiveId}_timelapse.mp4`;
         console.log(`Downloaded timelapse: ${latestMp4.name}`);
@@ -80,57 +78,12 @@ const downloadLatestTimelapseAndPhoto = async (printName, archiveId, gcodeFile =
       console.log('Could not fetch timelapse (maybe disabled or missing folder):', err.message);
     }
 
-    // 2. Fetch the matching thumbnail from /timelapse/thumbnail/
-    if (latestMp4Name) {
-      try {
-        const baseName = path.basename(latestMp4Name, '.mp4');
-        const localPhotoPath = path.join(mediaDir, `${archiveId}_photo.jpg`);
-        await client.downloadTo(localPhotoPath, `/timelapse/thumbnail/${baseName}.jpg`);
-        photoPath = `/media/${archiveId}_photo.jpg`;
-        console.log(`Downloaded thumbnail from /timelapse/thumbnail/${baseName}.jpg`);
-      } catch (err) {
-        console.log('Could not fetch timelapse thumbnail, falling back to /cam:', err.message);
-        // Fallback: try /cam folder
-        try {
-          const list = await client.list('/cam');
-          const jpgs = list.filter(f => f.name.endsWith('.jpg') || f.name.endsWith('.png')).sort((a, b) => b.name.localeCompare(a.name));
-          if (jpgs.length > 0) {
-            const latestJpg = jpgs[0];
-            const ext = path.extname(latestJpg.name);
-            const localPath = path.join(mediaDir, `${archiveId}_photo${ext}`);
-            await client.downloadTo(localPath, `/cam/${latestJpg.name}`);
-            photoPath = `/media/${archiveId}_photo${ext}`;
-            console.log(`Downloaded photo from /cam: ${latestJpg.name}`);
-          }
-        } catch (camErr) {
-          console.log('Could not fetch photo from /cam:', camErr.message);
-        }
-      }
-    } else {
-      // No timelapse at all — try /cam directly
-      try {
-        const list = await client.list('/cam');
-        const jpgs = list.filter(f => f.name.endsWith('.jpg') || f.name.endsWith('.png')).sort((a, b) => b.name.localeCompare(a.name));
-        if (jpgs.length > 0) {
-          const latestJpg = jpgs[0];
-          const ext = path.extname(latestJpg.name);
-          const localPath = path.join(mediaDir, `${archiveId}_photo${ext}`);
-          await client.downloadTo(localPath, `/cam/${latestJpg.name}`);
-          photoPath = `/media/${archiveId}_photo${ext}`;
-          console.log(`Downloaded photo from /cam: ${latestJpg.name}`);
-        }
-      } catch (err) {
-        console.log('Could not fetch photo from /cam:', err.message);
-      }
-    }
-
     client.close();
-    
-    return { timelapsePath, photoPath };
+    return { timelapsePath, localPath };
   } catch (err) {
     if (client) client.close();
-    console.error('FTP Error during download:', err.message);
-    return { timelapsePath: null, photoPath: null };
+    console.error('FTP Timelapse Error:', err.message);
+    return { timelapsePath: null, localPath: null };
   }
 };
 
@@ -316,8 +269,7 @@ const getPredictedWeights = async (gcodeFile, subtaskName) => {
 };
 
 module.exports = {
-  connectFtp,
-  downloadLatestTimelapseAndPhoto,
+  getPredictedWeights,
   extractThumbnailFrom3mf,
-  getPredictedWeights
+  downloadLatestTimelapse
 };

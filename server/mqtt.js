@@ -334,42 +334,58 @@ const handlePrintStatus = async (printData) => {
             db.run('INSERT INTO archive_spools (archive_id, spool_id, weight_used_g) VALUES (?, ?, ?)',
               [archiveId, spoolId, predicted]);
           });
-          
-          // Download timelapse and photo asynchronously after 60 seconds
-          // This gives the printer time to render the final timelapse MP4
+
+          // 1. Immediate RTSP Camera Snapshot
+          let rtspSuccessPath = null;
+          try {
+            const { captureCameraSnapshot } = require('./camera');
+            rtspSuccessPath = await captureCameraSnapshot(archiveId);
+            if (rtspSuccessPath) {
+              db.run('UPDATE archives SET photo_path = ? WHERE id = ?', [rtspSuccessPath, archiveId]);
+              // Trigger AI Analysis immediately since we have the photo
+              const path = require('path');
+              const absolutePhotoPath = path.join(__dirname, 'data', rtspSuccessPath.replace(/^\//, ''));
+              const { analyzePrint } = require('./ai');
+              const aiResult = await analyzePrint(absolutePhotoPath, archivedState.name, durationSeconds);
+              if (aiResult) {
+                db.run('UPDATE archives SET ai_analysis = ? WHERE id = ?', [JSON.stringify(aiResult), archiveId]);
+              }
+            }
+          } catch (camErr) {
+            console.error('[RTSP] Failed immediate snapshot:', camErr.message);
+          }
+
+          // 2. Delayed Timelapse Download
           setTimeout(async () => {
             try {
-              const { downloadLatestTimelapseAndPhoto } = require('./ftp');
-              const { analyzePrint } = require('./ai');
+              const { downloadLatestTimelapse } = require('./ftp');
+              const paths = await downloadLatestTimelapse(archivedState.name, archiveId);
               
-              // Use the successfully identified gcode file path from start of print, fallback to raw
-              const gcodePath = archivedState.activeGcodeFile || archivedState.raw.gcode_file;
-              const paths = await downloadLatestTimelapseAndPhoto(archivedState.name, archiveId, gcodePath);
-              
-              if (paths.timelapsePath || paths.photoPath) {
-                db.run(
-                  'UPDATE archives SET timelapse_path = ?, photo_path = ? WHERE id = ?',
-                  [paths.timelapsePath, paths.photoPath, archiveId],
-                  async () => {
-                    // Trigger AI Analysis if a photo was successfully captured
-                    if (paths.photoPath) {
-                      const path = require('path');
-                      // paths.photoPath is like "/media/X_photo.jpg", we need absolute path
-                      const absolutePhotoPath = path.join(__dirname, 'data', paths.photoPath.replace(/^\//, ''));
-                      
-                      const aiResult = await analyzePrint(absolutePhotoPath, archivedState.name, durationSeconds);
-                      if (aiResult) {
-                        db.run(
-                          'UPDATE archives SET ai_analysis = ? WHERE id = ?',
-                          [JSON.stringify(aiResult), archiveId]
-                        );
-                      }
+              if (paths.timelapsePath) {
+                db.run('UPDATE archives SET timelapse_path = ? WHERE id = ?', [paths.timelapsePath, archiveId]);
+                
+                // Fallback: If RTSP failed earlier, extract from the downloaded MP4
+                if (!rtspSuccessPath && paths.localPath) {
+                  const { extractFrameFromMp4 } = require('./camera');
+                  const path = require('path');
+                  const fallbackPhotoPath = path.join(__dirname, 'data', 'media', `${archiveId}_photo.jpg`);
+                  const mp4Extracted = await extractFrameFromMp4(paths.localPath, fallbackPhotoPath);
+                  
+                  if (mp4Extracted) {
+                    const relativePhotoPath = `/media/${archiveId}_photo.jpg`;
+                    db.run('UPDATE archives SET photo_path = ? WHERE id = ?', [relativePhotoPath, archiveId]);
+                    
+                    // Trigger AI Analysis on the fallback frame
+                    const { analyzePrint } = require('./ai');
+                    const aiResult = await analyzePrint(mp4Extracted, archivedState.name, durationSeconds);
+                    if (aiResult) {
+                      db.run('UPDATE archives SET ai_analysis = ? WHERE id = ?', [JSON.stringify(aiResult), archiveId]);
                     }
                   }
-                );
+                }
               }
             } catch (e) {
-              console.error('Failed to download timelapse or analyze print asynchronously:', e);
+              console.error('Failed to download timelapse or process fallback:', e);
             }
           }, 60000);
         };
