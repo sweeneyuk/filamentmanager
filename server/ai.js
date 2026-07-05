@@ -286,10 +286,10 @@ CRITICAL RULES:
     // We'll allow up to 3 turns of tool calling
     for (let i = 0; i < 3; i++) {
       if (response.functionCalls && response.functionCalls.length > 0) {
-        // Append model's function call to history
+        // Append model's full response (including thoughts and function calls) to history
         formattedMessages.push({
           role: 'model',
-          parts: [{ functionCall: response.functionCalls[0] }]
+          parts: response.candidates[0].content.parts
         });
 
         // Execute the function
