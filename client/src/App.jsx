@@ -6,6 +6,7 @@ import Analytics from './components/Analytics';
 import Settings from './components/Settings';
 import PrintStatus from './components/PrintStatus';
 import Login from './components/Login';
+import FloatingAssistant from './components/FloatingAssistant';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AlertProvider } from './contexts/AlertContext';
 
@@ -55,6 +56,8 @@ function MainApp() {
             <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
           </Routes>
         </main>
+        
+        {user && !setupRequired && <FloatingAssistant />}
       </div>
     </Router>
   );

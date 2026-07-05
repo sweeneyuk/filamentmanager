@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAlert } from '../contexts/AlertContext';
+import { MoreVertical, Camera, Video, Trash2, Clock, Scale, Banknote, FileText, Sparkles, AlertTriangle, Zap, Disc, Printer } from 'lucide-react';
 
 function Archive() {
   const [archives, setArchives] = useState([]);
@@ -189,7 +190,7 @@ function Archive() {
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
                   />
                 ) : (
-                  <div style={{ fontSize: '3rem', opacity: 0.2 }}>🖨️</div>
+                  <div style={{ display: 'flex', justifyContent: 'center', opacity: 0.2 }}><Printer size={48} /></div>
                 )}
                 
                 {/* Media Overlay Buttons */}
@@ -203,7 +204,7 @@ function Archive() {
                       style={{ 
                         backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer', padding: '6px 10px', borderRadius: '6px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px', backdropFilter: 'blur(4px)', zIndex: 10
                       }}>
-                      🎥 Video
+                      <Video size={14} /> Video
                     </button>
                   )}
                   {modalPhoto && (
@@ -215,7 +216,7 @@ function Archive() {
                       style={{ 
                         backgroundColor: 'rgba(0,255,136,0.2)', color: '#fff', border: '1px solid rgba(0,255,136,0.4)', cursor: 'pointer', padding: '6px 10px', borderRadius: '6px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px', backdropFilter: 'blur(4px)', zIndex: 10
                       }}>
-                      📸 Photo
+                      <Camera size={14} /> Photo
                     </button>
                   )}
                 </div>
@@ -253,7 +254,7 @@ function Archive() {
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       backdropFilter: 'blur(4px)'
                     }}>
-                    ⋮
+                    <MoreVertical size={18} />
                   </button>
                   {openMenuId === arch.id && (
                     <div style={{
@@ -268,7 +269,7 @@ function Archive() {
                         onMouseOver={(e) => e.target.style.background = 'rgba(255,255,255,0.1)'}
                         onMouseOut={(e) => e.target.style.background = 'transparent'}
                       >
-                        📸 Fetch Live Camera
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Camera size={16} /> Fetch Live Camera</div>
                       </button>
                       <button 
                         onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleRegenerateImage(arch.id, 'timelapse'); }}
@@ -276,7 +277,7 @@ function Archive() {
                         onMouseOver={(e) => e.target.style.background = 'rgba(255,255,255,0.1)'}
                         onMouseOut={(e) => e.target.style.background = 'transparent'}
                       >
-                        📼 Extract from Timelapse
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Video size={16} /> Extract from Timelapse</div>
                       </button>
                       <button 
                         onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleDeleteArchive(arch.id); }}
@@ -284,7 +285,7 @@ function Archive() {
                         onMouseOver={(e) => e.target.style.background = 'rgba(220,53,69,0.2)'}
                         onMouseOut={(e) => e.target.style.background = 'transparent'}
                       >
-                        ❌ Delete
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Trash2 size={16} /> Delete</div>
                       </button>
                     </div>
                   )}
@@ -299,7 +300,7 @@ function Archive() {
                   <h3 style={{ margin: '0 0 4px 0', fontSize: '1.1rem', wordBreak: 'break-word' }}>{arch.print_name || 'Unknown'}</h3>
                   <div style={{ fontSize: '0.8rem', color: '#888', display: 'flex', justifyContent: 'space-between' }}>
                     <span>{d.toLocaleDateString()} {d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                    <span>⏱️ {formatDuration(arch.duration_seconds)}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={12} /> {formatDuration(arch.duration_seconds)}</span>
                   </div>
                 </div>
 
@@ -331,24 +332,24 @@ function Archive() {
                   
                   let bgColor = 'rgba(255,255,255,0.05)';
                   let color = '#ccc';
-                  let icon = '🤖';
+                  let icon = <FileText size={16} />;
                   
                   if (ai.status === 'SUCCESS') {
                     bgColor = 'rgba(0,174,66,0.1)';
                     color = '#4ade80';
-                    icon = '✨';
+                    icon = <Sparkles size={16} />;
                   } else if (ai.status === 'SPAGHETTI') {
                     bgColor = 'rgba(220,53,69,0.15)';
                     color = '#f87171';
-                    icon = '🍝';
+                    icon = <AlertTriangle size={16} />;
                   } else if (ai.status === 'STRINGING') {
                     bgColor = 'rgba(255,193,7,0.15)';
                     color = '#fbbf24';
-                    icon = '🕸️';
+                    icon = <AlertTriangle size={16} />;
                   } else if (ai.status === 'WARPED' || ai.status === 'LAYER_SHIFT') {
                     bgColor = 'rgba(255,153,0,0.15)';
                     color = '#f97316';
-                    icon = '⚠️';
+                    icon = <AlertTriangle size={16} />;
                   }
 
                   return (
@@ -368,11 +369,11 @@ function Archive() {
                 {/* Cost Breakdown */}
                 <div style={{ backgroundColor: 'var(--secondary-bg)', padding: '10px', borderRadius: '8px', fontSize: '0.85rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ color: '#888' }}>⚡ Energy ({arch.energy_kwh?.toFixed(3) || '0.00'} kWh)</span>
+                    <span style={{ color: '#888', display: 'flex', alignItems: 'center', gap: '4px' }}><Zap size={14} /> Energy ({arch.energy_kwh?.toFixed(3) || '0.00'} kWh)</span>
                     <span>£{arch.energy_cost?.toFixed(2) || '0.00'}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ color: '#888' }}>🧵 Filament</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 10px', background: 'rgba(255,255,255,0.02)' }}>
+                    <span style={{ color: '#888', display: 'flex', alignItems: 'center', gap: '4px' }}><Disc size={14} /> Filament</span>
                     <span>£{arch.filament_cost?.toFixed(2) || '0.00'}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', paddingTop: '6px', borderTop: '1px solid rgba(255,255,255,0.1)', fontWeight: 'bold', color: 'var(--primary-color)' }}>
@@ -387,7 +388,7 @@ function Archive() {
         })}
         {archives.length === 0 && (
           <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#888', padding: '40px 20px', backgroundColor: 'var(--card-bg)', borderRadius: '12px' }}>
-            <div style={{ fontSize: '3rem', marginBottom: '10px', opacity: 0.5 }}>🖨️</div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '15px', opacity: 0.3 }}><Printer size={48} /></div>
             <div style={{ fontSize: '1.2rem', marginBottom: '10px' }}>No prints archived yet</div>
             <div>Once configured, prints will automatically appear here.</div>
           </div>

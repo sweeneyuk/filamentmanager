@@ -151,6 +151,20 @@ app.get('/api/knowledge/brands', (req, res) => {
   }
 });
 
+// POST /api/chat
+app.post('/api/chat', async (req, res) => {
+  const { messages } = req.body;
+  if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: 'Messages array is required' });
+  
+  const { chatWithAssistant } = require('./ai');
+  const response = await chatWithAssistant(messages);
+  if (response.error) {
+    res.status(500).json({ error: response.error });
+  } else {
+    res.json(response);
+  }
+});
+
 
 // POST /api/brands
 app.post('/api/brands', (req, res) => {

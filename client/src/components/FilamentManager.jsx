@@ -3,6 +3,7 @@ import axios from 'axios';
 import SpoolModal from './SpoolModal';
 import { io } from 'socket.io-client';
 import { useAlert } from '../contexts/AlertContext';
+import { Edit2, Scissors, Archive as ArchiveIcon, ShoppingCart, Trash2, Disc, ChevronDown, ChevronUp, List, LayoutGrid } from 'lucide-react';
 
 function FilamentManager() {
   const { showAlert, showConfirm, showPrompt } = useAlert();
@@ -289,8 +290,8 @@ function FilamentManager() {
     <th onClick={() => handleSort(sortKey)} style={{ cursor: 'pointer', userSelect: 'none' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
         {label}
-        <span style={{ opacity: sortConfig.key === sortKey ? 1 : 0.2, fontSize: '0.8rem' }}>
-          {sortConfig.key === sortKey && sortConfig.direction === 'desc' ? '▼' : '▲'}
+        <span style={{ opacity: sortConfig.key === sortKey ? 1 : 0.2, fontSize: '0.8rem', display: 'flex' }}>
+          {sortConfig.key === sortKey && sortConfig.direction === 'desc' ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
         </span>
       </div>
     </th>
@@ -319,12 +320,12 @@ function FilamentManager() {
             <div style={{ fontSize: '0.85rem', color: '#888' }}>Track your spools, costs, and weights.</div>
           </div>
           <div className="fm-actions">
-            <button className="btn-secondary" onClick={() => setShowStats(!showStats)} style={{ marginRight: '10px' }}>
-              {showStats ? 'Hide Stats ▲' : 'Show Stats ▼'}
+            <button className="btn-secondary" onClick={() => setShowStats(!showStats)} style={{ marginRight: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              {showStats ? <><ChevronUp size={16} /> Hide Stats</> : <><ChevronDown size={16} /> Show Stats</>}
             </button>
             <div className="view-toggle">
-              <button className={`toggle-btn ${viewMode === 'table' ? 'active' : ''}`} onClick={() => setViewMode('table')}>≣</button>
-              <button className={`toggle-btn ${viewMode === 'grid' ? 'active' : ''}`} onClick={() => setViewMode('grid')}>⊞</button>
+              <button className={`toggle-btn ${viewMode === 'table' ? 'active' : ''}`} onClick={() => setViewMode('table')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}><List size={18} /></button>
+              <button className={`toggle-btn ${viewMode === 'grid' ? 'active' : ''}`} onClick={() => setViewMode('grid')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}><LayoutGrid size={18} /></button>
             </div>
             <input type="file" accept=".csv" ref={fileInputRef} style={{display: 'none'}} onChange={handleImportCSV} />
             <button className="btn-secondary" onClick={() => fileInputRef.current?.click()}>Import CSV</button>
@@ -461,15 +462,15 @@ function FilamentManager() {
                     </td>
                     <td style={{textAlign: 'right'}}>
                       <div className="row-actions">
-                        <button onClick={() => { setEditingSpool(spool); setIsModalOpen(true); }} title="Edit">✎</button>
-                        <button onClick={() => handleManualDeduct(spool)} title="Manual Deduct">✂</button>
+                        <button onClick={() => { setEditingSpool(spool); setIsModalOpen(true); }} title="Edit"><Edit2 size={14} /></button>
+                        <button onClick={() => handleManualDeduct(spool)} title="Manual Deduct"><Scissors size={14} /></button>
                         <button onClick={() => handleArchiveToggle(spool)} title={spool.archived ? "Unarchive" : "Archive"}>
-                          {spool.archived ? '📦↑' : '📦↓'}
+                          <ArchiveIcon size={14} style={{ opacity: spool.archived ? 0.5 : 1 }} />
                         </button>
                         {spool.shopify_variant_id && isLowStock(spool) && (
-                          <button style={{ color: '#ff9800', borderColor: '#ff9800' }} onClick={() => window.open(getBambuProductUrl(spool), '_blank')} title="Restock Spool">🛒</button>
+                          <button style={{ color: '#ff9800', borderColor: '#ff9800' }} onClick={() => window.open(getBambuProductUrl(spool), '_blank')} title="Restock Spool"><ShoppingCart size={14} /></button>
                         )}
-                        <button onClick={() => handleDeleteSpool(spool.id)} className="danger" title="Delete">🗑</button>
+                        <button onClick={() => handleDeleteSpool(spool.id)} className="danger" title="Delete"><Trash2 size={14} /></button>
                       </div>
                     </td>
                   </tr>
@@ -538,12 +539,12 @@ function FilamentManager() {
 
                 <div className="spool-card-actions">
                   {spool.shopify_variant_id && isLowStock && (
-                    <button style={{color: '#ff9800', borderColor: '#ff9800'}} onClick={() => window.open(getBambuProductUrl(spool), '_blank')} title="Restock Spool">🛒 Restock</button>
+                    <button style={{display: 'flex', alignItems: 'center', gap: '4px', color: '#ff9800', borderColor: '#ff9800'}} onClick={() => window.open(getBambuProductUrl(spool), '_blank')} title="Restock Spool"><ShoppingCart size={12} /> Restock</button>
                   )}
-                  <button onClick={() => handleManualDeduct(spool)} title="Manual Deduct">✂ Deduct</button>
-                  <button onClick={() => { setEditingSpool(spool); setIsModalOpen(true); }} title="Edit">✎ Edit</button>
-                  <button onClick={() => handleArchiveToggle(spool)} title={spool.archived ? "Unarchive" : "Archive"}>
-                    {spool.archived ? '📦 Restore' : '📦 Archive'}
+                  <button style={{display: 'flex', alignItems: 'center', gap: '4px'}} onClick={() => handleManualDeduct(spool)} title="Manual Deduct"><Scissors size={12} /> Deduct</button>
+                  <button style={{display: 'flex', alignItems: 'center', gap: '4px'}} onClick={() => { setEditingSpool(spool); setIsModalOpen(true); }} title="Edit"><Edit2 size={12} /> Edit</button>
+                  <button style={{display: 'flex', alignItems: 'center', gap: '4px'}} onClick={() => handleArchiveToggle(spool)} title={spool.archived ? "Unarchive" : "Archive"}>
+                    <ArchiveIcon size={12} /> {spool.archived ? 'Restore' : 'Archive'}
                   </button>
                 </div>
               </div>
@@ -551,7 +552,7 @@ function FilamentManager() {
           })}
           {sortedSpools.length === 0 && (
             <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: '#888', backgroundColor: 'var(--card-bg)', borderRadius: '12px' }}>
-              <div style={{ fontSize: '3rem', marginBottom: '10px', opacity: 0.5 }}>🧵</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '15px', opacity: 0.3 }}><Disc size={48} /></div>
               <div style={{ fontSize: '1.2rem' }}>No spools found for this filter.</div>
             </div>
           )}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { PartyPopper, AlertTriangle } from 'lucide-react';
 
 function Analytics() {
   const [data, setData] = useState([]);
@@ -221,7 +222,7 @@ function Analytics() {
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>
-              ) : <div style={{ color: '#888', textAlign: 'center', marginTop: '100px' }}>No failures recorded! 🎉</div>}
+              ) : <div style={{ color: '#888', textAlign: 'center', marginTop: '100px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}><PartyPopper size={32} /> No failures recorded!</div>}
             </div>
           </div>
 
@@ -230,7 +231,7 @@ function Analytics() {
         {/* AI Insights Section */}
         {problematicSpools.length > 0 && (
           <div className="card" style={{ marginTop: '20px', borderLeft: '4px solid #f87171' }}>
-            <h3 style={{ color: '#f87171', margin: '0 0 15px 0' }}>⚠️ AI Filament Insights</h3>
+            <h3 style={{ color: '#f87171', margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '8px' }}><AlertTriangle size={20} /> AI Filament Insights</h3>
             <div style={{ fontSize: '0.9rem', color: '#ccc' }}>
               The AI has detected that the following filament combinations have high failure rates on your machine:
             </div>

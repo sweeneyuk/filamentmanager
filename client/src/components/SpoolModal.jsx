@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAlert } from '../contexts/AlertContext';
+import { Lightbulb, Sparkles } from 'lucide-react';
 
 function SpoolModal({ isOpen, onClose, editingSpool, brands, materials, brandKnowledge, onSave }) {
   const { showAlert, showPrompt } = useAlert();
@@ -238,7 +239,7 @@ function SpoolModal({ isOpen, onClose, editingSpool, brands, materials, brandKno
               
               {activeKnowledge && (
                 <div style={{ marginTop: '8px', fontSize: '0.8rem', color: 'var(--text-color)', opacity: 0.8, backgroundColor: 'var(--bg-color)', padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)' }}>
-                  <div style={{ marginBottom: '4px' }}>💡 <strong>{activeKnowledge.brand}:</strong> {activeKnowledge.note}</div>
+                  <div style={{ marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}><Lightbulb size={14} color="var(--primary-color)" /> <strong>{activeKnowledge.brand}:</strong> {activeKnowledge.note}</div>
                   {activeKnowledge.variants && activeKnowledge.variants.length > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
                       {activeKnowledge.variants.map((v, i) => (
@@ -285,7 +286,7 @@ function SpoolModal({ isOpen, onClose, editingSpool, brands, materials, brandKno
                   cursor: isDetecting ? 'not-allowed' : 'pointer',
                   opacity: isDetecting ? 0.5 : 1
                 }}>
-                {isDetecting ? 'Detecting...' : '✨ Auto-Detect'}
+                {isDetecting ? 'Detecting...' : <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Sparkles size={14} /> Auto-Detect</div>}
               </button>
             </label>
             <input type="text" value={newSpool.shopify_variant_id || ''} onChange={(e) => setNewSpool({...newSpool, shopify_variant_id: e.target.value})} placeholder="e.g. 43105581957262 or https://amazon..." />

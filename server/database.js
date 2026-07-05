@@ -110,6 +110,16 @@ const initDb = () => {
         )
       `);
       
+      // Create ai_memory table for the chatbot
+      db.run(`
+        CREATE TABLE IF NOT EXISTS ai_memory (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          topic TEXT UNIQUE NOT NULL,
+          insight_text TEXT NOT NULL,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      
       // Create brand_knowledge_overrides table
       db.run(`
         CREATE TABLE IF NOT EXISTS brand_knowledge_overrides (
