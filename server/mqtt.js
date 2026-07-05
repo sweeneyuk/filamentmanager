@@ -345,8 +345,9 @@ const handlePrintStatus = async (printData) => {
               // Trigger AI Analysis immediately since we have the photo
               const path = require('path');
               const absolutePhotoPath = path.join(__dirname, 'data', rtspSuccessPath.replace(/^\//, ''));
+              const absoluteThumbPath = archivedState.thumbnailPath ? path.join(__dirname, 'data', archivedState.thumbnailPath.replace(/^\//, '')) : null;
               const { analyzePrint } = require('./ai');
-              const aiResult = await analyzePrint(absolutePhotoPath, archivedState.name, durationSeconds);
+              const aiResult = await analyzePrint(absolutePhotoPath, absoluteThumbPath, archivedState.name, durationSeconds);
               if (aiResult) {
                 db.run('UPDATE archives SET ai_analysis = ? WHERE id = ?', [JSON.stringify(aiResult), archiveId]);
               }
@@ -376,8 +377,9 @@ const handlePrintStatus = async (printData) => {
                     db.run('UPDATE archives SET photo_path = ? WHERE id = ?', [relativePhotoPath, archiveId]);
                     
                     // Trigger AI Analysis on the fallback frame
+                    const absoluteThumbPath = archivedState.thumbnailPath ? path.join(__dirname, 'data', archivedState.thumbnailPath.replace(/^\//, '')) : null;
                     const { analyzePrint } = require('./ai');
-                    const aiResult = await analyzePrint(mp4Extracted, archivedState.name, durationSeconds);
+                    const aiResult = await analyzePrint(mp4Extracted, absoluteThumbPath, archivedState.name, durationSeconds);
                     if (aiResult) {
                       db.run('UPDATE archives SET ai_analysis = ? WHERE id = ?', [JSON.stringify(aiResult), archiveId]);
                     }
