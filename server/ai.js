@@ -151,9 +151,11 @@ const getScrapModels = () => {
 const getAssignedSpools = () => {
   return new Promise((resolve) => {
     db.all(`
-      SELECT a.ams_tray, s.id as spool_id, b.name as brand, m.name as material, s.color_name, (s.total_weight - s.used_weight) as remaining_weight
+      SELECT a.tray_id, s.id as spool_id, b.name as brand, m.name as material, s.color, (s.total_weight - s.used_weight) as remaining_weight
       FROM ams_assignments a
       JOIN spools s ON a.spool_id = s.id
+      LEFT JOIN brands b ON s.brand_id = b.id
+      LEFT JOIN materials m ON s.material_id = m.id
     `, [], (err, rows) => {
       if (err) resolve(JSON.stringify({ error: err.message }));
       else resolve(JSON.stringify(rows));
