@@ -272,7 +272,7 @@ CRITICAL RULES:
 6. If the data from the tool is empty, tell the user they have no spools/prints/models. Do not invent data.`;
 
     const reqConfig = {
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.5-flash-8b',
       contents: formattedMessages,
       config: {
         systemInstruction: systemInstruction,
