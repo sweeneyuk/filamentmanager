@@ -376,7 +376,7 @@ function Archive() {
                     <span style={{ color: '#888', display: 'flex', alignItems: 'center', gap: '4px' }}><Zap size={14} /> Energy ({arch.energy_kwh?.toFixed(3) || '0.00'} kWh)</span>
                     <span>£{arch.energy_cost?.toFixed(2) || '0.00'}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 10px', background: 'rgba(255,255,255,0.02)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                     <span style={{ color: '#888', display: 'flex', alignItems: 'center', gap: '4px' }}><Disc size={14} /> Filament</span>
                     <span>£{arch.filament_cost?.toFixed(2) || '0.00'}</span>
                   </div>
