@@ -81,7 +81,7 @@ Respond in JSON format ONLY with exactly these two keys:
     });
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-8b',
+      model: 'gemini-3.1-flash-lite',
       contents: [
         {
           role: 'user',
@@ -272,7 +272,7 @@ CRITICAL RULES:
 6. If the data from the tool is empty, tell the user they have no spools/prints/models. Do not invent data.`;
 
     const reqConfig = {
-      model: 'gemini-2.5-flash-8b',
+      model: 'gemini-3.1-flash-lite',
       contents: formattedMessages,
       config: {
         systemInstruction: systemInstruction,
