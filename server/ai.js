@@ -165,11 +165,13 @@ const tools = [{
   functionDeclarations: [
     {
       name: 'get_inventory_summary',
-      description: 'Gets a summary of all active spools in the inventory, including brand, material, and remaining weight.'
+      description: 'ALWAYS call this tool first if the user asks about their spools, filament, or inventory. Gets a summary of all active spools including brand, material, and remaining weight.',
+      parameters: { type: 'OBJECT', properties: {} }
     },
     {
       name: 'get_print_history',
-      description: 'Gets the recent 10 print archives including duration and status.'
+      description: 'ALWAYS call this tool if the user asks about recent prints, durations, or failures.',
+      parameters: { type: 'OBJECT', properties: {} }
     },
     {
       name: 'read_memory',
@@ -219,13 +221,20 @@ const chatWithAssistant = async (messages) => {
       parts: [{ text: m.content || m.text }]
     }));
 
-    const systemInstruction = "You are Filament Manager's AI Assistant. You help the user manage their 3D printing filament, track costs, and analyze print history. Use your tools to fetch live database information and save insights. Always be helpful and concise.";
+    const systemInstruction = `You are Filament Manager's AI Assistant. 
+CRITICAL RULES:
+1. You DO have access to the user's inventory and print history via your tools!
+2. ALWAYS use the get_inventory_summary tool BEFORE answering questions about what spools the user has, which one has the most/least filament, etc. Do NOT hallucinate spool names.
+3. If the user asks about a print, use get_print_history.
+4. If the data from the tool is empty, tell the user they have no spools/prints. Do not invent data.`;
 
     const reqConfig = {
       model: 'gemini-2.5-flash',
       contents: formattedMessages,
-      systemInstruction: systemInstruction,
-      tools: tools
+      config: {
+        systemInstruction: systemInstruction,
+        tools: tools
+      }
     };
 
     let response = await ai.models.generateContent(reqConfig);
