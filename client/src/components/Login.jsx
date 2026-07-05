@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Database } from 'lucide-react';
 
 function Login() {
-  const { login, setup, setupRequired } = useAuth();
+  const { login, setup, setupRequired, ssoConfigured } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
