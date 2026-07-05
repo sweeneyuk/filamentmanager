@@ -56,6 +56,17 @@ function ScrapSaver() {
   return (
     <div style={{ display: 'flex', gap: '20px', padding: '20px', height: '100%', flexDirection: 'row', flexWrap: 'wrap' }}>
       
+      {/* Title Card */}
+      <div className="card title-card" style={{ marginBottom: '0', borderLeft: '4px solid var(--primary-color)', width: '100%' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h2 style={{ margin: '0 0 5px 0', color: 'var(--primary-color)' }}>Scrap Saver</h2>
+            <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Dashboard</div>
+            <div style={{ fontSize: '0.85rem', color: '#888' }}>Find tiny prints to use up your near-empty spools.</div>
+          </div>
+        </div>
+      </div>
+
       {/* Left: Scrap Spools */}
       <div style={{ flex: '1 1 300px', backgroundColor: 'var(--card-bg)', borderRadius: '12px', padding: '20px', overflowY: 'auto' }}>
         <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--primary-color)' }}>
@@ -70,12 +81,12 @@ function ScrapSaver() {
             return (
               <div 
                 key={spool.id}
+                className="scrap-spool-card"
                 onClick={() => setSelectedSpool(isSelected ? null : spool)}
                 style={{
                   padding: '15px', borderRadius: '8px', cursor: 'pointer',
                   border: `2px solid ${isSelected ? 'var(--primary-color)' : 'var(--border-color)'}`,
-                  backgroundColor: 'var(--secondary-bg)', display: 'flex', justifyContent: 'space-between',
-                  transition: 'all 0.2s'
+                  display: 'flex', justifyContent: 'space-between'
                 }}
               >
                 <div>

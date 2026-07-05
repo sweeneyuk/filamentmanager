@@ -69,7 +69,7 @@ function Settings() {
         </div>
       </div>
 
-      <form onSubmit={handleSave} className="card">
+      <form onSubmit={handleSave} className="card no-hover">
         <div className="settings-section">
           <h3>Bambu Lab MQTT Integration</h3>
           <p className="settings-desc">Enter your printer's local IP and Access Code. You can find these in the Network tab on your printer's screen.</p>

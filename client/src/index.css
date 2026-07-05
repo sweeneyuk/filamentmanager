@@ -297,10 +297,18 @@ button.btn-primary:hover {
   transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
 }
 
-.card:not(.title-card):hover {
+.card:not(.title-card):not(.no-hover):hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0,0,0,0.4);
-  border-color: rgba(255,255,255,0.1);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+
+.scrap-spool-card {
+  background-color: var(--secondary-bg);
+  transition: all 0.2s;
+}
+.scrap-spool-card:hover {
+  transform: translateY(-2px);
+  background-color: var(--hover-bg);
 }
 
 .printer-stat-card {
