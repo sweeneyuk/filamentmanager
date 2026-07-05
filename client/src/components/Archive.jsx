@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAlert } from '../contexts/AlertContext';
-import { MoreVertical, Camera, Video, Trash2, Clock, Scale, Banknote, FileText, Sparkles, AlertTriangle, Zap, Disc, Printer, X } from 'lucide-react';
+import { MoreVertical, Camera, Video, Trash2, Clock, Scale, Banknote, FileText, Sparkles, AlertTriangle, Zap, Disc, Printer, X, Download } from 'lucide-react';
 
 function Archive() {
   const [archives, setArchives] = useState([]);
@@ -425,12 +425,22 @@ function Archive() {
               <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--primary-color)' }}>
                 <Video size={20} /> Print Timelapse
               </h3>
-              <button 
-                onClick={() => setSelectedVideo(null)}
-                style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', display: 'flex' }}
-              >
-                <X size={24} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                <a 
+                  href={selectedVideo} 
+                  download 
+                  style={{ color: 'var(--primary-color)', display: 'flex', cursor: 'pointer', textDecoration: 'none' }}
+                  title="Download Video"
+                >
+                  <Download size={22} />
+                </a>
+                <button 
+                  onClick={() => setSelectedVideo(null)}
+                  style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', display: 'flex' }}
+                >
+                  <X size={24} />
+                </button>
+              </div>
             </div>
             <div style={{ padding: '20px', backgroundColor: 'var(--bg-color)', display: 'flex', justifyContent: 'center' }}>
               <video 
@@ -476,12 +486,22 @@ function Archive() {
               <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--primary-color)' }}>
                 <Camera size={20} /> Print Photo
               </h3>
-              <button 
-                onClick={() => setSelectedPhoto(null)}
-                style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', display: 'flex' }}
-              >
-                <X size={24} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                <a 
+                  href={selectedPhoto} 
+                  download 
+                  style={{ color: 'var(--primary-color)', display: 'flex', cursor: 'pointer', textDecoration: 'none' }}
+                  title="Download Photo"
+                >
+                  <Download size={22} />
+                </a>
+                <button 
+                  onClick={() => setSelectedPhoto(null)}
+                  style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', display: 'flex' }}
+                >
+                  <X size={24} />
+                </button>
+              </div>
             </div>
             <div style={{ padding: '20px', backgroundColor: 'var(--bg-color)', display: 'flex', justifyContent: 'center' }}>
               <img 
