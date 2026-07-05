@@ -161,8 +161,8 @@ function ScrapSaver() {
             </button>
           </form>
         </div>
-
       </div>
+    </div>
     </div>
   );
 }
