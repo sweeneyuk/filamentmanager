@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAlert } from '../contexts/AlertContext';
-import { MoreVertical, Camera, Video, Trash2, Clock, Scale, Banknote, FileText, Sparkles, AlertTriangle, Zap, Disc, Printer } from 'lucide-react';
+import { MoreVertical, Camera, Video, Trash2, Clock, Scale, Banknote, FileText, Sparkles, AlertTriangle, Zap, Disc, Printer, X } from 'lucide-react';
 
 function Archive() {
   const [archives, setArchives] = useState([]);
@@ -249,12 +249,12 @@ function Archive() {
                       setOpenMenuId(openMenuId === arch.id ? null : arch.id);
                     }}
                     style={{
-                      background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', 
-                      width: '28px', height: '28px', borderRadius: '50%', cursor: 'pointer',
+                      background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', 
+                      width: '32px', height: '32px', borderRadius: '6px', cursor: 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       backdropFilter: 'blur(4px)'
                     }}>
-                    <MoreVertical size={18} />
+                    <MoreVertical size={16} />
                   </button>
                   {openMenuId === arch.id && (
                     <div style={{
@@ -418,34 +418,28 @@ function Archive() {
             overflow: 'hidden',
             boxShadow: '0 20px 50px rgba(0,0,0,0.5)'
           }} onClick={e => e.stopPropagation()}>
-            <button 
-              onClick={() => setSelectedVideo(null)}
-              style={{
-                position: 'absolute',
-                top: '15px',
-                right: '15px',
-                background: 'rgba(0,0,0,0.5)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '50%',
-                width: '36px',
-                height: '36px',
-                fontSize: '18px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 10
-              }}
-            >
-              ✕
-            </button>
-            <video 
-              src={selectedVideo} 
-              controls 
-              autoPlay 
-              style={{ width: '100%', maxHeight: '80vh', display: 'block' }} 
-            />
+            <div style={{
+              padding: '15px 20px', backgroundColor: 'var(--secondary-bg)', borderBottom: '1px solid var(--border-color)',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+            }}>
+              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--primary-color)' }}>
+                <Video size={20} /> Print Timelapse
+              </h3>
+              <button 
+                onClick={() => setSelectedVideo(null)}
+                style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', display: 'flex' }}
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <div style={{ padding: '20px', backgroundColor: 'var(--bg-color)', display: 'flex', justifyContent: 'center' }}>
+              <video 
+                src={selectedVideo} 
+                controls 
+                autoPlay 
+                style={{ width: '100%', maxHeight: '70vh', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }} 
+              />
+            </div>
           </div>
         </div>
       )}
@@ -473,36 +467,29 @@ function Archive() {
             overflow: 'hidden',
             boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
+            flexDirection: 'column'
           }} onClick={e => e.stopPropagation()}>
-            <button 
-              onClick={() => setSelectedPhoto(null)}
-              style={{
-                position: 'absolute',
-                top: '15px',
-                right: '15px',
-                background: 'rgba(0,0,0,0.5)',
-                color: 'white',
-                border: 'none',
-                width: '40px',
-                height: '40px',
-                borderRadius: '50%',
-                fontSize: '1.2rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 10
-              }}
-            >
-              ×
-            </button>
-            <img 
-              src={selectedPhoto} 
-              alt="Print Photo"
-              style={{ width: '100%', maxHeight: '80vh', objectFit: 'contain', display: 'block' }} 
-            />
+            <div style={{
+              padding: '15px 20px', backgroundColor: 'var(--secondary-bg)', borderBottom: '1px solid var(--border-color)',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', boxSizing: 'border-box'
+            }}>
+              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--primary-color)' }}>
+                <Camera size={20} /> Print Photo
+              </h3>
+              <button 
+                onClick={() => setSelectedPhoto(null)}
+                style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', display: 'flex' }}
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <div style={{ padding: '20px', backgroundColor: 'var(--bg-color)', display: 'flex', justifyContent: 'center' }}>
+              <img 
+                src={selectedPhoto} 
+                alt="Print" 
+                style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }} 
+              />
+            </div>
           </div>
         </div>
       )}
