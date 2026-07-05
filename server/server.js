@@ -98,11 +98,22 @@ app.post('/api/settings', (req, res) => {
 
 // GET /api/brands
 app.get('/api/brands', (req, res) => {
-  db.all('SELECT * FROM brands', [], (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
+  db.all('SELECT * FROM brands ORDER BY name ASC', (err, rows) => {
+    if (err) res.status(500).json({ error: err.message });
+    else res.json(rows);
   });
 });
+
+// GET /api/knowledge/brands
+app.get('/api/knowledge/brands', (req, res) => {
+  try {
+    const { BRAND_SPOOL_WEIGHTS } = require('./brandKnowledge');
+    res.json(BRAND_SPOOL_WEIGHTS);
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to load brand knowledge base' });
+  }
+});
+
 
 // POST /api/brands
 app.post('/api/brands', (req, res) => {

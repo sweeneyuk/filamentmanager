@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAlert } from '../contexts/AlertContext';
 
-function SpoolModal({ isOpen, onClose, editingSpool, brands, materials, onSave }) {
+function SpoolModal({ isOpen, onClose, editingSpool, brands, materials, brandKnowledge, onSave }) {
   const { showAlert, showPrompt } = useAlert();
   const [newSpool, setNewSpool] = useState({
     brand_id: '',
@@ -18,57 +18,93 @@ function SpoolModal({ isOpen, onClose, editingSpool, brands, materials, onSave }
     shopify_variant_id: ''
   });
   const [isDetecting, setIsDetecting] = useState(false);
+  const [activeKnowledge, setActiveKnowledge] = useState(null);
+
+  // Helper to lookup knowledge by brand name
+  const lookupKnowledge = (brandName) => {
+    if (!brandName || !brandKnowledge) return null;
+    const lower = brandName.toLowerCase().trim();
+    return brandKnowledge.find(b => 
+      b.brand.toLowerCase() === lower || 
+      b.brand.toLowerCase().includes(lower) || 
+      lower.includes(b.brand.toLowerCase())
+    ) || null;
+  };
 
   useEffect(() => {
+    let currentKnowledge = null;
+    let initialSpoolState = {
+      subtype: '',
+      location: '',
+      color: '#ffffff',
+      color_name: '',
+      cost: '',
+      total_weight: 1000,
+      empty_weight: 250,
+      used_weight: 0,
+      shopify_variant_id: ''
+    };
+
     if (editingSpool) {
-      setNewSpool({
+      initialSpoolState = {
         brand_id: editingSpool.brand_id || '',
         material_id: editingSpool.material_id || '',
-        subtype: editingSpool.subtype || '',
-        location: editingSpool.location || '',
-        color: editingSpool.color || '#ffffff',
-        color_name: editingSpool.color_name || '',
-        cost: editingSpool.cost || '',
-        total_weight: editingSpool.total_weight || 1000,
-        empty_weight: editingSpool.empty_weight || 250,
-        used_weight: editingSpool.used_weight || 0,
-        shopify_variant_id: editingSpool.shopify_variant_id || ''
-      });
+        ...initialSpoolState,
+        ...editingSpool
+      };
+      const brand = brands.find(b => b.id.toString() === editingSpool.brand_id?.toString());
+      if (brand) currentKnowledge = lookupKnowledge(brand.name);
     } else {
-      setNewSpool({ 
-        brand_id: brands[0]?.id || '', 
-        material_id: materials[0]?.id || '', 
-        subtype: '',
-        location: '',
-        color: '#ffffff', 
-        color_name: '',
-        cost: '', 
-        total_weight: 1000, 
-        empty_weight: brands[0]?.default_empty_weight || 250, 
-        used_weight: 0,
-        shopify_variant_id: ''
-      });
+      const brand = brands[0];
+      if (brand) currentKnowledge = lookupKnowledge(brand.name);
+      initialSpoolState = {
+        brand_id: brand?.id || '', 
+        material_id: materials[0]?.id || '',
+        ...initialSpoolState,
+        empty_weight: currentKnowledge ? currentKnowledge.weight : (brand?.default_empty_weight || 250)
+      };
     }
-  }, [editingSpool, brands, materials, isOpen]);
+    
+    setNewSpool(initialSpoolState);
+    setActiveKnowledge(currentKnowledge);
+  }, [editingSpool, brands, materials, brandKnowledge, isOpen]);
 
   const handleBrandChange = (e) => {
     const brandId = e.target.value;
     const brand = brands.find(b => b.id.toString() === brandId);
+    let newWeight = 250;
+    let knowledge = null;
+
+    if (brand) {
+      knowledge = lookupKnowledge(brand.name);
+      newWeight = knowledge ? knowledge.weight : brand.default_empty_weight;
+    }
+    
+    setActiveKnowledge(knowledge);
     setNewSpool({
       ...newSpool,
       brand_id: brandId,
-      empty_weight: brand ? brand.default_empty_weight : 250
+      empty_weight: newWeight
     });
   };
 
   const handleAddBrand = () => {
     showPrompt('Add Brand', 'Enter the name of the new Brand:', '', (name) => {
       if (!name) return;
-      showPrompt('Brand Weight', 'Enter the default empty spool weight in grams (e.g. 200):', '250', async (weight) => {
+      
+      const knowledge = lookupKnowledge(name);
+      const suggestedWeight = knowledge ? knowledge.weight.toString() : '250';
+      const promptText = knowledge 
+        ? `Knowledge Base matched '${knowledge.brand}'!\nEnter default empty weight in grams:` 
+        : 'Enter the default empty spool weight in grams (e.g. 200):';
+
+      showPrompt('Brand Weight', promptText, suggestedWeight, async (weight) => {
         try {
           const res = await axios.post('/api/brands', { name, default_empty_weight: parseFloat(weight) || 250 });
           onSave(); // Refetch lists in parent
+          // The parent refetch is async, so we'll let the re-render handle selecting the new brand or we can manually set it
           setNewSpool(prev => ({ ...prev, brand_id: res.data.id, empty_weight: res.data.default_empty_weight }));
+          setActiveKnowledge(lookupKnowledge(name));
         } catch (e) {
           showAlert('Error', 'Failed to add brand', true);
         }
@@ -112,7 +148,7 @@ function SpoolModal({ isOpen, onClose, editingSpool, brands, materials, onSave }
         setNewSpool(prev => ({ ...prev, shopify_variant_id: res.data.variantId }));
       }
     } catch (e) {
-      showAlert('Auto-Detect Failed', e.response?.data?.error || 'Failed to detect variant ID. Ensure your Gemini API Key is configured in Settings.', true);
+      showAlert('Auto-Detect Failed', e.response?.data?.error || 'Failed to detect variant ID.', true);
     } finally {
       setIsDetecting(false);
     }
@@ -137,7 +173,7 @@ function SpoolModal({ isOpen, onClose, editingSpool, brands, materials, onSave }
 
   return (
     <div className="modal-overlay">
-      <div className="modal">
+      <div className="modal" style={{ maxWidth: '600px' }}>
         <h2>{editingSpool ? 'Edit Spool' : 'Add New Spool'}</h2>
         <form onSubmit={handleSubmit}>
           <div className="form-row">
@@ -188,14 +224,37 @@ function SpoolModal({ isOpen, onClose, editingSpool, brands, materials, onSave }
             </div>
           </div>
 
-          <div className="form-row">
+          <div className="form-row" style={{ alignItems: 'flex-start' }}>
             <div className="form-group">
               <label>Label Weight (g)</label>
               <input type="number" value={newSpool.total_weight} onChange={(e) => setNewSpool({...newSpool, total_weight: e.target.value})} required />
             </div>
             <div className="form-group">
-              <label>Empty Weight (g)</label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                Empty Weight (g)
+                {activeKnowledge && <span style={{ fontSize: '0.75rem', background: 'var(--primary-color)', color: 'white', padding: '2px 6px', borderRadius: '4px' }}>AI Match</span>}
+              </label>
               <input type="number" value={newSpool.empty_weight} onChange={(e) => setNewSpool({...newSpool, empty_weight: e.target.value})} required />
+              
+              {activeKnowledge && (
+                <div style={{ marginTop: '8px', fontSize: '0.8rem', color: 'var(--text-color)', opacity: 0.8, backgroundColor: 'var(--bg-color)', padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ marginBottom: '4px' }}>💡 <strong>{activeKnowledge.brand}:</strong> {activeKnowledge.note}</div>
+                  {activeKnowledge.variants && activeKnowledge.variants.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
+                      {activeKnowledge.variants.map((v, i) => (
+                        <button 
+                          key={i} 
+                          type="button" 
+                          onClick={() => setNewSpool({...newSpool, empty_weight: v.weight})}
+                          style={{ fontSize: '0.75rem', padding: '2px 8px', backgroundColor: 'var(--card-bg)', border: '1px solid var(--border-color)', color: 'var(--text-color)', cursor: 'pointer', borderRadius: '4px' }}
+                        >
+                          {v.label} ({v.weight}g)
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           

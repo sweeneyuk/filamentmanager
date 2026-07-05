@@ -9,6 +9,7 @@ function FilamentManager() {
   const [selectedSpoolIds, setSelectedSpoolIds] = useState([]);
   const [spools, setSpools] = useState([]);
   const [brands, setBrands] = useState([]);
+  const [brandKnowledge, setBrandKnowledge] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [totalConsumedWeight, setTotalConsumedWeight] = useState(0);
   const [amsData, setAmsData] = useState(null);
@@ -53,15 +54,17 @@ function FilamentManager() {
 
   const fetchData = async () => {
     try {
-      const [spoolsRes, brandsRes, materialsRes, analyticsRes] = await Promise.all([
+      const [spoolsRes, brandsRes, materialsRes, analyticsRes, knowledgeRes] = await Promise.all([
         axios.get('/api/spools'),
         axios.get('/api/brands'),
         axios.get('/api/materials'),
-        axios.get('/api/analytics')
+        axios.get('/api/analytics'),
+        axios.get('/api/knowledge/brands')
       ]);
       setSpools(spoolsRes.data);
       setBrands(brandsRes.data);
       setMaterials(materialsRes.data);
+      setBrandKnowledge(knowledgeRes.data);
       
       const totalWeightG = analyticsRes.data.reduce((acc, print) => acc + (print.filament_used_g || 0), 0);
       setTotalConsumedWeight(totalWeightG);
@@ -538,6 +541,7 @@ function FilamentManager() {
         editingSpool={editingSpool} 
         brands={brands} 
         materials={materials} 
+        brandKnowledge={brandKnowledge}
         onSave={fetchData} 
       />
     </div>
