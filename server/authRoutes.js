@@ -83,7 +83,9 @@ router.get('/verify', async (req, res) => {
 router.get('/oidc/login', async (req, res) => {
   try {
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-    const redirectUri = `${protocol}://${req.headers.host}/api/auth/oidc/callback`;
+    const host = req.headers['x-forwarded-host'] || req.headers.host;
+    const redirectUri = `${protocol}://${host}/api/auth/oidc/callback`;
+    console.log('[OIDC] Initiating login with redirect URI:', redirectUri);
     const client = await initOidcClient(redirectUri);
     if (!client) return res.status(400).json({ error: 'OIDC not configured' });
 
@@ -100,7 +102,9 @@ router.get('/oidc/login', async (req, res) => {
 router.get('/oidc/callback', async (req, res) => {
   try {
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-    const redirectUri = `${protocol}://${req.headers.host}/api/auth/oidc/callback`;
+    const host = req.headers['x-forwarded-host'] || req.headers.host;
+    const redirectUri = `${protocol}://${host}/api/auth/oidc/callback`;
+    console.log('[OIDC] Processing callback for redirect URI:', redirectUri);
     
     const client = await initOidcClient(redirectUri);
     if (!client) return res.status(400).send('OIDC not configured');
@@ -111,6 +115,7 @@ router.get('/oidc/callback', async (req, res) => {
     
     // Check if username exists (preferred_username or name or email)
     const username = claims.preferred_username || claims.nickname || claims.name || claims.email;
+    console.log('[OIDC] Authenticated user:', username);
     
     const user = await getQuery("SELECT * FROM users WHERE username = ?", [username]);
     if (!user) {
