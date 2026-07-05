@@ -57,7 +57,7 @@ const authenticateToken = async (req, res, next) => {
 };
 
 // OpenID Connect Logic
-const initOidcClient = async () => {
+const initOidcClient = async (redirectUri) => {
   try {
     const { Issuer } = require('openid-client');
     const getSetting = (key) => new Promise((resolve) => db.get("SELECT value FROM settings WHERE key = ?", [key], (e, r) => resolve(r ? r.value : null)));
@@ -72,7 +72,7 @@ const initOidcClient = async () => {
     const client = new issuer.Client({
       client_id: clientId,
       client_secret: clientSecret,
-      redirect_uris: ['http://localhost:3000/api/auth/oidc/callback'], // Adjust based on env/settings
+      redirect_uris: [redirectUri || 'http://localhost:3000/api/auth/oidc/callback'],
       response_types: ['code'],
     });
 

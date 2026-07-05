@@ -82,7 +82,9 @@ router.get('/verify', async (req, res) => {
 // OIDC Login
 router.get('/oidc/login', async (req, res) => {
   try {
-    const client = await initOidcClient();
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const redirectUri = `${protocol}://${req.headers.host}/api/auth/oidc/callback`;
+    const client = await initOidcClient(redirectUri);
     if (!client) return res.status(400).json({ error: 'OIDC not configured' });
 
     const url = client.authorizationUrl({
@@ -97,13 +99,13 @@ router.get('/oidc/login', async (req, res) => {
 // OIDC Callback
 router.get('/oidc/callback', async (req, res) => {
   try {
-    const client = await initOidcClient();
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const redirectUri = `${protocol}://${req.headers.host}/api/auth/oidc/callback`;
+    
+    const client = await initOidcClient(redirectUri);
     if (!client) return res.status(400).send('OIDC not configured');
 
     const params = client.callbackParams(req);
-    // Note: redirect_uri must match exactly what was sent in /login. We'll use the origin dynamically or fallback
-    const redirectUri = `http://${req.headers.host}/api/auth/oidc/callback`;
-    
     const tokenSet = await client.callback(redirectUri, params);
     const claims = tokenSet.claims();
     
