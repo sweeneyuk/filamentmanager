@@ -59,7 +59,7 @@ function Analytics() {
       try {
         const ai = typeof print.ai_analysis === 'string' ? JSON.parse(print.ai_analysis) : print.ai_analysis;
         if (ai && ai.status) {
-          const spoolKey = print.brand && print.material ? `${print.brand} ${print.material} ${print.color || ''}`.trim() : null;
+          const spoolKey = print.brand && print.material ? `${print.brand} ${print.material}::${print.color || ''}` : null;
           
           if (ai.status === 'SUCCESS') {
             aiSuccessMap.SUCCESS.value += 1;
@@ -96,11 +96,12 @@ function Analytics() {
   const aiFailureTypeData = Object.values(aiFailureTypeMap).sort((a, b) => b.value - a.value);
   
   // Calculate failure rates for spools with at least 1 failure
-  const problematicSpools = Object.entries(spoolFailureMap).map(([name, fails]) => {
-    const successes = spoolSuccessMap[name] || 0;
+  const problematicSpools = Object.entries(spoolFailureMap).map(([key, fails]) => {
+    const successes = spoolSuccessMap[key] || 0;
     const total = successes + fails;
     const rate = Math.round((fails / total) * 100);
-    return { name, fails, total, rate };
+    const [name, color] = key.split('::');
+    return { key, name, color, fails, total, rate };
   }).sort((a, b) => b.rate - a.rate).slice(0, 5);
 
   return (
@@ -237,8 +238,11 @@ function Analytics() {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px', marginTop: '15px' }}>
               {problematicSpools.map(spool => (
-                <div key={spool.name} style={{ background: 'rgba(0,0,0,0.2)', padding: '15px', borderRadius: '8px' }}>
-                  <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>{spool.name}</div>
+                <div key={spool.key} style={{ background: 'rgba(0,0,0,0.2)', padding: '15px', borderRadius: '8px' }}>
+                  <div style={{ fontWeight: 'bold', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {spool.color && <span style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: spool.color, display: 'inline-block', border: '1px solid rgba(255,255,255,0.2)' }}></span>}
+                    {spool.name}
+                  </div>
                   <div style={{ color: '#f87171', fontSize: '1.2rem', fontWeight: 'bold' }}>{spool.rate}% Failure Rate</div>
                   <div style={{ fontSize: '0.8rem', color: '#888' }}>{spool.fails} failures out of {spool.total} prints</div>
                 </div>
