@@ -246,7 +246,6 @@ function Analytics() {
           </div>
         )}
 
-      </div>
     </div>
   );
 }
