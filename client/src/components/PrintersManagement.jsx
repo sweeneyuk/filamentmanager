@@ -89,8 +89,8 @@ function PrintersManagement() {
       <p className="settings-desc">Manage your connected Bambu Lab printers.</p>
       
       {printers.length > 0 && !editingId && !isAdding && (
-        <div style={{ marginBottom: '20px' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '10px' }}>
+        <div style={{ marginBottom: '20px', overflowX: 'auto', width: '100%' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '10px', minWidth: '400px' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #444', textAlign: 'left' }}>
                 <th style={{ padding: '8px' }}>Name</th>

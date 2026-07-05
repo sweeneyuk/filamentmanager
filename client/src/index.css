@@ -628,7 +628,7 @@ input:focus, select:focus {
     left: 0;
     z-index: 100;
     background-color: var(--card-bg);
-    justify-content: space-around;
+    justify-content: space-evenly;
   }
 
   .sidebar h1 {
