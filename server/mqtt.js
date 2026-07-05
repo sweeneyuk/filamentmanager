@@ -53,7 +53,7 @@ const connectPrinter = (printer) => {
   
   disconnectPrinter(id);
   
-  if (!ip || !serial || !accessCode) {
+  if (!ip || !serial || !access_code) {
     console.log(`[MQTT] Printer ${id} (${name}) missing credentials.`);
     return;
   }
