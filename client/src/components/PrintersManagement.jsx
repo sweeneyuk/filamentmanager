@@ -116,38 +116,46 @@ function PrintersManagement() {
         </div>
       )}
 
-      {(!editingId && !isAdding) ? (
-        <button 
-          className="btn-primary" 
-          onClick={() => setIsAdding(true)}
-          style={{ marginTop: '10px' }}
-        >
-          + Add New Printer
-        </button>
-      ) : (
-        <form onSubmit={handleSave} style={{ backgroundColor: 'var(--secondary-bg)', padding: '20px', borderRadius: '8px', border: '1px solid var(--border-color)', marginTop: '15px' }}>
-          <h4 style={{ marginTop: 0, marginBottom: '15px', fontSize: '1.1rem', color: 'var(--text-color)' }}>{editingId ? 'Edit Printer' : 'Add New Printer'}</h4>
-          <div className="form-group">
-            <label>Printer Name</label>
-            <input type="text" name="name" value={formData.name} onChange={handleInputChange} placeholder="e.g. X1C - Left" required />
+      <button 
+        className="btn-primary" 
+        onClick={() => setIsAdding(true)}
+        style={{ marginTop: '10px' }}
+      >
+        + Add New Printer
+      </button>
+
+      {(isAdding || editingId) && (
+        <div className="modal-overlay" onClick={handleCancelEdit}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ margin: 0, color: 'var(--primary-color)' }}>{editingId ? 'Edit Printer' : 'Add New Printer'}</h2>
+              <button type="button" className="btn-secondary" onClick={handleCancelEdit} style={{ padding: '4px 8px' }}>✕</button>
+            </div>
+            
+            <form onSubmit={handleSave}>
+              <div className="form-group">
+                <label>Printer Name</label>
+                <input type="text" name="name" value={formData.name} onChange={handleInputChange} placeholder="e.g. X1C - Left" required />
+              </div>
+              <div className="form-group">
+                <label>IP Address</label>
+                <input type="text" name="ip" value={formData.ip} onChange={handleInputChange} placeholder="192.168.1.100" required />
+              </div>
+              <div className="form-group">
+                <label>Serial Number</label>
+                <input type="text" name="serial" value={formData.serial} onChange={handleInputChange} required />
+              </div>
+              <div className="form-group">
+                <label>Access Code</label>
+                <input type="password" name="access_code" value={formData.access_code} onChange={handleInputChange} placeholder={editingId ? 'Leave blank to keep unchanged' : 'Required'} required={!editingId} />
+              </div>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '25px', justifyContent: 'flex-end' }}>
+                <button type="button" onClick={handleCancelEdit} className="btn-secondary">Cancel</button>
+                <button type="submit" className="btn-primary">{editingId ? 'Update Printer' : 'Add Printer'}</button>
+              </div>
+            </form>
           </div>
-          <div className="form-group">
-            <label>IP Address</label>
-            <input type="text" name="ip" value={formData.ip} onChange={handleInputChange} placeholder="192.168.1.100" required />
-          </div>
-          <div className="form-group">
-            <label>Serial Number</label>
-            <input type="text" name="serial" value={formData.serial} onChange={handleInputChange} required />
-          </div>
-          <div className="form-group">
-            <label>Access Code</label>
-            <input type="password" name="access_code" value={formData.access_code} onChange={handleInputChange} placeholder={editingId ? 'Leave blank to keep unchanged' : 'Required'} required={!editingId} />
-          </div>
-          <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-            <button type="submit" className="btn-primary">{editingId ? 'Update Printer' : 'Add Printer'}</button>
-            <button type="button" onClick={handleCancelEdit} style={{ backgroundColor: 'transparent', border: '1px solid #555' }}>Cancel</button>
-          </div>
-        </form>
+        </div>
       )}
     </div>
   );
