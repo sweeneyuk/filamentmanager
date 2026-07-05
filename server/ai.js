@@ -286,29 +286,18 @@ CRITICAL RULES:
     // We'll allow up to 3 turns of tool calling
     for (let i = 0; i < 3; i++) {
       if (response.functionCalls && response.functionCalls.length > 0) {
-        // Append model's full response (including thoughts and function calls) to history
-        formattedMessages.push({
-          role: 'model',
-          parts: response.candidates[0].content.parts
-        });
-
         // Execute the function
         const call = response.functionCalls[0];
         const result = await executeTool(call);
 
-        // Append function response
-        formattedMessages.push({
-          role: 'user',
-          parts: [{
-            functionResponse: {
-              name: call.name,
-              response: { result: result }
-            }
-          }]
+        // Bypass thought_signature API requirement by injecting the tool result 
+        // directly into the user's last message instead of creating a functionResponse part.
+        const lastUserMessage = reqConfig.contents[reqConfig.contents.length - 1];
+        lastUserMessage.parts.push({
+          text: `\n[System: Tool '${call.name}' executed and returned this data: ${result}]`
         });
 
-        // Generate next content
-        reqConfig.contents = formattedMessages;
+        // Generate next content with the newly augmented user message
         response = await ai.models.generateContent(reqConfig);
       } else {
         break;
