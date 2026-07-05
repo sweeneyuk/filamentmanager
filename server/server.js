@@ -703,13 +703,13 @@ app.post('/api/import/csv', upload.single('csvFile'), (req, res) => {
                 brandMap[brand] || null,
                 matMap[material] || null,
                 r.Subtype || r.subtype || '',
-                r.Location || r.storage_location || r.location || '',
+                r.Location || r.storage_location || r.location || r[' location'] || r['Location '] || '',
                 color,
                 colorName,
                 parseFloat(r.Cost || r.cost_per_kg) || 0,
                 parseFloat(r['Label Weight'] || r.label_weight) || 1000,
                 parseFloat(r['Empty Weight'] || r.empty_weight) || 250,
-                parseFloat(r['Used Weight'] || r.weight_used) || 0,
+                parseFloat(r['Used Weight'] || r.weight_used || r.used_weight) || 0,
                 (r.Archived === '1' || r.Archived?.toLowerCase() === 'true' || r.archived === '1' || r.archived?.toLowerCase() === 'true') ? 1 : 0
               );
             });

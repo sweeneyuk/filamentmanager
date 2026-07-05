@@ -202,11 +202,11 @@ function SpoolModal({ isOpen, onClose, editingSpool, brands, materials, brandKno
           <div className="form-row">
             <div className="form-group">
               <label>Subtype (Optional)</label>
-              <input type="text" placeholder="e.g. Matte, Basic" value={newSpool.subtype} onChange={(e) => setNewSpool({...newSpool, subtype: e.target.value})} />
+              <input type="text" placeholder="e.g. Matte, Basic" value={newSpool.subtype || ''} onChange={(e) => setNewSpool({...newSpool, subtype: e.target.value})} />
             </div>
             <div className="form-group">
               <label>Location (Optional)</label>
-              <input type="text" placeholder="e.g. Shelf A, AMS 1" value={newSpool.location} onChange={(e) => setNewSpool({...newSpool, location: e.target.value})} />
+              <input type="text" placeholder="e.g. Shelf A, AMS 1" value={newSpool.location || ''} onChange={(e) => setNewSpool({...newSpool, location: e.target.value})} />
             </div>
           </div>
 

@@ -221,22 +221,26 @@ function FilamentManager() {
   });
 
   const getAmsLocation = (spoolId) => {
-    for (const [trayId, sId] of Object.entries(amsAssignments)) {
-      if (sId == spoolId) {
-        const parts = trayId.split('-');
-        if (parts.length === 2) {
-          const amsId = parts[0];
-          const slotNum = parseInt(parts[1]) + 1;
-          const customName = settings[`ams_name_${amsId}`];
-          if (customName) return `${customName} - Slot ${slotNum}`;
-          
-          if (amsId === "128" || amsId === "255") return `External Spool`;
-          
-          // Fallback logic
-          const amsNum = parseInt(amsId) === 0 ? 1 : Math.floor(parseInt(amsId) / 4) + 1;
-          return `AMS ${amsNum} Slot ${slotNum}`;
+    for (const [printerId, trays] of Object.entries(amsAssignments)) {
+      for (const [trayId, sId] of Object.entries(trays)) {
+        if (sId == spoolId) {
+          const printer = printers.find(p => p.id.toString() === printerId);
+          const printerName = printer ? printer.name : `Printer ${printerId}`;
+          const parts = trayId.split('-');
+          if (parts.length === 2) {
+            const amsId = parts[0];
+            const slotNum = parseInt(parts[1]) + 1;
+            const customName = settings[`ams_name_${amsId}`];
+            if (customName) return `${printerName} - ${customName} - Slot ${slotNum}`;
+            
+            if (amsId === "128" || amsId === "255") return `${printerName} - External Spool`;
+            
+            // Fallback logic
+            const amsNum = parseInt(amsId) === 0 ? 1 : Math.floor(parseInt(amsId) / 4) + 1;
+            return `${printerName} - AMS ${amsNum} Slot ${slotNum}`;
+          }
+          return `${printerName} - ${trayId}`;
         }
-        return trayId;
       }
     }
     return null;
