@@ -108,7 +108,44 @@ app.get('/api/brands', (req, res) => {
 app.get('/api/knowledge/brands', (req, res) => {
   try {
     const { BRAND_SPOOL_WEIGHTS } = require('./brandKnowledge');
-    res.json(BRAND_SPOOL_WEIGHTS);
+    
+    // Fetch overrides from the DB
+    db.all('SELECT * FROM brand_knowledge_overrides', [], (err, rows) => {
+      if (err) {
+        // If error (e.g. table doesn't exist yet for some reason), just return static list
+        console.error('Error fetching brand knowledge overrides:', err);
+        return res.json(BRAND_SPOOL_WEIGHTS);
+      }
+      
+      // Clone the static list so we can modify it
+      let mergedKnowledge = [...BRAND_SPOOL_WEIGHTS];
+      
+      if (rows && rows.length > 0) {
+        rows.forEach(override => {
+          let parsedVariants = [];
+          try {
+            if (override.variants_json) parsedVariants = JSON.parse(override.variants_json);
+          } catch(e) {}
+          
+          const index = mergedKnowledge.findIndex(k => k.brand.toLowerCase() === override.brand_name.toLowerCase());
+          const overrideObj = {
+            brand: override.brand_name,
+            weight: override.weight,
+            note: override.note || 'Custom override',
+            variants: parsedVariants.length > 0 ? parsedVariants : undefined,
+            confidence: 'override'
+          };
+          
+          if (index !== -1) {
+            mergedKnowledge[index] = overrideObj;
+          } else {
+            mergedKnowledge.push(overrideObj);
+          }
+        });
+      }
+      
+      res.json(mergedKnowledge);
+    });
   } catch (e) {
     res.status(500).json({ error: 'Failed to load brand knowledge base' });
   }

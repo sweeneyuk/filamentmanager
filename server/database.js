@@ -110,6 +110,16 @@ const initDb = () => {
         )
       `);
       
+      // Create brand_knowledge_overrides table
+      db.run(`
+        CREATE TABLE IF NOT EXISTS brand_knowledge_overrides (
+          brand_name TEXT PRIMARY KEY,
+          weight REAL NOT NULL,
+          note TEXT,
+          variants_json TEXT
+        )
+      `);
+      
       // Attempt to add new columns to an existing archives table (fails silently if they exist)
       db.run("ALTER TABLE archives ADD COLUMN timelapse_path TEXT", () => {});
       db.run("ALTER TABLE archives ADD COLUMN photo_path TEXT", () => {});
@@ -169,6 +179,54 @@ const populateDefaults = () => {
       defaultMaterials.forEach(m => stmt.run(m));
       stmt.finalize();
     }
+  });
+
+  // Run legacy brand cleanup migration
+  runLegacyBrandCleanup();
+};
+
+const runLegacyBrandCleanup = () => {
+  db.all('SELECT * FROM brands', [], (err, rows) => {
+    if (err) { console.error(err); return; }
+
+    const groups = {};
+    rows.forEach(r => {
+      const baseName = r.name.replace(/\(.*?\)/g, '').trim();
+      const key = baseName.toLowerCase();
+      if (!groups[key]) groups[key] = { baseName, dupes: [] };
+      groups[key].dupes.push(r);
+    });
+
+    Object.values(groups).forEach(group => {
+      const dupes = group.dupes;
+      if (dupes.length === 1) {
+        const item = dupes[0];
+        if (item.name !== group.baseName) {
+          db.run('UPDATE brands SET name = ? WHERE id = ?', [group.baseName, item.id], (err) => {
+            if (err) console.error('Error migrating legacy brand:', err);
+          });
+        }
+        return;
+      }
+
+      dupes.sort((a, b) => a.id - b.id);
+      let keep = dupes.find(d => d.name.toLowerCase() === group.baseName.toLowerCase());
+      if (!keep) keep = dupes[0];
+
+      const toDelete = dupes.filter(d => d.id !== keep.id);
+      const idsToDelete = toDelete.map(d => d.id);
+
+      if (keep.name !== group.baseName) {
+        db.run('UPDATE brands SET name = ? WHERE id = ?', [group.baseName, keep.id]);
+      }
+
+      const placeholders = idsToDelete.map(() => '?').join(',');
+      db.run(`UPDATE spools SET brand_id = ? WHERE brand_id IN (${placeholders})`, [keep.id, ...idsToDelete], (err) => {
+        if (!err) {
+          db.run(`DELETE FROM brands WHERE id IN (${placeholders})`, idsToDelete);
+        }
+      });
+    });
   });
 };
 
