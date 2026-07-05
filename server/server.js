@@ -237,6 +237,19 @@ app.put('/api/spools/:id', (req, res) => {
   });
 });
 
+// POST /api/spools/:id/deduct
+app.post('/api/spools/:id/deduct', (req, res) => {
+  const amount = parseFloat(req.body.amount);
+  if (isNaN(amount) || amount <= 0) {
+    return res.status(400).json({ error: 'Invalid amount' });
+  }
+
+  db.run(`UPDATE spools SET used_weight = used_weight + ? WHERE id = ?`, [amount, req.params.id], function(err) {
+    if (err) res.status(500).json({ error: err.message });
+    else res.json({ success: true, deducted: amount });
+  });
+});
+
 // PUT /api/spools/:id/archive
 app.put('/api/spools/:id/archive', (req, res) => {
   const { archived } = req.body;
@@ -369,19 +382,19 @@ app.post('/api/archives/:id/regenerate-image', async (req, res) => {
 
     try {
       // List the thumbnails folder and grab the most recent one
-      const list = await client.list('/timelapse/thumbnails');
+      const list = await client.list('/timelapse/thumbnail');
       const jpgs = list.filter(f => f.name.endsWith('.jpg')).sort((a, b) => b.name.localeCompare(a.name));
 
       if (jpgs.length === 0) {
         client.close();
-        return res.status(404).json({ error: 'No thumbnails found in /timelapse/thumbnails on the printer.' });
+        return res.status(404).json({ error: 'No thumbnails found in /timelapse/thumbnail on the printer.' });
       }
 
       const latestThumb = jpgs[0];
       const photoFileName = `media/${id}_photo.jpg`;
       const localPhotoPath = path.join(mediaDir, photoFileName);
 
-      await client.downloadTo(localPhotoPath, `/timelapse/thumbnails/${latestThumb.name}`);
+      await client.downloadTo(localPhotoPath, `/timelapse/thumbnail/${latestThumb.name}`);
       client.close();
 
       db.run('UPDATE archives SET photo_path = ?, thumbnail_path = ? WHERE id = ?',

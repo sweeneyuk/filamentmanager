@@ -80,14 +80,14 @@ const downloadLatestTimelapseAndPhoto = async (printName, archiveId, gcodeFile =
       console.log('Could not fetch timelapse (maybe disabled or missing folder):', err.message);
     }
 
-    // 2. Fetch the matching thumbnail from /timelapse/thumbnails/
+    // 2. Fetch the matching thumbnail from /timelapse/thumbnail/
     if (latestMp4Name) {
       try {
         const baseName = path.basename(latestMp4Name, '.mp4');
         const localPhotoPath = path.join(mediaDir, `${archiveId}_photo.jpg`);
-        await client.downloadTo(localPhotoPath, `/timelapse/thumbnails/${baseName}.jpg`);
+        await client.downloadTo(localPhotoPath, `/timelapse/thumbnail/${baseName}.jpg`);
         photoPath = `/media/${archiveId}_photo.jpg`;
-        console.log(`Downloaded thumbnail from /timelapse/thumbnails/${baseName}.jpg`);
+        console.log(`Downloaded thumbnail from /timelapse/thumbnail/${baseName}.jpg`);
       } catch (err) {
         console.log('Could not fetch timelapse thumbnail, falling back to /cam:', err.message);
         // Fallback: try /cam folder

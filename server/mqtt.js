@@ -194,26 +194,44 @@ const handlePrintStatus = async (printData) => {
         printState.activeTrays = [`0-${printData.vt_tray.id}`]; // naive fallback
       }
 
-      // Start fetching the 3MF weights and thumbnail asynchronously in the background
-      if (printData.gcode_file && printState.lastFetchedGcode !== printData.gcode_file) {
-        printState.lastFetchedGcode = printData.gcode_file;
-        const { getPredictedWeights, extractThumbnailFrom3mf } = require('./ftp');
-        getPredictedWeights(printData.gcode_file, printData.subtask_name).then(res => {
-          if (res && res.weights && Array.isArray(res.weights)) {
-            printState.predictedWeights = res.weights;
-            if (res.path) printState.activeGcodeFile = res.path;
-            console.log('Successfully extracted predicted weights:', res.weights);
+      // Immediately create an archive record so it shows up in the UI
+      db.run(`
+        INSERT INTO archives (print_name, status, created_at)
+        VALUES (?, 'In Progress', CURRENT_TIMESTAMP)
+      `, [printState.name], function(err) {
+        if (!err) {
+          printState.archiveId = this.lastID;
+          console.log(`Created in-progress archive record with ID ${printState.archiveId}`);
+
+          // Start fetching the 3MF weights and thumbnail asynchronously in the background
+          if (printData.gcode_file && printState.lastFetchedGcode !== printData.gcode_file) {
+            printState.lastFetchedGcode = printData.gcode_file;
+            const { getPredictedWeights, extractThumbnailFrom3mf } = require('./ftp');
+            
+            getPredictedWeights(printData.gcode_file, printData.subtask_name).then(res => {
+              if (res && res.weights && Array.isArray(res.weights)) {
+                printState.predictedWeights = res.weights;
+                if (res.path) printState.activeGcodeFile = res.path;
+                console.log('Successfully extracted predicted weights:', res.weights);
+              }
+            }).catch(err => console.log('Failed to fetch weights via FTP:', err.message));
+            
+            // Extract thumbnail right away with a timestamp prefix
+            const thumbPrefix = Date.now().toString();
+            extractThumbnailFrom3mf(printData.gcode_file, thumbPrefix).then(thumbPath => {
+              if (thumbPath) {
+                printState.thumbnailPath = thumbPath;
+                // Update the archive record with the thumbnail path
+                if (printState.archiveId) {
+                  db.run('UPDATE archives SET thumbnail_path = ? WHERE id = ?', [thumbPath, printState.archiveId]);
+                }
+              }
+            }).catch(err => console.log('Failed to fetch thumbnail via FTP:', err.message));
           }
-        }).catch(err => console.log('Failed to fetch weights via FTP:', err.message));
-        
-        // Extract thumbnail right away with a timestamp prefix
-        const thumbPrefix = Date.now().toString();
-        extractThumbnailFrom3mf(printData.gcode_file, thumbPrefix).then(thumbPath => {
-          if (thumbPath) {
-            printState.thumbnailPath = thumbPath;
-          }
-        }).catch(err => console.log('Failed to fetch thumbnail via FTP:', err.message));
-      }
+        } else {
+          console.error('Failed to create in-progress archive:', err);
+        }
+      });
 
     } else if ((newStatus === 'FINISH' || newStatus === 'FAILED') && printState.status !== 'FINISH' && printState.status !== 'FAILED') {
       // Print completed or failed
@@ -303,61 +321,75 @@ const handlePrintStatus = async (printData) => {
 
         const totalCost = energyCost + filamentCost;
 
-        // Save to archive first to get ID
-        db.run(`
-          INSERT INTO archives (print_name, status, duration_seconds, energy_kwh, energy_cost, filament_used_g, filament_cost, total_cost, thumbnail_path)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, [archivedState.name, newStatus, durationSeconds, energyUsed, energyCost, filamentUsed, filamentCost, totalCost, archivedState.thumbnailPath || null], async function(err) {
+        const handleArchiveSave = async (err, rowId) => {
           if (err) {
             console.error('Failed to save archive:', err);
-          } else {
-            const archiveId = this.lastID;
-            console.log(`Print ${archivedState.name} archived with ID ${archiveId}.`);
+            return;
+          }
+          const archiveId = rowId;
+          console.log(`Print ${archivedState.name} archived with ID ${archiveId}.`);
 
-            // Record which spools were used for this specific archive entry
-            spoolDeductions.forEach(({ spoolId, predicted }) => {
-              db.run('INSERT INTO archive_spools (archive_id, spool_id, weight_used_g) VALUES (?, ?, ?)',
-                [archiveId, spoolId, predicted]);
-            });
-            // Download timelapse and photo asynchronously after 60 seconds
-            // This gives the printer time to render the final timelapse MP4
-            setTimeout(async () => {
-              try {
-                const { downloadLatestTimelapseAndPhoto } = require('./ftp');
-                const { analyzePrint } = require('./ai');
-                
-                // Use the successfully identified gcode file path from start of print, fallback to raw
-                const gcodePath = archivedState.activeGcodeFile || archivedState.raw.gcode_file;
-                const paths = await downloadLatestTimelapseAndPhoto(archivedState.name, archiveId, gcodePath);
-                
-                if (paths.timelapsePath || paths.photoPath) {
-                  db.run(
-                    'UPDATE archives SET timelapse_path = ?, photo_path = ? WHERE id = ?',
-                    [paths.timelapsePath, paths.photoPath, archiveId],
-                    async () => {
-                      // Trigger AI Analysis if a photo was successfully captured
-                      if (paths.photoPath) {
-                        const path = require('path');
-                        // paths.photoPath is like "/media/X_photo.jpg", we need absolute path
-                        const absolutePhotoPath = path.join(__dirname, 'data', paths.photoPath.replace(/^\//, ''));
-                        
-                        const aiResult = await analyzePrint(absolutePhotoPath, archivedState.name, durationSeconds);
-                        if (aiResult) {
-                          db.run(
-                            'UPDATE archives SET ai_analysis = ? WHERE id = ?',
-                            [JSON.stringify(aiResult), archiveId]
-                          );
-                        }
+          // Record which spools were used for this specific archive entry
+          spoolDeductions.forEach(({ spoolId, predicted }) => {
+            db.run('INSERT INTO archive_spools (archive_id, spool_id, weight_used_g) VALUES (?, ?, ?)',
+              [archiveId, spoolId, predicted]);
+          });
+          
+          // Download timelapse and photo asynchronously after 60 seconds
+          // This gives the printer time to render the final timelapse MP4
+          setTimeout(async () => {
+            try {
+              const { downloadLatestTimelapseAndPhoto } = require('./ftp');
+              const { analyzePrint } = require('./ai');
+              
+              // Use the successfully identified gcode file path from start of print, fallback to raw
+              const gcodePath = archivedState.activeGcodeFile || archivedState.raw.gcode_file;
+              const paths = await downloadLatestTimelapseAndPhoto(archivedState.name, archiveId, gcodePath);
+              
+              if (paths.timelapsePath || paths.photoPath) {
+                db.run(
+                  'UPDATE archives SET timelapse_path = ?, photo_path = ? WHERE id = ?',
+                  [paths.timelapsePath, paths.photoPath, archiveId],
+                  async () => {
+                    // Trigger AI Analysis if a photo was successfully captured
+                    if (paths.photoPath) {
+                      const path = require('path');
+                      // paths.photoPath is like "/media/X_photo.jpg", we need absolute path
+                      const absolutePhotoPath = path.join(__dirname, 'data', paths.photoPath.replace(/^\//, ''));
+                      
+                      const aiResult = await analyzePrint(absolutePhotoPath, archivedState.name, durationSeconds);
+                      if (aiResult) {
+                        db.run(
+                          'UPDATE archives SET ai_analysis = ? WHERE id = ?',
+                          [JSON.stringify(aiResult), archiveId]
+                        );
                       }
                     }
-                  );
-                }
-              } catch (e) {
-                console.error('Failed to download timelapse or analyze print asynchronously:', e);
+                  }
+                );
               }
-            }, 60000);
-          }
-        });
+            } catch (e) {
+              console.error('Failed to download timelapse or analyze print asynchronously:', e);
+            }
+          }, 60000);
+        };
+
+        if (printState.archiveId) {
+          db.run(`
+            UPDATE archives SET status = ?, duration_seconds = ?, energy_kwh = ?, energy_cost = ?, filament_used_g = ?, filament_cost = ?, total_cost = ?
+            WHERE id = ?
+          `, [newStatus, durationSeconds, energyUsed, energyCost, filamentUsed, filamentCost, totalCost, printState.archiveId], function(err) {
+            handleArchiveSave(err, printState.archiveId);
+            printState.archiveId = null; // Reset
+          });
+        } else {
+          db.run(`
+            INSERT INTO archives (print_name, status, duration_seconds, energy_kwh, energy_cost, filament_used_g, filament_cost, total_cost, thumbnail_path)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `, [archivedState.name, newStatus, durationSeconds, energyUsed, energyCost, filamentUsed, filamentCost, totalCost, archivedState.thumbnailPath || null], function(err) {
+            handleArchiveSave(err, this.lastID);
+          });
+        }
       });
 
       // We DO NOT reset printState to IDLE_STATE() here.

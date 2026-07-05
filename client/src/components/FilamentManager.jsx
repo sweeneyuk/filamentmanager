@@ -107,6 +107,23 @@ function FilamentManager() {
     }, true);
   };
 
+  const handleManualDeduct = (spool) => {
+    showPrompt('Manual Deduct', `Enter amount in grams to deduct from ${spool.brand_name} ${spool.material_name}:`, async (val) => {
+      const amount = parseFloat(val);
+      if (isNaN(amount) || amount <= 0) {
+        showAlert('Invalid Amount', 'Please enter a valid positive number.', true);
+        return;
+      }
+      try {
+        await axios.post(`/api/spools/${spool.id}/deduct`, { amount });
+        fetchData();
+        showAlert('Success', `Deducted ${amount}g from spool.`);
+      } catch (err) {
+        showAlert('Error', 'Failed to deduct from spool.', true);
+      }
+    });
+  };
+
   const handleArchiveToggle = async (spool) => {
     try {
       await axios.put(`/api/spools/${spool.id}/archive`, { archived: !spool.archived });
@@ -441,6 +458,7 @@ function FilamentManager() {
                     <td style={{textAlign: 'right'}}>
                       <div className="row-actions">
                         <button onClick={() => { setEditingSpool(spool); setIsModalOpen(true); }} title="Edit">✎</button>
+                        <button onClick={() => handleManualDeduct(spool)} title="Manual Deduct">✂</button>
                         <button onClick={() => handleArchiveToggle(spool)} title={spool.archived ? "Unarchive" : "Archive"}>
                           {spool.archived ? '📦↑' : '📦↓'}
                         </button>
@@ -518,6 +536,7 @@ function FilamentManager() {
                   {spool.shopify_variant_id && isLowStock && (
                     <button style={{color: '#ff9800', borderColor: '#ff9800'}} onClick={() => window.open(getBambuProductUrl(spool), '_blank')} title="Restock Spool">🛒 Restock</button>
                   )}
+                  <button onClick={() => handleManualDeduct(spool)} title="Manual Deduct">✂ Deduct</button>
                   <button onClick={() => { setEditingSpool(spool); setIsModalOpen(true); }} title="Edit">✎ Edit</button>
                   <button onClick={() => handleArchiveToggle(spool)} title={spool.archived ? "Unarchive" : "Archive"}>
                     {spool.archived ? '📦 Restore' : '📦 Archive'}
