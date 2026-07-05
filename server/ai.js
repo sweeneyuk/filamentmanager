@@ -1,6 +1,6 @@
 const { GoogleGenAI } = require('@google/genai');
 const fs = require('fs');
-const db = require('./database');
+const { db } = require('./database');
 
 // Helper to get setting from DB
 const getSetting = (key) => {

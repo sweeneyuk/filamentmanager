@@ -5,7 +5,7 @@ import { io } from 'socket.io-client';
 import { useAlert } from '../contexts/AlertContext';
 
 function FilamentManager() {
-  const { showAlert, showConfirm } = useAlert();
+  const { showAlert, showConfirm, showPrompt } = useAlert();
   const [selectedSpoolIds, setSelectedSpoolIds] = useState([]);
   const [spools, setSpools] = useState([]);
   const [brands, setBrands] = useState([]);
@@ -108,8 +108,8 @@ function FilamentManager() {
   };
 
   const handleManualDeduct = async (spool) => {
-    const val = window.prompt(`Enter amount in grams to deduct from ${spool.brand_name} ${spool.material_name}:`);
-    if (val === null) return; // User cancelled
+    showPrompt('Deduct Filament', `Enter amount in grams to deduct from ${spool.brand_name} ${spool.material_name}:`, '', async (val) => {
+      if (!val) return;
 
     const amount = parseFloat(val);
     if (isNaN(amount) || amount <= 0) {
@@ -117,13 +117,14 @@ function FilamentManager() {
       return;
     }
     
-    try {
-      await axios.post(`/api/spools/${spool.id}/deduct`, { amount });
-      fetchData();
-      showAlert('Success', `Deducted ${amount}g from spool.`);
-    } catch (err) {
-      showAlert('Error', 'Failed to deduct from spool.', true);
-    }
+      try {
+        await axios.post(`/api/spools/${spool.id}/deduct`, { amount });
+        fetchData();
+        showAlert('Success', `Deducted ${amount}g from spool.`);
+      } catch (err) {
+        showAlert('Error', 'Failed to deduct from spool.', true);
+      }
+    });
   };
 
   const handleArchiveToggle = async (spool) => {
@@ -159,20 +160,21 @@ function FilamentManager() {
         showAlert('Error', `Failed to ${action} spools.`, true);
       }
     } else if (action === 'location') {
-      const newLoc = window.prompt("Enter new location for selected spools (e.g. Shelf B):");
-      if (newLoc === null) return; // cancelled
-      try {
-        await Promise.all(selectedSpoolIds.map(async id => {
-          const spool = spools.find(s => s.id === id);
-          if (spool) {
-            await axios.put(`/api/spools/${id}`, { ...spool, location: newLoc });
-          }
-        }));
-        setSelectedSpoolIds([]);
-        fetchData();
-      } catch (err) {
-        showAlert('Error', 'Failed to update locations.', true);
-      }
+      showPrompt('Update Location', 'Enter new location for selected spools (e.g. Shelf B):', '', async (newLoc) => {
+        if (!newLoc) return;
+        try {
+          await Promise.all(selectedSpoolIds.map(async id => {
+            const spool = spools.find(s => s.id === id);
+            if (spool) {
+              await axios.put(`/api/spools/${id}`, { ...spool, location: newLoc });
+            }
+          }));
+          setSelectedSpoolIds([]);
+          fetchData();
+        } catch (err) {
+          showAlert('Error', 'Failed to update locations.', true);
+        }
+      });
     }
   };
 
