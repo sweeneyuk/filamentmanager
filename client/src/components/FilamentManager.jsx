@@ -16,6 +16,7 @@ function FilamentManager() {
   const [amsData, setAmsData] = useState(null);
   const [amsAssignments, setAmsAssignments] = useState({});
   const [settings, setSettings] = useState({});
+  const [printers, setPrinters] = useState([]);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSpool, setEditingSpool] = useState(null);
@@ -77,14 +78,16 @@ function FilamentManager() {
 
   const fetchAms = async () => {
     try {
-      const [amsRes, assignRes, settingsRes] = await Promise.all([
+      const [amsRes, assignRes, settingsRes, printersRes] = await Promise.all([
         axios.get('/api/ams'),
         axios.get('/api/ams/assignments'),
-        axios.get('/api/settings')
+        axios.get('/api/settings'),
+        axios.get('/api/printers')
       ]);
       setAmsData(amsRes.data);
       setAmsAssignments(assignRes.data);
       setSettings(settingsRes.data);
+      setPrinters(printersRes.data);
     } catch (err) {}
   };
 
@@ -224,7 +227,8 @@ function FilamentManager() {
     for (const [printerId, trays] of Object.entries(amsAssignments)) {
       for (const [trayId, sId] of Object.entries(trays)) {
         if (sId == spoolId) {
-          const printerName = `Printer ${printerId}`;
+          const printer = printers.find(p => p.id.toString() === printerId);
+          const printerName = printer ? printer.name : `Printer ${printerId}`;
           const parts = trayId.split('-');
           if (parts.length === 2) {
             const amsId = parts[0];
