@@ -224,8 +224,7 @@ function FilamentManager() {
     for (const [printerId, trays] of Object.entries(amsAssignments)) {
       for (const [trayId, sId] of Object.entries(trays)) {
         if (sId == spoolId) {
-          const printer = printers.find(p => p.id.toString() === printerId);
-          const printerName = printer ? printer.name : `Printer ${printerId}`;
+          const printerName = `Printer ${printerId}`;
           const parts = trayId.split('-');
           if (parts.length === 2) {
             const amsId = parts[0];
