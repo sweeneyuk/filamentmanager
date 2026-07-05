@@ -12,14 +12,14 @@ const getSetting = (key) => {
   });
 };
 
-const captureCameraSnapshot = async (archiveId) => {
+const captureCameraSnapshot = async (printer, archiveId) => {
   return new Promise(async (resolve, reject) => {
     try {
-      const ip = await getSetting('bambu_ip');
-      const accessCode = await getSetting('bambu_access_code');
+      const ip = printer.ip;
+      const accessCode = printer.access_code;
       
       if (!ip || !accessCode) {
-        return reject(new Error('Bambu IP or Access Code not configured'));
+        return reject(new Error('Printer IP or Access Code not configured'));
       }
 
       const mediaDir = path.join(__dirname, 'data', 'media');

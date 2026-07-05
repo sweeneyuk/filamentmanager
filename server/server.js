@@ -32,7 +32,13 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+app.use((req, res, next) => {
+  console.log(`[ACCESS] ${req.method} ${req.url}`);
+  next();
+});
+
 const authRoutes = require('./authRoutes');
+const printersRoutes = require('./printersRoutes');
 const { authenticateToken } = require('./auth');
 
 // Auth routes (unprotected)
@@ -56,6 +62,7 @@ initDb().then(() => {
 }).catch(console.error);
 
 // API Endpoints
+app.use('/api/printers', authenticateToken, printersRoutes);
 
 // GET /api/settings
 app.get('/api/settings', (req, res) => {
@@ -87,10 +94,6 @@ app.post('/api/settings', (req, res) => {
     }
     stmt.finalize();
     db.run('COMMIT', () => {
-      // Reconnect MQTT if related settings changed
-      if (settings.bambu_ip || settings.bambu_serial || settings.bambu_access_code) {
-        connectMqtt();
-      }
       res.json({ success: true });
     });
   });
@@ -510,56 +513,58 @@ app.get('/api/ams', (req, res) => {
 
 // GET /api/print_status
 app.get('/api/print_status', (req, res) => {
-  res.json(getPrintState());
+    res.json(getPrintState());
 });
 
 // GET /api/ams/assignments
 app.get('/api/ams/assignments', (req, res) => {
-  db.all('SELECT tray_id, spool_id FROM ams_assignments', [], (err, rows) => {
+  db.all('SELECT printer_id, tray_id, spool_id FROM ams_assignments', [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     const assignments = {};
-    rows.forEach(r => { assignments[r.tray_id] = r.spool_id; });
+    rows.forEach(r => {
+      if (!assignments[r.printer_id]) assignments[r.printer_id] = {};
+      assignments[r.printer_id][r.tray_id] = r.spool_id;
+    });
     res.json(assignments);
   });
 });
 
 // POST /api/ams/assignments
 app.post('/api/ams/assignments', (req, res) => {
-  const { tray_id, spool_id } = req.body;
-  if (!tray_id) return res.status(400).json({ error: 'tray_id required' });
+  const { printer_id, tray_id, spool_id } = req.body;
+  if (!tray_id || !printer_id) return res.status(400).json({ error: 'printer_id and tray_id required' });
   
   if (spool_id === null || spool_id === '') {
-    db.run('DELETE FROM ams_assignments WHERE tray_id = ?', [tray_id], err => {
+    db.run('DELETE FROM ams_assignments WHERE printer_id = ? AND tray_id = ?', [printer_id, tray_id], err => {
       if (err) return res.status(500).json({ error: err.message });
-      // Broadcast change
-      db.all('SELECT tray_id, spool_id FROM ams_assignments', [], (err, rows) => {
-        if (!err) {
-          const assignments = {};
-          rows.forEach(r => assignments[r.tray_id] = r.spool_id);
-          io.emit('ams_assignments_update', assignments);
-        }
-      });
+      broadcastAmsAssignments();
       res.json({ success: true });
     });
   } else {
     db.run(`
-      INSERT INTO ams_assignments (tray_id, spool_id) 
-      VALUES (?, ?) 
-      ON CONFLICT(tray_id) DO UPDATE SET spool_id = excluded.spool_id
-    `, [tray_id, spool_id], err => {
+      INSERT INTO ams_assignments (printer_id, tray_id, spool_id) 
+      VALUES (?, ?, ?) 
+      ON CONFLICT(printer_id, tray_id) DO UPDATE SET spool_id=excluded.spool_id
+    `, [printer_id, tray_id, spool_id], err => {
       if (err) return res.status(500).json({ error: err.message });
-      // Broadcast change
-      db.all('SELECT tray_id, spool_id FROM ams_assignments', [], (err, rows) => {
-        if (!err) {
-          const assignments = {};
-          rows.forEach(r => assignments[r.tray_id] = r.spool_id);
-          io.emit('ams_assignments_update', assignments);
-        }
-      });
+      broadcastAmsAssignments();
       res.json({ success: true });
     });
   }
 });
+
+function broadcastAmsAssignments() {
+  db.all('SELECT printer_id, tray_id, spool_id FROM ams_assignments', [], (err, rows) => {
+    if (!err) {
+      const assignments = {};
+      rows.forEach(r => {
+        if (!assignments[r.printer_id]) assignments[r.printer_id] = {};
+        assignments[r.printer_id][r.tray_id] = r.spool_id;
+      });
+      io.emit('ams_assignments_update', assignments);
+    }
+  });
+}
 
 // Serve Media directory
 app.use('/media', express.static(path.join(__dirname, 'data/media')));

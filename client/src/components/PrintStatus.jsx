@@ -7,12 +7,14 @@ import { Thermometer, Box, Lightbulb, Fan, Layers, Droplets, Edit2 } from 'lucid
 
 function PrintStatus() {
   const { showAlert, showPrompt } = useAlert();
-  const [amsData, setAmsData] = useState(null);
+  const [printers, setPrinters] = useState([]);
+  const [amsDataMap, setAmsDataMap] = useState({});
   const [amsAssignments, setAmsAssignments] = useState({});
   const [spools, setSpools] = useState([]);
-  const [printState, setPrintState] = useState(null);
+  const [printStates, setPrintStates] = useState({});
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [activeTrayId, setActiveTrayId] = useState(null);
+  const [activePrinterId, setActivePrinterId] = useState(null);
   const [settings, setSettings] = useState({});
 
   useEffect(() => {
@@ -20,11 +22,11 @@ function PrintStatus() {
     const socket = io();
 
     socket.on('print_state_update', (data) => {
-      setPrintState(data);
+      setPrintStates(prev => ({ ...prev, [data.printer_id]: data.state }));
     });
 
     socket.on('ams_update', (data) => {
-      setAmsData(data);
+      setAmsDataMap(prev => ({ ...prev, [data.printer_id]: data.ams }));
     });
 
     socket.on('ams_assignments_update', (data) => {
@@ -36,29 +38,32 @@ function PrintStatus() {
 
   const fetchData = async () => {
     try {
-      const [amsRes, assignRes, spoolsRes, printRes, settingsRes] = await Promise.all([
+      const [printersRes, amsRes, assignRes, spoolsRes, printRes, settingsRes] = await Promise.all([
+        axios.get('/api/printers'),
         axios.get('/api/ams'),
         axios.get('/api/ams/assignments'),
         axios.get('/api/spools'),
         axios.get('/api/print_status'),
         axios.get('/api/settings')
       ]);
-      setAmsData(amsRes.data);
-      setAmsAssignments(assignRes.data);
+      setPrinters(printersRes.data.printers || []);
+      setAmsDataMap(amsRes.data || {});
+      setAmsAssignments(assignRes.data || {});
       setSpools(spoolsRes.data.filter(s => !s.archived));
-      setPrintState(printRes.data);
-      setSettings(settingsRes.data);
+      setPrintStates(printRes.data || {});
+      setSettings(settingsRes.data || {});
     } catch (err) {}
   };
 
-  const handleRenameAms = (amsId) => {
+  const handleRenameAms = (printerId, amsId) => {
     const defaultName = amsId === "128" || amsId === "255" ? "External Spool" : `AMS ${parseInt(amsId) + 1}`;
-    const currentName = settings[`ams_name_${amsId}`] || defaultName;
+    const key = `ams_name_${printerId}_${amsId}`;
+    const currentName = settings[key] || defaultName;
     
     showPrompt(`Rename ${defaultName}`, 'Enter a new name for this AMS (or clear to reset):', currentName, async (newName) => {
       if (newName !== null) {
         try {
-          await axios.post('/api/settings', { [`ams_name_${amsId}`]: newName.trim() });
+          await axios.post('/api/settings', { [key]: newName.trim() });
           fetchData();
         } catch (err) {
           showAlert('Error', 'Failed to rename AMS', true);
@@ -67,9 +72,9 @@ function PrintStatus() {
     });
   };
 
-  const handleAssignAms = async (trayId, spoolId) => {
+  const handleAssignAms = async (printerId, trayId, spoolId) => {
     try {
-      await axios.post('/api/ams/assignments', { tray_id: trayId, spool_id: spoolId });
+      await axios.post('/api/ams/assignments', { printer_id: printerId, tray_id: trayId, spool_id: spoolId });
       fetchData();
     } catch (err) {
       showAlert('Error', 'Failed to assign spool to AMS', true);
@@ -93,281 +98,286 @@ function PrintStatus() {
       <div className="card title-card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--primary-color)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h2 style={{ margin: '0 0 5px 0', color: 'var(--primary-color)' }}>Print Status</h2>
-            <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Live Dashboard</div>
-            <div style={{ fontSize: '0.85rem', color: '#888' }}>Real-time printer telemetry and AMS tracking.</div>
+            <h2 style={{ margin: '0 0 5px 0', color: 'var(--primary-color)' }}>Fleet Status</h2>
+            <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Live Dashboards</div>
+            <div style={{ fontSize: '0.85rem', color: '#888' }}>Real-time telemetry and AMS tracking for all active printers.</div>
           </div>
+          <button onClick={fetchData} style={{ padding: '8px 16px' }}>Refresh All</button>
         </div>
       </div>
 
-      {printState && (
-        <div className="card title-card" style={{ marginBottom: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-            <div>
-              <h2 style={{ margin: '0 0 5px 0', color: 'var(--text-color)', fontSize: '1.2rem', fontWeight: 600 }}>
-                Current Print
-                <span style={{ fontSize: '0.9rem', color: '#888', fontWeight: 'normal', marginLeft: '8px', textTransform: 'capitalize' }}>
-                  ({(printState.stage || printState.status || '').toLowerCase().replace(/_/g, ' ')})
-                </span>
-              </h2>
-              <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.name || 'Idle / No Active Print'}</div>
-              <div style={{ fontSize: '0.85rem', color: '#888' }}>Started: {printState.startTime ? new Date(printState.startTime).toLocaleTimeString() : 'N/A'}</div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--primary-color)' }}>{printState.progress || 0}%</div>
-              <div style={{ fontSize: '0.9rem', color: '#aaa', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
-                {printState.remainingTime ? (
-                  <>
-                    <div>{Math.floor(printState.remainingTime / 60)}h {printState.remainingTime % 60}m remaining</div>
-                    <div style={{ color: '#888', fontSize: '0.8rem' }}>
-                      ETA: {new Date(Date.now() + printState.remainingTime * 60000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                    </div>
-                  </>
-                ) : 'Calculating...'}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ width: '100%', height: '8px', backgroundColor: 'var(--secondary-bg)', borderRadius: '4px', overflow: 'hidden', marginBottom: '20px' }}>
-            <div style={{ width: `${printState.progress || 0}%`, height: '100%', backgroundColor: 'var(--primary-color)', transition: 'width 0.5s ease-in-out' }}></div>
-          </div>
-
-          <div className="printer-stats-grid">
-            {(() => {
-              const extInfo = printState.raw?.device?.extruder?.info;
-              const hasDualExtruder = extInfo && Array.isArray(extInfo) && extInfo.length > 1;
-              
-              if (hasDualExtruder) {
-                const labels = ['Right Nozzle', 'Left Nozzle'];
-                return extInfo.map((ext, i) => {
-                  const label = labels[i] || `Nozzle ${i + 1}`;
-                  const isPacked = ext.temp > 1000;
-                  const currentTemp = isPacked ? (ext.temp & 0xFFFF) : (ext.temp || 0);
-                  const explicitTarget = isPacked ? (ext.temp >> 16) : ext.htar;
-                  const target = explicitTarget > 1 ? explicitTarget : (printState.raw.nozzle_target_temper || 0);
-                  
-                  return (
-                    <div key={`ext_${i}`} className="printer-stat-card">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>
-                        <Thermometer size={16} color="#f87171" /> {label}
-                      </div>
-                      <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{currentTemp}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {target}°C</span></div>
-                    </div>
-                  );
-                });
-              } else {
-                return (
-                  <div className="printer-stat-card">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>
-                      <Thermometer size={16} color="#f87171" /> Nozzle
-                    </div>
-                    <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.nozzleTemp || 0}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {printState.nozzleTarget || 0}°C</span></div>
-                  </div>
-                );
-              }
-            })()}
-
-            <div className="printer-stat-card">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>
-                <Thermometer size={16} color="#f97316" /> Bed
-              </div>
-              <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.bedTemp || 0}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {printState.bedTarget || 0}°C</span></div>
-            </div>
-
-            <div className="printer-stat-card">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>
-                <Box size={16} color="#a855f7" /> Chamber
-              </div>
-              <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.chamberTemp || 0}°C</div>
-            </div>
-
-            <div className="printer-stat-card">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>
-                <Lightbulb size={16} color={printState.light ? '#eab308' : '#888'} /> Light
-              </div>
-              <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.light ? 'On' : 'Off'}</div>
-            </div>
-
-            {(() => {
-              const speeds = {
-                'cooling_fan_speed': 'Part Fan',
-                'heatbreak_fan_speed': 'Hotend Fan',
-                'big_fan1_speed': 'Aux Fan',
-                'big_fan2_speed': 'Chamber Fan'
-              };
-              return Object.entries(speeds).map(([key, title]) => {
-                const rawSpeed = printState.raw ? parseInt(printState.raw[key] || 0, 10) : 0;
-                const speedPercent = rawSpeed === 0 ? "Off" : `${Math.round((rawSpeed / 15) * 100)}%`;
-                const isSpinning = rawSpeed > 0;
-                return (
-                  <div key={key} className="printer-stat-card">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>
-                      <Fan size={16} color={isSpinning ? '#38bdf8' : '#888'} className={isSpinning ? 'spin-animation' : ''} /> {title}
-                    </div>
-                    <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{speedPercent}</div>
-                  </div>
-                );
-              });
-            })()}
-
-            <div className="printer-stat-card">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>
-                <Layers size={16} color="#a3e635" /> Layer
-              </div>
-              <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{printState.layerNum || 0} <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {printState.totalLayerNum || 0}</span></div>
-            </div>
-          </div>
+      {printers.length === 0 && (
+        <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
+          <h3>No Printers Configured</h3>
+          <p style={{ color: '#888' }}>Go to Settings to add your first printer.</p>
         </div>
       )}
 
-      <div className="card title-card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-          <h2>AMS Overview</h2>
-          <button onClick={fetchData} style={{ padding: '4px 8px', fontSize: '0.8rem' }}>Refresh</button>
-        </div>
-        
-        {amsData && Object.keys(amsData).length > 0 ? (
-          <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
-            {Array.isArray(amsData) ? amsData.map((amsUnit, index) => (
-              <div key={index} style={{ border: '1px solid var(--border-color)', borderRadius: '8px', padding: '15px', minWidth: '300px', flex: 1 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                  <h3 
-                    style={{ margin: 0, fontSize: '1.1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }} 
-                    onClick={() => handleRenameAms(amsUnit.id)} 
-                    title="Click to rename"
-                  >
-                    {settings[`ams_name_${amsUnit.id}`] || (amsUnit.id === "128" || amsUnit.id === "255" ? "External Spool" : `AMS ${parseInt(amsUnit.id) + 1}`)}
-                    <Edit2 size={12} color="#888" />
-                  </h3>
-                  <div style={{ display: 'flex', gap: '15px', fontSize: '0.85rem', color: '#aaa', alignItems: 'center' }}>
-                    {(amsUnit.humidity_raw !== undefined || amsUnit.humidity !== undefined) && (
-                      <span title="Humidity" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Droplets size={14} color="#38bdf8" /> 
-                        {amsUnit.humidity_raw !== undefined ? `${amsUnit.humidity_raw}%` : 
-                            amsUnit.humidity === "1" ? '> 50%' : 
-                            amsUnit.humidity === "2" ? '40-50%' : 
-                            amsUnit.humidity === "3" ? '30-40%' : 
-                            amsUnit.humidity === "4" ? '20-30%' : 
-                            amsUnit.humidity === "5" ? '< 20%' : 
-                            `${amsUnit.humidity}%`}
-                      </span>
-                    )}
-                    {amsUnit.temp !== undefined && (
-                      <span title="Internal Temperature" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Thermometer size={14} color="#f87171" /> {amsUnit.temp}°C
-                      </span>
-                    )}
+      {printers.map(printer => {
+        const state = printStates[printer.id];
+        const amsData = amsDataMap[printer.id];
+        const assignments = amsAssignments[printer.id] || {};
+
+        if (!state) return null;
+
+        return (
+          <div key={printer.id} style={{ marginBottom: '40px' }}>
+            <h2 style={{ marginBottom: '10px', color: '#ccc', borderBottom: '1px solid var(--primary-color)', paddingBottom: '10px' }}>{printer.name}</h2>
+            
+            <div className="card title-card" style={{ marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                <div>
+                  <h2 style={{ margin: '0 0 5px 0', color: 'var(--text-color)', fontSize: '1.2rem', fontWeight: 600 }}>
+                    Current Print
+                    <span style={{ fontSize: '0.9rem', color: '#888', fontWeight: 'normal', marginLeft: '8px', textTransform: 'capitalize' }}>
+                      ({(state.stage || state.status || '').toLowerCase().replace(/_/g, ' ')})
+                    </span>
+                  </h2>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{state.name || 'Idle / No Active Print'}</div>
+                  <div style={{ fontSize: '0.85rem', color: '#888' }}>Started: {state.startTime ? new Date(state.startTime).toLocaleTimeString() : 'N/A'}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--primary-color)' }}>{state.progress || 0}%</div>
+                  <div style={{ fontSize: '0.9rem', color: '#aaa', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                    {state.remainingTime ? (
+                      <>
+                        <div>{Math.floor(state.remainingTime / 60)}h {state.remainingTime % 60}m remaining</div>
+                        <div style={{ color: '#888', fontSize: '0.8rem' }}>
+                          ETA: {new Date(Date.now() + state.remainingTime * 60000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </div>
+                      </>
+                    ) : 'Calculating...'}
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  {amsUnit.tray && amsUnit.tray.map((tray, tIndex) => {
-                    const hasFilament = tray.tray_type && tray.tray_type !== '';
-                    const hexColor = tray.tray_color ? `#${tray.tray_color.substring(0, 6)}` : '#333';
-                    const trayId = `${amsUnit.id}-${tIndex}`;
-                    const isActive = printState && printState.status === 'RUNNING' && printState.currentTrayId === trayId;
-                    return (
-                      <div key={tIndex} className="filament-slot" style={{ 
-                        flex: 1, 
-                        textAlign: 'center',
-                        backgroundColor: isActive ? `${hexColor}22` : (hasFilament ? 'rgba(255,255,255,0.03)' : 'transparent'),
-                        padding: '10px 5px',
-                        borderRadius: '6px',
-                        border: isActive ? `2px solid ${hexColor}` : (hasFilament ? `1px solid ${hexColor}` : '1px dashed var(--border-color)'),
-                        boxShadow: isActive ? `0 0 12px ${hexColor}66` : 'none',
-                        position: 'relative'
-                      }}>
-                        {isActive && (
-                          <div style={{
-                            position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)',
-                            backgroundColor: hexColor,
-                            color: isColorDark(hexColor) ? '#ffffff' : '#000000',
-                            border: isColorDark(hexColor) ? '1px solid rgba(255,255,255,0.3)' : 'none',
-                            fontSize: '0.6rem', fontWeight: 'bold', padding: '2px 6px', borderRadius: '8px', whiteSpace: 'nowrap'
-                          }}>
-                            IN USE
+              </div>
+
+              <div style={{ width: '100%', height: '8px', backgroundColor: 'var(--secondary-bg)', borderRadius: '4px', overflow: 'hidden', marginBottom: '20px' }}>
+                <div style={{ width: `${state.progress || 0}%`, height: '100%', backgroundColor: 'var(--primary-color)', transition: 'width 0.5s ease-in-out' }}></div>
+              </div>
+
+              <div className="printer-stats-grid">
+                {(() => {
+                  const extInfo = state.raw?.device?.extruder?.info;
+                  const hasDualExtruder = extInfo && Array.isArray(extInfo) && extInfo.length > 1;
+                  
+                  if (hasDualExtruder) {
+                    const labels = ['Right Nozzle', 'Left Nozzle'];
+                    return extInfo.map((ext, i) => {
+                      const label = labels[i] || `Nozzle ${i + 1}`;
+                      const isPacked = ext.temp > 1000;
+                      const currentTemp = isPacked ? (ext.temp & 0xFFFF) : (ext.temp || 0);
+                      const explicitTarget = isPacked ? (ext.temp >> 16) : ext.htar;
+                      const target = explicitTarget > 1 ? explicitTarget : (state.raw.nozzle_target_temper || 0);
+                      
+                      return (
+                        <div key={`ext_${i}`} className="printer-stat-card">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>
+                            <Thermometer size={16} color="#f87171" /> {label}
                           </div>
-                        )}
-                        <div style={{
-                          width: '30px', height: '30px', borderRadius: '50%', 
-                          backgroundColor: hasFilament ? hexColor : '#222',
-                          margin: '0 auto 10px auto',
-                          boxShadow: isActive ? `0 0 8px ${hexColor}` : 'none'
-                        }}></div>
-                        <div style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>
-                          {hasFilament ? tray.tray_type : 'Empty'}
+                          <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{currentTemp}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {target}°C</span></div>
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: '#888', marginBottom: '10px' }}>
-                          Slot {tIndex + 1}
+                      );
+                    });
+                  } else {
+                    return (
+                      <div className="printer-stat-card">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>
+                          <Thermometer size={16} color="#f87171" /> Nozzle
                         </div>
-                        {(() => {
-                          const assignedSpoolId = amsAssignments[trayId];
-                          const assignedSpool = spools.find(s => s.id == assignedSpoolId);
-                          let isLowStock = false;
-                          let remaining = 0;
-                          let remainingPct = 0;
-                          if (assignedSpool) {
-                            remaining = assignedSpool.total_weight - assignedSpool.used_weight;
-                            remainingPct = Math.max(0, Math.min(100, (remaining / assignedSpool.total_weight) * 100));
-                            isLowStock = remainingPct < 15 || remaining < 50;
-                          }
-                          return (
-                            <div>
-                              {assignedSpool ? (
-                                <div style={{ fontSize: '0.75rem', marginBottom: '5px' }}>
-                                  <div style={{ color: isActive ? hexColor : 'var(--primary-color)', fontWeight: isActive ? 'bold' : 'normal' }}>
-                                    {assignedSpool.brand_name} {assignedSpool.material_name}
-                                  </div>
-                                  <div style={{ marginTop: '4px', textAlign: 'left' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: '0.65rem', color: '#888', marginBottom: '2px' }}>
-                                      <span>{remaining.toFixed(0)}g</span>
-                                    </div>
-                                    <div className="progress-bar-container" style={{ height: '4px' }}>
-                                      <div className="progress-bar" style={{ width: `${remainingPct}%`, backgroundColor: isLowStock ? '#f44336' : (remainingPct < 40 ? '#ff9800' : '#4caf50') }}></div>
-                                    </div>
-                                  </div>
-                                  {isLowStock && (
-                                    <div style={{ marginTop: '4px' }}>
-                                      <span style={{ backgroundColor: 'rgba(244,67,54,0.2)', color: '#f87171', fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(244,67,54,0.4)', fontWeight: 'bold' }}>Low Stock</span>
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                <div style={{ fontSize: '0.75rem', marginBottom: '5px', color: '#666' }}>
-                                  Not Assigned
-                                </div>
-                              )}
-                              <button 
-                                className="btn-secondary" 
-                                style={{ width: '100%', fontSize: '0.7rem', padding: '4px' }}
-                                onClick={() => { setActiveTrayId(trayId); setIsAssignModalOpen(true); }}
-                              >
-                                {assignedSpool ? 'Change' : 'Assign Spool'}
-                              </button>
-                              {assignedSpool && (
-                                <button 
-                                  className="btn-secondary" 
-                                  style={{ width: '100%', fontSize: '0.7rem', padding: '4px', marginTop: '4px', backgroundColor: 'transparent', color: '#ff5555', border: '1px solid #ff5555' }}
-                                  onClick={() => handleAssignAms(trayId, '')}
-                                >
-                                  Clear
-                                </button>
-                              )}
-                            </div>
-                          );
-                        })()}
+                        <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{state.nozzleTemp || 0}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {state.nozzleTarget || 0}°C</span></div>
                       </div>
                     );
-                  })}
+                  }
+                })()}
+
+                <div className="printer-stat-card">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>
+                    <Thermometer size={16} color="#f97316" /> Bed
+                  </div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{state.bedTemp || 0}°C <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {state.bedTarget || 0}°C</span></div>
+                </div>
+
+                <div className="printer-stat-card">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>
+                    <Box size={16} color="#a855f7" /> Chamber
+                  </div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{state.chamberTemp || 0}°C</div>
+                </div>
+
+                <div className="printer-stat-card">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>
+                    <Lightbulb size={16} color={state.light ? '#eab308' : '#888'} /> Light
+                  </div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{state.light ? 'On' : 'Off'}</div>
+                </div>
+
+                {(() => {
+                  const speeds = {
+                    'cooling_fan_speed': 'Part Fan',
+                    'heatbreak_fan_speed': 'Hotend Fan',
+                    'big_fan1_speed': 'Aux Fan',
+                    'big_fan2_speed': 'Chamber Fan'
+                  };
+                  return Object.entries(speeds).map(([key, title]) => {
+                    const rawSpeed = state.raw ? parseInt(state.raw[key] || 0, 10) : 0;
+                    const speedPercent = rawSpeed === 0 ? "Off" : `${Math.round((rawSpeed / 15) * 100)}%`;
+                    const isSpinning = rawSpeed > 0;
+                    return (
+                      <div key={key} className="printer-stat-card">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>
+                          <Fan size={16} color={isSpinning ? '#38bdf8' : '#888'} className={isSpinning ? 'spin-animation' : ''} /> {title}
+                        </div>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{speedPercent}</div>
+                      </div>
+                    );
+                  });
+                })()}
+
+                <div className="printer-stat-card">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>
+                    <Layers size={16} color="#a3e635" /> Layer
+                  </div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{state.layerNum || 0} <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {state.totalLayerNum || 0}</span></div>
                 </div>
               </div>
-            )) : (
-              <pre style={{fontSize: '12px', color: '#888'}}>Waiting for detailed AMS payload...</pre>
-            )}
+            </div>
+
+            <div className="card title-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                <h2>AMS Overview</h2>
+              </div>
+              
+              {amsData && Object.keys(amsData).length > 0 ? (
+                <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
+                  {Array.isArray(amsData) ? amsData.map((amsUnit, index) => (
+                    <div key={index} style={{ border: '1px solid var(--border-color)', borderRadius: '8px', padding: '15px', minWidth: '300px', flex: 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                        <h3 
+                          style={{ margin: 0, fontSize: '1.1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }} 
+                          onClick={() => handleRenameAms(printer.id, amsUnit.id)} 
+                          title="Click to rename"
+                        >
+                          {settings[`ams_name_${printer.id}_${amsUnit.id}`] || (amsUnit.id === "128" || amsUnit.id === "255" ? "External Spool" : `AMS ${parseInt(amsUnit.id) + 1}`)}
+                          <Edit2 size={12} color="#888" />
+                        </h3>
+                        <div style={{ display: 'flex', gap: '15px', fontSize: '0.85rem', color: '#aaa', alignItems: 'center' }}>
+                          {(amsUnit.humidity_raw !== undefined || amsUnit.humidity !== undefined) && (
+                            <span title="Humidity" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Droplets size={14} color="#38bdf8" /> 
+                              {amsUnit.humidity_raw !== undefined ? `${amsUnit.humidity_raw}%` : 
+                                  amsUnit.humidity === "1" ? '> 50%' : 
+                                  amsUnit.humidity === "2" ? '40-50%' : 
+                                  amsUnit.humidity === "3" ? '30-40%' : 
+                                  amsUnit.humidity === "4" ? '20-30%' : 
+                                  amsUnit.humidity === "5" ? '< 20%' : 
+                                  `${amsUnit.humidity}%`}
+                            </span>
+                          )}
+                          {amsUnit.temp !== undefined && (
+                            <span title="Internal Temperature" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Thermometer size={14} color="#f87171" /> {amsUnit.temp}°C
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        {amsUnit.tray && amsUnit.tray.map((tray, tIndex) => {
+                          return (() => {
+                            const hasFilament = tray.tray_type && tray.tray_type !== '';
+                            const hexColor = tray.tray_color ? `#${tray.tray_color.substring(0, 6)}` : '#333';
+                            const trayId = `${amsUnit.id}-${tIndex}`;
+                            const isAssigned = assignments[trayId] !== undefined;
+                            const assignedSpoolId = assignments[trayId];
+                            const assignedSpool = assignedSpoolId ? spools.find(s => s.id === assignedSpoolId) : null;
+                            const isActive = state.activeTrays && state.activeTrays.includes(trayId);
+                            const isFeeding = state.currentTrayId === trayId;
+                            
+                            const remaining = assignedSpool ? (assignedSpool.total_weight - assignedSpool.used_weight) : 0;
+                            const remainingPct = assignedSpool ? (remaining / assignedSpool.total_weight) * 100 : 0;
+                            const isLowStock = remainingPct < 15;
+
+                            return (
+                              <div 
+                                key={tIndex} 
+                                style={{ 
+                                  flex: 1, 
+                                  backgroundColor: 'var(--secondary-bg)', 
+                                  borderRadius: '6px', 
+                                  overflow: 'hidden',
+                                  border: isFeeding ? '2px solid var(--primary-color)' : isActive ? '2px solid #555' : '2px solid transparent',
+                                  opacity: !hasFilament && !isAssigned ? 0.4 : 1,
+                                  display: 'flex', flexDirection: 'column'
+                                }}
+                              >
+                                <div style={{ 
+                                  height: '25px', 
+                                  backgroundColor: hasFilament ? hexColor : '#222',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  fontSize: '0.75rem', fontWeight: 'bold',
+                                  color: hasFilament && isColorDark(hexColor) ? '#fff' : '#000',
+                                  borderBottom: '1px solid rgba(0,0,0,0.1)'
+                                }}>
+                                  {amsUnit.id === "128" || amsUnit.id === "255" ? 'EXT' : tIndex + 1}
+                                </div>
+                                <div style={{ padding: '8px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', textAlign: 'center' }}>
+                                  {assignedSpool ? (
+                                    <div style={{ fontSize: '0.75rem', marginBottom: '5px' }}>
+                                      <div style={{ color: isActive ? hexColor : 'var(--primary-color)', fontWeight: isActive ? 'bold' : 'normal' }}>
+                                        {assignedSpool.brand_name} {assignedSpool.material_name}
+                                      </div>
+                                      <div style={{ marginTop: '4px', textAlign: 'left' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: '0.65rem', color: '#888', marginBottom: '2px' }}>
+                                          <span>{remaining.toFixed(0)}g</span>
+                                        </div>
+                                        <div className="progress-bar-container" style={{ height: '4px' }}>
+                                          <div className="progress-bar" style={{ width: `${remainingPct}%`, backgroundColor: isLowStock ? '#f44336' : (remainingPct < 40 ? '#ff9800' : '#4caf50') }}></div>
+                                        </div>
+                                      </div>
+                                      {isLowStock && (
+                                        <div style={{ marginTop: '4px' }}>
+                                          <span style={{ backgroundColor: 'rgba(244,67,54,0.2)', color: '#f87171', fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(244,67,54,0.4)', fontWeight: 'bold' }}>Low Stock</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div style={{ fontSize: '0.75rem', marginBottom: '5px', color: '#666' }}>
+                                      Not Assigned
+                                    </div>
+                                  )}
+                                  <button 
+                                    className="btn-secondary" 
+                                    style={{ width: '100%', fontSize: '0.7rem', padding: '4px' }}
+                                    onClick={() => { setActivePrinterId(printer.id); setActiveTrayId(trayId); setIsAssignModalOpen(true); }}
+                                  >
+                                    {assignedSpool ? 'Change' : 'Assign Spool'}
+                                  </button>
+                                  {assignedSpool && (
+                                    <button 
+                                      className="btn-secondary" 
+                                      style={{ width: '100%', fontSize: '0.7rem', padding: '4px', marginTop: '4px', backgroundColor: 'transparent', color: '#ff5555', border: '1px solid #ff5555' }}
+                                      onClick={() => handleAssignAms(printer.id, trayId, '')}
+                                    >
+                                      Clear
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })();
+                        })}
+                      </div>
+                    </div>
+                  )) : (
+                    <pre style={{fontSize: '12px', color: '#888'}}>Waiting for detailed AMS payload...</pre>
+                  )}
+                </div>
+              ) : (
+                <p style={{color: '#888'}}>No AMS data received yet. Ensure your Bambu printer is connected via MQTT in Settings.</p>
+              )}
+            </div>
           </div>
-        ) : (
-          <p style={{color: '#888'}}>No AMS data received yet. Ensure your Bambu printer is connected via MQTT in Settings.</p>
-        )}
-      </div>
+        );
+      })}
 
       {isAssignModalOpen && (
         <div className="modal-overlay" onClick={() => setIsAssignModalOpen(false)}>
@@ -417,7 +427,7 @@ function PrintStatus() {
                         <td>{rem.toFixed(0)}g</td>
                         <td>
                           <button className="btn-primary" onClick={() => {
-                            handleAssignAms(activeTrayId, s.id);
+                            handleAssignAms(activePrinterId, activeTrayId, s.id);
                             setIsAssignModalOpen(false);
                           }}>Select</button>
                         </td>

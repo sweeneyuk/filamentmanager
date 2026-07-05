@@ -20,12 +20,12 @@ const getSetting = (key) => {
   });
 };
 
-const connectFtp = async (overrides = {}) => {
-  const ip = overrides.bambu_ip !== undefined ? overrides.bambu_ip : await getSetting('bambu_ip');
-  const accessCode = overrides.bambu_access_code !== undefined && overrides.bambu_access_code !== '********' ? overrides.bambu_access_code : await getSetting('bambu_access_code');
+const connectFtp = async (printer) => {
+  const ip = printer.ip;
+  const accessCode = printer.access_code;
 
   if (!ip || !accessCode) {
-    throw new Error('Bambu Lab FTP credentials not fully configured.');
+    throw new Error('Printer FTP credentials not fully configured.');
   }
 
   const client = new ftp.Client();
@@ -53,10 +53,10 @@ const connectFtp = async (overrides = {}) => {
 /**
  * Downloads the most recent timelapse from the /timelapse folder.
  */
-const downloadLatestTimelapse = async (printName, archiveId) => {
+const downloadLatestTimelapse = async (printer, printName, archiveId) => {
   let client;
   try {
-    client = await connectFtp();
+    client = await connectFtp(printer);
     
     let timelapsePath = null;
     let localPath = null;
@@ -138,12 +138,12 @@ const findRemotePrintFile = async (client, gcodeFile, subtaskName) => {
 /**
  * Extracts the 3MF thumbnail at the start of a print.
  */
-const extractThumbnailFrom3mf = async (gcodeFile, prefix, subtaskName = null) => {
+const extractThumbnailFrom3mf = async (printer, gcodeFile, prefix, subtaskName = null) => {
   if (!gcodeFile || !gcodeFile.toLowerCase().endsWith('.3mf')) return null;
   
   let client;
   try {
-    client = await connectFtp();
+    client = await connectFtp(printer);
     const remotePath = await findRemotePrintFile(client, gcodeFile, subtaskName);
     if (!remotePath) {
       console.log(`Could not find remote file for thumbnail extraction.`);
@@ -237,10 +237,10 @@ const extractWeightsFromGcode = async (client, remoteFile) => {
   return null;
 };
 
-const getPredictedWeights = async (gcodeFile, subtaskName) => {
+const getPredictedWeights = async (printer, gcodeFile, subtaskName) => {
   let client;
   try {
-    client = await connectFtp();
+    client = await connectFtp(printer);
     const remotePath = await findRemotePrintFile(client, gcodeFile, subtaskName);
     
     if (!remotePath) {

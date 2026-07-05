@@ -92,9 +92,12 @@ const initDb = () => {
       db.run(`
         CREATE TABLE IF NOT EXISTS ams_assignments (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
-          tray_id TEXT UNIQUE NOT NULL,
+          printer_id INTEGER,
+          tray_id TEXT NOT NULL,
           spool_id INTEGER,
-          FOREIGN KEY (spool_id) REFERENCES spools(id)
+          UNIQUE(printer_id, tray_id),
+          FOREIGN KEY (spool_id) REFERENCES spools(id),
+          FOREIGN KEY (printer_id) REFERENCES printers(id)
         )
       `);
 
@@ -141,11 +144,25 @@ const initDb = () => {
         )
       `);
       
+      // Create printers table
+      db.run(`
+        CREATE TABLE IF NOT EXISTS printers (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          ip TEXT NOT NULL,
+          serial TEXT NOT NULL,
+          access_code TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
       // Attempt to add new columns to an existing archives table (fails silently if they exist)
       db.run("ALTER TABLE archives ADD COLUMN timelapse_path TEXT", () => {});
       db.run("ALTER TABLE archives ADD COLUMN photo_path TEXT", () => {});
       db.run("ALTER TABLE archives ADD COLUMN thumbnail_path TEXT", () => {});
       db.run("ALTER TABLE archives ADD COLUMN ai_analysis TEXT", () => {});
+      db.run("ALTER TABLE archives ADD COLUMN printer_id INTEGER", () => {});
+      db.run("ALTER TABLE ams_assignments ADD COLUMN printer_id INTEGER", () => {});
 
       // Migrations for existing databases
       db.run('ALTER TABLE spools ADD COLUMN archived INTEGER DEFAULT 0', (err) => { /* ignore if exists */ });
@@ -155,7 +172,93 @@ const initDb = () => {
       db.run('ALTER TABLE spools ADD COLUMN last_print_name TEXT', (err) => { /* ignore */ });
       db.run('ALTER TABLE spools ADD COLUMN shopify_variant_id TEXT', (err) => { /* ignore */ });
       db.run('ALTER TABLE spools ADD COLUMN color_name TEXT', (err) => {
-        resolve(); // Resolve promise after the last query in serialize block finishes
+        // Multi-printer migration: Migrate global bambu settings to a printer record
+        db.get("SELECT COUNT(*) as count FROM printers", (err, row) => {
+          if (!err && row && row.count === 0) {
+            db.all("SELECT key, value FROM settings WHERE key IN ('bambu_ip', 'bambu_serial', 'bambu_access_code')", (err, rows) => {
+              if (!err && rows && rows.length > 0) {
+                const map = {};
+                rows.forEach(r => map[r.key] = r.value);
+                if (map.bambu_ip && map.bambu_serial) {
+                  db.run(
+                    "INSERT INTO printers (id, name, ip, serial, access_code) VALUES (1, 'Primary Printer', ?, ?, ?)",
+                    [map.bambu_ip, map.bambu_serial, map.bambu_access_code || ''],
+                    function(err) {
+                      if (!err) {
+                        console.log('Migrated legacy Bambu settings to printers table.');
+                        // Clean up legacy settings
+                        db.run("DELETE FROM settings WHERE key IN ('bambu_ip', 'bambu_serial', 'bambu_access_code')");
+                      }
+                      migrateAmsSchema(resolve);
+                    }
+                  );
+                } else {
+                  migrateAmsSchema(resolve);
+                }
+              } else {
+                migrateAmsSchema(resolve);
+              }
+            });
+          } else {
+            migrateAmsSchema(resolve);
+          }
+        });
+      });
+    });
+  });
+};
+
+const migrateAmsSchema = (resolve) => {
+  db.all("PRAGMA table_info(ams_assignments)", (err, rows) => {
+    // Check if it has the old schema (tray_id is unique, printer_id might be missing or added via ALTER)
+    // We check if we need to migrate by seeing if the unique constraint is correct, or just looking at table info.
+    // Actually, recreating the table IF it exists and has the old structure is safest.
+    // We'll run the migration if we haven't renamed it yet.
+    
+    // We can check if `ams_assignments` exists and `printer_id` is part of it. If printer_id was added by ALTER, 
+    // it will be there, but the UNIQUE constraint on tray_id still exists.
+    // Let's check if there is an index on tray_id that enforces uniqueness.
+    db.all("PRAGMA index_list(ams_assignments)", (err, indexes) => {
+      if (err) return resolve();
+      const hasUniqueTrayId = indexes.some(idx => idx.unique === 1);
+      
+      // If we find the old unique constraint on tray_id (or if we just want to be safe and ensure the schema),
+      // we can do the migration. We will create ams_assignments_new with the correct schema.
+      db.run(`CREATE TABLE IF NOT EXISTS ams_assignments_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        printer_id INTEGER,
+        tray_id TEXT NOT NULL,
+        spool_id INTEGER,
+        UNIQUE(printer_id, tray_id),
+        FOREIGN KEY (spool_id) REFERENCES spools(id),
+        FOREIGN KEY (printer_id) REFERENCES printers(id)
+      )`, (err) => {
+        if (err) return resolve();
+        
+        // Copy data over. Ensure we have printer_id.
+        const hasPrinterId = rows && rows.some(r => r.name === 'printer_id');
+        const insertQuery = hasPrinterId 
+          ? `INSERT OR IGNORE INTO ams_assignments_new (printer_id, tray_id, spool_id) SELECT IFNULL(printer_id, 1), tray_id, spool_id FROM ams_assignments`
+          : `INSERT OR IGNORE INTO ams_assignments_new (printer_id, tray_id, spool_id) SELECT 1, tray_id, spool_id FROM ams_assignments`;
+          
+        db.run(insertQuery, (err) => {
+          if (!err) {
+            db.run(`DROP TABLE ams_assignments`, (err) => {
+              if (!err) {
+                db.run(`ALTER TABLE ams_assignments_new RENAME TO ams_assignments`, (err) => {
+                  // Link any remaining archives to printer 1 if null
+                  db.run("UPDATE archives SET printer_id = 1 WHERE printer_id IS NULL", () => {
+                    resolve();
+                  });
+                });
+              } else {
+                resolve();
+              }
+            });
+          } else {
+            resolve();
+          }
+        });
       });
     });
   });
@@ -251,8 +354,38 @@ const runLegacyBrandCleanup = () => {
   });
 };
 
+const getQuery = (query, params = []) => {
+  return new Promise((resolve, reject) => {
+    db.get(query, params, (err, row) => {
+      if (err) reject(err);
+      else resolve(row);
+    });
+  });
+};
+
+const allQuery = (query, params = []) => {
+  return new Promise((resolve, reject) => {
+    db.all(query, params, (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows);
+    });
+  });
+};
+
+const runQuery = (query, params = []) => {
+  return new Promise((resolve, reject) => {
+    db.run(query, params, function(err) {
+      if (err) reject(err);
+      else resolve(this);
+    });
+  });
+};
+
 module.exports = {
   db,
   initDb,
-  populateDefaults
+  populateDefaults,
+  getQuery,
+  allQuery,
+  runQuery
 };

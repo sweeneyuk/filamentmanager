@@ -1,9 +1,10 @@
 const mqtt = require('mqtt');
-const { db } = require('./database');
+const { db, allQuery } = require('./database');
 const { getPrinterEnergyUsage, getEnergyRate } = require('./ha');
 
-let client = null;
-let currentAmsData = {};
+const clients = {}; // printer_id -> mqtt client
+const amsDataMap = {}; // printer_id -> ams data
+const printStates = {}; // printer_id -> state
 let ioInstance = null;
 
 const IDLE_STATE = () => ({
@@ -29,73 +30,52 @@ const IDLE_STATE = () => ({
   raw: null
 });
 
-let printState = IDLE_STATE();
-let isFirstPayload = true;
-
 const PRINT_STAGES = {
-  "-1": "Idle",
-  "0": "Printing",
-  "1": "Auto Bed Leveling",
-  "2": "Heating Bed",
-  "3": "Sweeping XY Mech Mode",
-  "4": "Changing Filament",
-  "5": "M400 Pause",
-  "6": "Paused (Filament Runout)",
-  "7": "Heating Hotend",
-  "8": "Calibrating Extrusion",
-  "9": "Scanning Bed Surface",
-  "10": "Inspecting First Layer",
-  "11": "Identifying Build Plate",
-  "12": "Calibrating Micro Lidar",
-  "13": "Homing Toolhead",
-  "14": "Cleaning Nozzle Tip",
-  "15": "Checking Extruder Temp",
-  "16": "Paused (User)",
-  "17": "Pause (Front Cover Falling)",
-  "18": "Calibrating Micro Lidar",
-  "19": "Calibrating Extrusion Flow",
-  "20": "Paused (Nozzle Temp Malfunction)",
-  "21": "Paused (Bed Temp Malfunction)"
+  "-1": "Idle", "0": "Printing", "1": "Auto Bed Leveling", "2": "Heating Bed", "3": "Sweeping XY Mech Mode",
+  "4": "Changing Filament", "5": "M400 Pause", "6": "Paused (Filament Runout)", "7": "Heating Hotend",
+  "8": "Calibrating Extrusion", "9": "Scanning Bed Surface", "10": "Inspecting First Layer", "11": "Identifying Build Plate",
+  "12": "Calibrating Micro Lidar", "13": "Homing Toolhead", "14": "Cleaning Nozzle Tip", "15": "Checking Extruder Temp",
+  "16": "Paused (User)", "17": "Pause (Front Cover Falling)", "18": "Calibrating Micro Lidar", "19": "Calibrating Extrusion Flow",
+  "20": "Paused (Nozzle Temp Malfunction)", "21": "Paused (Bed Temp Malfunction)"
 };
 
-// Helper to get settings
-const getSetting = (key) => {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT value FROM settings WHERE key = ?', [key], (err, row) => {
-      if (err) return reject(err);
-      resolve(row ? row.value : null);
-    });
-  });
-};
-
-const connectMqtt = async () => {
-  if (client) {
-    client.end();
+const disconnectPrinter = (id) => {
+  if (clients[id]) {
+    clients[id].end();
+    delete clients[id];
   }
+  delete printStates[id];
+  delete amsDataMap[id];
+};
+
+const connectPrinter = (printer) => {
+  const { id, ip, serial, access_code, name } = printer;
   
-  isFirstPayload = true;
-
-  const ip = await getSetting('bambu_ip');
-  const serial = await getSetting('bambu_serial');
-  const accessCode = await getSetting('bambu_access_code');
-
+  disconnectPrinter(id);
+  
   if (!ip || !serial || !accessCode) {
-    console.log('Bambu Lab MQTT credentials not fully configured.');
+    console.log(`[MQTT] Printer ${id} (${name}) missing credentials.`);
     return;
   }
 
-  const brokerUrl = `mqtts://${ip}:8883`;
-  console.log(`Connecting to Bambu Lab MQTT at ${brokerUrl} for serial ${serial}...`);
+  printStates[id] = IDLE_STATE();
+  printStates[id].isFirstPayload = true;
+  amsDataMap[id] = {};
 
-  client = mqtt.connect(brokerUrl, {
+  const brokerUrl = `mqtts://${ip}:8883`;
+  console.log(`[MQTT] Connecting to printer ${id} (${name}) at ${brokerUrl}...`);
+
+  const client = mqtt.connect(brokerUrl, {
     username: 'bblp',
-    password: accessCode,
-    rejectUnauthorized: false, // Self-signed cert
+    password: access_code,
+    rejectUnauthorized: false,
     reconnectPeriod: 5000,
   });
 
+  clients[id] = client;
+
   client.on('connect', () => {
-    console.log('Connected to Bambu Lab MQTT.');
+    console.log(`[MQTT] Connected to printer ${id} (${name}).`);
     client.subscribe(`device/${serial}/report`);
   });
 
@@ -103,193 +83,189 @@ const connectMqtt = async () => {
     try {
       const payload = JSON.parse(message.toString());
       if (payload.print) {
-        handlePrintStatus(payload.print);
+        handlePrintStatus(printer, payload.print);
       }
     } catch (err) {
-      console.error('Error parsing MQTT message:', err);
+      console.error(`[MQTT] Error parsing message from printer ${id}:`, err);
     }
   });
 
   client.on('error', (err) => {
-    console.error('MQTT connection error:', err);
+    console.error(`[MQTT] Connection error for printer ${id}:`, err.message);
   });
 };
 
-const handlePrintStatus = async (printData) => {
+const reconnectPrinter = (id, printer) => {
+  printer.id = id;
+  connectPrinter(printer);
+};
 
-  // Extract AMS data if present
+const connectMqtt = async () => {
+  try {
+    const printers = await allQuery('SELECT * FROM printers');
+    for (const printer of printers) {
+      connectPrinter(printer);
+    }
+  } catch (err) {
+    console.error('[MQTT] Failed to load printers from DB:', err.message);
+  }
+};
+
+const handlePrintStatus = async (printer, printData) => {
+  const pid = printer.id;
+  const state = printStates[pid];
+
   if (printData.ams && printData.ams.ams) {
-    currentAmsData = printData.ams.ams;
+    amsDataMap[pid] = printData.ams.ams;
   }
 
-  // Handle print lifecycle
   const newStatus = printData.gcode_state;
   const subTaskName = printData.subtask_name;
   
-  if (newStatus && isFirstPayload) {
-    printState.status = newStatus;
-    isFirstPayload = false;
+  if (newStatus && state.isFirstPayload) {
+    state.status = newStatus;
+    state.isFirstPayload = false;
   }
 
-  // Save raw data for dynamic rendering in the UI
-  printState.raw = printData;
+  state.raw = printData;
 
   // Live Telemetry
-  if (printData.mc_percent !== undefined) printState.progress = printData.mc_percent;
-  if (printData.mc_remaining_time !== undefined) printState.remainingTime = printData.mc_remaining_time;
-  if (printData.nozzle_temper !== undefined) printState.nozzleTemp = printData.nozzle_temper;
-  if (printData.nozzle_target_temper !== undefined) printState.nozzleTarget = printData.nozzle_target_temper;
-  if (printData.bed_temper !== undefined) printState.bedTemp = printData.bed_temper;
-  if (printData.bed_target_temper !== undefined) printState.bedTarget = printData.bed_target_temper;
-  if (printData.chamber_temper !== undefined) printState.chamberTemp = printData.chamber_temper;
+  if (printData.mc_percent !== undefined) state.progress = printData.mc_percent;
+  if (printData.mc_remaining_time !== undefined) state.remainingTime = printData.mc_remaining_time;
+  if (printData.nozzle_temper !== undefined) state.nozzleTemp = printData.nozzle_temper;
+  if (printData.nozzle_target_temper !== undefined) state.nozzleTarget = printData.nozzle_target_temper;
+  if (printData.bed_temper !== undefined) state.bedTemp = printData.bed_temper;
+  if (printData.bed_target_temper !== undefined) state.bedTarget = printData.bed_target_temper;
+  if (printData.chamber_temper !== undefined) state.chamberTemp = printData.chamber_temper;
   if (printData.lights_report && printData.lights_report.length > 0) {
-    printState.light = printData.lights_report[0].mode === "on";
+    state.light = printData.lights_report[0].mode === "on";
   }
-  if (printData.layer_num !== undefined) printState.layerNum = printData.layer_num;
-  if (printData.total_layer_num !== undefined) printState.totalLayerNum = printData.total_layer_num;
+  if (printData.layer_num !== undefined) state.layerNum = printData.layer_num;
+  if (printData.total_layer_num !== undefined) state.totalLayerNum = printData.total_layer_num;
   if (printData.stg_cur !== undefined) {
-    printState.stage = PRINT_STAGES[printData.stg_cur.toString()] || `Stage ${printData.stg_cur}`;
+    state.stage = PRINT_STAGES[printData.stg_cur.toString()] || `Stage ${printData.stg_cur}`;
   }
   
   if (printData.chamber_temper !== undefined) {
-    printState.chamberTemp = printData.chamber_temper;
+    state.chamberTemp = printData.chamber_temper;
   } else if (printData.device?.ctc?.info?.temp !== undefined) {
-    printState.chamberTemp = printData.device.ctc.info.temp;
+    state.chamberTemp = printData.device.ctc.info.temp;
   }
 
-  // Track exactly which spool is currently feeding (updates continuously)
   if (printData.ams && printData.ams.tray_now !== undefined) {
     const m = parseInt(printData.ams.tray_now, 10);
     if (m !== 255 && !isNaN(m)) {
-      printState.currentTrayId = `${Math.floor(m / 4)}-${m % 4}`;
+      state.currentTrayId = `${Math.floor(m / 4)}-${m % 4}`;
     } else {
-      printState.currentTrayId = null;
+      state.currentTrayId = null;
     }
   }
 
-  if (newStatus && newStatus !== printState.status) {
-    console.log(`Print status changed from ${printState.status} to ${newStatus}`);
+  if (newStatus && newStatus !== state.status) {
+    console.log(`[MQTT ${pid}] Print status changed from ${state.status} to ${newStatus}`);
     
-    if (newStatus === 'RUNNING' && printState.status !== 'RUNNING' && printState.status !== 'PAUSE') {
-      // Print started
-      printState.status = 'RUNNING';
-      printState.name = subTaskName || 'Unknown Print';
-      printState.startTime = new Date();
-      printState.startEnergy = await getPrinterEnergyUsage();
-      printState.predictedWeights = [];
-      printState.activeTrays = [];
+    if (newStatus === 'RUNNING' && state.status !== 'RUNNING' && state.status !== 'PAUSE') {
+      state.status = 'RUNNING';
+      state.name = subTaskName || 'Unknown Print';
+      state.startTime = new Date();
+      state.startEnergy = await getPrinterEnergyUsage();
+      state.predictedWeights = [];
+      state.activeTrays = [];
 
-      // If ams_mapping or mapping exists, we can know which trays are being used for the whole print
       const mappingArray = printData.mapping || printData.ams_mapping;
       if (mappingArray && Array.isArray(mappingArray)) {
-        printState.activeTrays = mappingArray.map(m => {
-          // 255 or 65535 means no AMS tray assigned
+        state.activeTrays = mappingArray.map(m => {
           if (m === 255 || m === 65535) return null;
-          const amsId = Math.floor(m / 4);
-          const trayId = m % 4;
-          return `${amsId}-${trayId}`;
+          return `${Math.floor(m / 4)}-${m % 4}`;
         }).filter(Boolean);
       } else if (printData.vt_tray && printData.vt_tray.id !== 255) {
-        // Single tray active
-        printState.activeTrays = [`0-${printData.vt_tray.id}`]; // naive fallback
+        state.activeTrays = [`0-${printData.vt_tray.id}`];
       }
 
-      // Immediately create an archive record so it shows up in the UI
       db.run(`
-        INSERT INTO archives (print_name, status, created_at)
-        VALUES (?, 'In Progress', CURRENT_TIMESTAMP)
-      `, [printState.name], function(err) {
+        INSERT INTO archives (printer_id, print_name, status, created_at)
+        VALUES (?, ?, 'In Progress', CURRENT_TIMESTAMP)
+      `, [pid, state.name], function(err) {
         if (!err) {
-          printState.archiveId = this.lastID;
-          console.log(`Created in-progress archive record with ID ${printState.archiveId}`);
+          state.archiveId = this.lastID;
+          console.log(`[MQTT ${pid}] Created in-progress archive record with ID ${state.archiveId}`);
 
-          // Start fetching the 3MF weights and thumbnail asynchronously in the background
-          if (printData.gcode_file && printState.lastFetchedGcode !== printData.gcode_file) {
-            printState.lastFetchedGcode = printData.gcode_file;
+          if (printData.gcode_file && state.lastFetchedGcode !== printData.gcode_file) {
+            state.lastFetchedGcode = printData.gcode_file;
             const { getPredictedWeights, extractThumbnailFrom3mf } = require('./ftp');
             
-            getPredictedWeights(printData.gcode_file, printData.subtask_name).then(res => {
+            getPredictedWeights(printer, printData.gcode_file, printData.subtask_name).then(res => {
               if (res && res.weights && Array.isArray(res.weights)) {
-                printState.predictedWeights = res.weights;
-                if (res.path) printState.activeGcodeFile = res.path;
-                console.log('Successfully extracted predicted weights:', res.weights);
+                state.predictedWeights = res.weights;
+                if (res.path) state.activeGcodeFile = res.path;
+                console.log(`[MQTT ${pid}] Successfully extracted predicted weights:`, res.weights);
               }
-            }).catch(err => console.log('Failed to fetch weights via FTP:', err.message));
+            }).catch(err => console.log(`[MQTT ${pid}] Failed to fetch weights via FTP:`, err.message));
             
-            // Extract thumbnail right away with a timestamp prefix
             const thumbPrefix = Date.now().toString();
-            extractThumbnailFrom3mf(printData.gcode_file, thumbPrefix).then(thumbPath => {
+            extractThumbnailFrom3mf(printer, printData.gcode_file, thumbPrefix).then(thumbPath => {
               if (thumbPath) {
-                printState.thumbnailPath = thumbPath;
-                // Update the archive record with the thumbnail path
-                if (printState.archiveId) {
-                  db.run('UPDATE archives SET thumbnail_path = ? WHERE id = ?', [thumbPath, printState.archiveId]);
+                state.thumbnailPath = thumbPath;
+                if (state.archiveId) {
+                  db.run('UPDATE archives SET thumbnail_path = ? WHERE id = ?', [thumbPath, state.archiveId]);
                 }
               }
-            }).catch(err => console.log('Failed to fetch thumbnail via FTP:', err.message));
+            }).catch(err => console.log(`[MQTT ${pid}] Failed to fetch thumbnail via FTP:`, err.message));
           }
-        } else {
-          console.error('Failed to create in-progress archive:', err);
         }
       });
 
-    } else if ((newStatus === 'FINISH' || newStatus === 'FAILED') && printState.status !== 'FINISH' && printState.status !== 'FAILED') {
-      // Print completed or failed
+    } else if ((newStatus === 'FINISH' || newStatus === 'FAILED') && state.status !== 'FINISH' && state.status !== 'FAILED') {
       
-      // Ensure we have basic state if we missed the RUNNING phase (e.g. backend restarted during print)
-      if (!printState.name) printState.name = subTaskName || 'Unknown Print';
-      if (!printState.startTime) printState.startTime = new Date(); // Best guess if missed
-      if (printState.startEnergy === undefined) printState.startEnergy = await getPrinterEnergyUsage();
+      if (!state.name) state.name = subTaskName || 'Unknown Print';
+      if (!state.startTime) state.startTime = new Date();
+      if (state.startEnergy === undefined) state.startEnergy = await getPrinterEnergyUsage();
       
-      if (!printState.activeTrays || printState.activeTrays.length === 0) {
+      if (!state.activeTrays || state.activeTrays.length === 0) {
         const mappingArray = printData.mapping || printData.ams_mapping;
         if (mappingArray && Array.isArray(mappingArray)) {
-          printState.activeTrays = mappingArray.map(m => {
+          state.activeTrays = mappingArray.map(m => {
             if (m === 255 || m === 65535) return null;
             return `${Math.floor(m / 4)}-${m % 4}`;
           }).filter(Boolean);
         } else if (printData.vt_tray && printData.vt_tray.id !== 255) {
-          printState.activeTrays = [`0-${printData.vt_tray.id}`];
+          state.activeTrays = [`0-${printData.vt_tray.id}`];
         } else {
-          printState.activeTrays = [];
+          state.activeTrays = [];
         }
       }
       
-      if ((!printState.predictedWeights || printState.predictedWeights.length === 0) && printData.gcode_file) {
-        console.log('Fetching predicted weights at finish line because they were missing...');
+      if ((!state.predictedWeights || state.predictedWeights.length === 0) && printData.gcode_file) {
         const { getPredictedWeights } = require('./ftp');
         try {
-          const res = await getPredictedWeights(printData.gcode_file, printData.subtask_name);
+          const res = await getPredictedWeights(printer, printData.gcode_file, printData.subtask_name);
           if (res && res.weights && Array.isArray(res.weights)) {
-            printState.predictedWeights = res.weights;
-            if (res.path) printState.activeGcodeFile = res.path;
+            state.predictedWeights = res.weights;
+            if (res.path) state.activeGcodeFile = res.path;
           }
-        } catch (err) {
-          console.log('Failed to fetch weights at finish line:', err.message);
-        }
+        } catch (err) {}
       }
 
       const endTime = new Date();
       const endEnergy = await getPrinterEnergyUsage();
-      const durationSeconds = Math.round((endTime - printState.startTime) / 1000);
+      const durationSeconds = Math.round((endTime - state.startTime) / 1000);
       
-      const energyUsed = Math.max(0, endEnergy - printState.startEnergy);
+      const energyUsed = Math.max(0, endEnergy - state.startEnergy);
       const energyRate = await getEnergyRate();
       const energyCost = energyUsed * energyRate;
 
-      // Calculate Filament Used
       let percentCompleted = 1.0;
       if (newStatus === 'FAILED') {
-        percentCompleted = Math.max(0, printState.progress || 0) / 100.0;
+        percentCompleted = Math.max(0, state.progress || 0) / 100.0;
       }
 
       let filamentUsed = 0;
       let filamentCost = 0;
-      const archivedState = { ...printState };
-      const spoolDeductions = []; // Track exactly which spools were used
+      const archivedState = { ...state };
+      const spoolDeductions = [];
       
-      // Deduct weight from assigned spools and compute costs
-      db.all('SELECT aa.tray_id, aa.spool_id, s.cost, s.total_weight FROM ams_assignments aa LEFT JOIN spools s ON aa.spool_id = s.id', [], (err, assignments) => {
+      // Select mappings specifically for this printer
+      db.all('SELECT aa.tray_id, aa.spool_id, s.cost, s.total_weight FROM ams_assignments aa LEFT JOIN spools s ON aa.spool_id = s.id WHERE aa.printer_id = ?', [pid], (err, assignments) => {
         const assignMap = {};
         const costMap = {};
         if (!err && assignments) {
@@ -307,14 +283,12 @@ const handlePrintStatus = async (printData) => {
             if (spoolId) {
               db.run('UPDATE spools SET used_weight = used_weight + ?, last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
                 [predicted, archivedState.name, spoolId]);
-              // Record which spool was used
               spoolDeductions.push({ spoolId, predicted });
               filamentCost += predicted * (costMap[spoolId] || 0);
             }
           }
         });
 
-        // If we didn't have active trays mapped but have a predicted weight, just sum it
         if (archivedState.activeTrays.length === 0 && archivedState.predictedWeights.length > 0) {
           filamentUsed = archivedState.predictedWeights.reduce((a, b) => a + b, 0) * percentCompleted;
         }
@@ -322,27 +296,21 @@ const handlePrintStatus = async (printData) => {
         const totalCost = energyCost + filamentCost;
 
         const handleArchiveSave = async (err, rowId) => {
-          if (err) {
-            console.error('Failed to save archive:', err);
-            return;
-          }
+          if (err) return;
           const archiveId = rowId;
-          console.log(`Print ${archivedState.name} archived with ID ${archiveId}.`);
+          console.log(`[MQTT ${pid}] Print ${archivedState.name} archived with ID ${archiveId}.`);
 
-          // Record which spools were used for this specific archive entry
           spoolDeductions.forEach(({ spoolId, predicted }) => {
             db.run('INSERT INTO archive_spools (archive_id, spool_id, weight_used_g) VALUES (?, ?, ?)',
               [archiveId, spoolId, predicted]);
           });
 
-          // 1. Immediate RTSP Camera Snapshot
           let rtspSuccessPath = null;
           try {
             const { captureCameraSnapshot } = require('./camera');
-            rtspSuccessPath = await captureCameraSnapshot(archiveId);
+            rtspSuccessPath = await captureCameraSnapshot(printer, archiveId);
             if (rtspSuccessPath) {
               db.run('UPDATE archives SET photo_path = ? WHERE id = ?', [rtspSuccessPath, archiveId]);
-              // Trigger AI Analysis immediately since we have the photo
               const path = require('path');
               const absolutePhotoPath = path.join(__dirname, 'data', rtspSuccessPath.replace(/^\//, ''));
               const absoluteThumbPath = archivedState.thumbnailPath ? path.join(__dirname, 'data', archivedState.thumbnailPath.replace(/^\//, '')) : null;
@@ -352,20 +320,16 @@ const handlePrintStatus = async (printData) => {
                 db.run('UPDATE archives SET ai_analysis = ? WHERE id = ?', [JSON.stringify(aiResult), archiveId]);
               }
             }
-          } catch (camErr) {
-            console.error('[RTSP] Failed immediate snapshot:', camErr.message);
-          }
+          } catch (camErr) {}
 
-          // 2. Delayed Timelapse Download
           setTimeout(async () => {
             try {
               const { downloadLatestTimelapse } = require('./ftp');
-              const paths = await downloadLatestTimelapse(archivedState.name, archiveId);
+              const paths = await downloadLatestTimelapse(printer, archivedState.name, archiveId);
               
               if (paths.timelapsePath) {
                 db.run('UPDATE archives SET timelapse_path = ? WHERE id = ?', [paths.timelapsePath, archiveId]);
                 
-                // Fallback: If RTSP failed earlier, extract from the downloaded MP4
                 if (!rtspSuccessPath && paths.localPath) {
                   const { extractFrameFromMp4 } = require('./camera');
                   const path = require('path');
@@ -376,7 +340,6 @@ const handlePrintStatus = async (printData) => {
                     const relativePhotoPath = `/media/${archiveId}_photo.jpg`;
                     db.run('UPDATE archives SET photo_path = ? WHERE id = ?', [relativePhotoPath, archiveId]);
                     
-                    // Trigger AI Analysis on the fallback frame
                     const absoluteThumbPath = archivedState.thumbnailPath ? path.join(__dirname, 'data', archivedState.thumbnailPath.replace(/^\//, '')) : null;
                     const { analyzePrint } = require('./ai');
                     const aiResult = await analyzePrint(mp4Extracted, absoluteThumbPath, archivedState.name, durationSeconds);
@@ -386,56 +349,52 @@ const handlePrintStatus = async (printData) => {
                   }
                 }
               }
-            } catch (e) {
-              console.error('Failed to download timelapse or process fallback:', e);
-            }
+            } catch (e) {}
           }, 60000);
         };
 
-        if (printState.archiveId) {
+        if (state.archiveId) {
           db.run(`
             UPDATE archives SET status = ?, duration_seconds = ?, energy_kwh = ?, energy_cost = ?, filament_used_g = ?, filament_cost = ?, total_cost = ?
             WHERE id = ?
-          `, [newStatus, durationSeconds, energyUsed, energyCost, filamentUsed, filamentCost, totalCost, printState.archiveId], function(err) {
-            handleArchiveSave(err, printState.archiveId);
-            printState.archiveId = null; // Reset
+          `, [newStatus, durationSeconds, energyUsed, energyCost, filamentUsed, filamentCost, totalCost, state.archiveId], function(err) {
+            handleArchiveSave(err, state.archiveId);
+            state.archiveId = null;
           });
         } else {
           db.run(`
-            INSERT INTO archives (print_name, status, duration_seconds, energy_kwh, energy_cost, filament_used_g, filament_cost, total_cost, thumbnail_path)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `, [archivedState.name, newStatus, durationSeconds, energyUsed, energyCost, filamentUsed, filamentCost, totalCost, archivedState.thumbnailPath || null], function(err) {
+            INSERT INTO archives (printer_id, print_name, status, duration_seconds, energy_kwh, energy_cost, filament_used_g, filament_cost, total_cost, thumbnail_path)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `, [pid, archivedState.name, newStatus, durationSeconds, energyUsed, energyCost, filamentUsed, filamentCost, totalCost, archivedState.thumbnailPath || null], function(err) {
             handleArchiveSave(err, this.lastID);
           });
         }
       });
 
-      // We DO NOT reset printState to IDLE_STATE() here.
-      // We must let the printer naturally transition back to IDLE,
-      // otherwise we will trigger an infinite loop of archiving.
-      printState.status = newStatus;
+      state.status = newStatus;
     } else {
-      // For all other transitions (e.g. FINISH -> IDLE, PREPARE -> RUNNING)
-      if (newStatus === 'IDLE' && printState.status !== 'IDLE') {
-        printState = IDLE_STATE();
+      if (newStatus === 'IDLE' && state.status !== 'IDLE') {
+        const firstPayload = state.isFirstPayload;
+        Object.assign(state, IDLE_STATE());
+        state.isFirstPayload = firstPayload;
       } else {
-        printState.status = newStatus;
+        state.status = newStatus;
       }
     }
   }
 
   if (ioInstance) {
-    ioInstance.emit('print_state_update', printState);
-    ioInstance.emit('ams_update', currentAmsData);
+    ioInstance.emit('print_state_update', { printer_id: pid, state });
+    ioInstance.emit('ams_update', { printer_id: pid, ams: amsDataMap[pid] });
   }
 };
 
 const getAmsStatus = () => {
-  return currentAmsData;
+  return amsDataMap;
 };
 
 const getPrintState = () => {
-  return printState;
+  return printStates;
 };
 
 const setIo = (io) => {
@@ -444,6 +403,9 @@ const setIo = (io) => {
 
 module.exports = {
   connectMqtt,
+  connectPrinter,
+  reconnectPrinter,
+  disconnectPrinter,
   getAmsStatus,
   getPrintState,
   setIo

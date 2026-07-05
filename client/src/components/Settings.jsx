@@ -3,11 +3,10 @@ import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { useAlert } from '../contexts/AlertContext';
 
+import PrintersManagement from './PrintersManagement';
+
 function Settings() {
   const [settings, setSettings] = useState({
-    bambu_ip: '',
-    bambu_serial: '',
-    bambu_access_code: '',
     ha_url: '',
     ha_token: '',
     ha_energy_entity: '',
@@ -64,31 +63,16 @@ function Settings() {
           <div>
             <h2 style={{ margin: '0 0 5px 0', color: 'var(--primary-color)' }}>Settings</h2>
             <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Configuration</div>
-            <div style={{ fontSize: '0.85rem', color: '#888' }}>Connect your Bambu printer and Home Assistant.</div>
+            <div style={{ fontSize: '0.85rem', color: '#888' }}>Configure Integrations and App Behavior.</div>
           </div>
         </div>
       </div>
 
+      <div className="card no-hover" style={{ marginBottom: '20px' }}>
+        <PrintersManagement />
+      </div>
+
       <form onSubmit={handleSave} className="card no-hover">
-        <div className="settings-section">
-          <h3>Bambu Lab MQTT Integration</h3>
-          <p className="settings-desc">Enter your printer's local IP and Access Code. You can find these in the Network tab on your printer's screen.</p>
-          <div className="form-group">
-            <label>Printer IP Address</label>
-            <input type="text" name="bambu_ip" value={settings.bambu_ip || ''} onChange={handleChange} placeholder="192.168.1.100" />
-          </div>
-          <div className="form-group">
-            <label>Printer Serial Number</label>
-            <input type="text" name="bambu_serial" value={settings.bambu_serial || ''} onChange={handleChange} />
-          </div>
-          <div className="form-group">
-            <label>Access Code</label>
-            <input type="password" name="bambu_access_code" value={settings.bambu_access_code || ''} onChange={handleChange} />
-          </div>
-          <button type="button" onClick={() => testConnection('bambu')} style={{ backgroundColor: '#2b2b2b', marginTop: '10px' }}>
-            Test Bambu Connection
-          </button>
-        </div>
 
         <div className="settings-section">
           <h3>Home Assistant Energy Tracking</h3>
