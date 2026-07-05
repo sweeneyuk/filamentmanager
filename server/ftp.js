@@ -3,7 +3,6 @@ const fs = require('fs');
 const path = require('path');
 const AdmZip = require('adm-zip');
 const { db } = require('./database');
-const { execFileSync } = require('child_process');
 
 // Ensure media directory exists
 const mediaDir = path.join(__dirname, 'data', 'media');
@@ -63,13 +62,15 @@ const downloadLatestTimelapseAndPhoto = async (printName, archiveId, gcodeFile =
     let photoPath = null;
     
     // 1. Try to fetch the latest timelapse from /timelapse
+    let latestMp4Name = null;
     try {
       const list = await client.list('/timelapse');
-      // Filter for mp4 and sort alphabetically descending to get the latest video_YYYY-MM-DD...
+      // Filter for mp4 and sort alphabetically descending to get the latest
       const mp4s = list.filter(f => f.name.endsWith('.mp4')).sort((a, b) => b.name.localeCompare(a.name));
       
       if (mp4s.length > 0) {
         const latestMp4 = mp4s[0];
+        latestMp4Name = latestMp4.name;
         const localPath = path.join(mediaDir, `${archiveId}_timelapse.mp4`);
         await client.downloadTo(localPath, `/timelapse/${latestMp4.name}`);
         timelapsePath = `/media/${archiveId}_timelapse.mp4`;
@@ -79,20 +80,34 @@ const downloadLatestTimelapseAndPhoto = async (printName, archiveId, gcodeFile =
       console.log('Could not fetch timelapse (maybe disabled or missing folder):', err.message);
     }
 
-    // 2. Extract the final frame from the timelapse to use as the finished photo
-    if (timelapsePath) {
+    // 2. Fetch the matching thumbnail from /timelapse/thumbnails/
+    if (latestMp4Name) {
       try {
+        const baseName = path.basename(latestMp4Name, '.mp4');
         const localPhotoPath = path.join(mediaDir, `${archiveId}_photo.jpg`);
-        const localTimelapsePath = path.join(mediaDir, `${archiveId}_timelapse.mp4`);
-        // Grab frames from the last 1 second, updating the same file so the last frame remains
-        execFileSync('ffmpeg', ['-y', '-sseof', '-1', '-i', localTimelapsePath, '-update', '1', '-q:v', '2', localPhotoPath], { stdio: 'ignore' });
+        await client.downloadTo(localPhotoPath, `/timelapse/thumbnails/${baseName}.jpg`);
         photoPath = `/media/${archiveId}_photo.jpg`;
-        console.log(`Successfully extracted final frame from timelapse.`);
+        console.log(`Downloaded thumbnail from /timelapse/thumbnails/${baseName}.jpg`);
       } catch (err) {
-        console.log(`Failed to extract final frame with ffmpeg: ${err.message}`);
+        console.log('Could not fetch timelapse thumbnail, falling back to /cam:', err.message);
+        // Fallback: try /cam folder
+        try {
+          const list = await client.list('/cam');
+          const jpgs = list.filter(f => f.name.endsWith('.jpg') || f.name.endsWith('.png')).sort((a, b) => b.name.localeCompare(a.name));
+          if (jpgs.length > 0) {
+            const latestJpg = jpgs[0];
+            const ext = path.extname(latestJpg.name);
+            const localPath = path.join(mediaDir, `${archiveId}_photo${ext}`);
+            await client.downloadTo(localPath, `/cam/${latestJpg.name}`);
+            photoPath = `/media/${archiveId}_photo${ext}`;
+            console.log(`Downloaded photo from /cam: ${latestJpg.name}`);
+          }
+        } catch (camErr) {
+          console.log('Could not fetch photo from /cam:', camErr.message);
+        }
       }
     } else {
-      // Fallback: If no timelapse, try to fetch from /cam
+      // No timelapse at all — try /cam directly
       try {
         const list = await client.list('/cam');
         const jpgs = list.filter(f => f.name.endsWith('.jpg') || f.name.endsWith('.png')).sort((a, b) => b.name.localeCompare(a.name));

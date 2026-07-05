@@ -307,45 +307,50 @@ app.delete('/api/archives/:id', (req, res) => {
 });
 
 // POST /api/archives/:id/regenerate-image
-app.post('/api/archives/:id/regenerate-image', (req, res) => {
-  const { id } = req.params;
-  db.get('SELECT timelapse_path FROM archives WHERE id = ?', [id], (err, row) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (!row || !row.timelapse_path) return res.status(404).json({ error: 'No timelapse video found for this archive.' });
-    
+app.post('/api/archives/:id/regenerate-image', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
+
+  try {
+    const { connectFtp } = require('./ftp');
     const fs = require('fs');
     const path = require('path');
-    
+
+    const client = await connectFtp();
     const mediaDir = path.join(__dirname, 'data');
-    const localTimelapsePath = path.join(mediaDir, row.timelapse_path.replace(/^\//, ''));
-    
-    if (!fs.existsSync(localTimelapsePath)) {
-      return res.status(404).json({ error: 'Timelapse file does not exist on disk.' });
-    }
-    
-    const photoFileName = `media/${id}_photo.jpg`;
-    const localPhotoPath = path.join(mediaDir, photoFileName);
-    
-    const resolvedTimelapse = path.resolve(localTimelapsePath);
-    if (!resolvedTimelapse.startsWith(path.resolve(mediaDir))) {
-      return res.status(400).json({ error: 'Invalid timelapse path.' });
-    }
-    
+
     try {
-      const { execFileSync } = require('child_process');
-      execFileSync('ffmpeg', ['-y', '-sseof', '-1', '-i', localTimelapsePath, '-update', '1', '-q:v', '2', localPhotoPath], { stdio: 'ignore' });
-      
-      db.run('UPDATE archives SET photo_path = ?, thumbnail_path = ? WHERE id = ?', [`/${photoFileName}`, `/${photoFileName}`, id], (updateErr) => {
-        if (updateErr) return res.status(500).json({ error: updateErr.message });
-        
-        // Return the new photo path so UI can update
-        res.json({ success: true, photo_path: `/${photoFileName}` });
-      });
-    } catch (ffmpegErr) {
-      console.error('ffmpeg error:', ffmpegErr);
-      res.status(500).json({ error: 'Failed to extract image with ffmpeg.' });
+      // List the thumbnails folder and grab the most recent one
+      const list = await client.list('/timelapse/thumbnails');
+      const jpgs = list.filter(f => f.name.endsWith('.jpg')).sort((a, b) => b.name.localeCompare(a.name));
+
+      if (jpgs.length === 0) {
+        client.close();
+        return res.status(404).json({ error: 'No thumbnails found in /timelapse/thumbnails on the printer.' });
+      }
+
+      const latestThumb = jpgs[0];
+      const photoFileName = `media/${id}_photo.jpg`;
+      const localPhotoPath = path.join(mediaDir, photoFileName);
+
+      await client.downloadTo(localPhotoPath, `/timelapse/thumbnails/${latestThumb.name}`);
+      client.close();
+
+      db.run('UPDATE archives SET photo_path = ?, thumbnail_path = ? WHERE id = ?',
+        [`/${photoFileName}`, `/${photoFileName}`, id],
+        (updateErr) => {
+          if (updateErr) return res.status(500).json({ error: updateErr.message });
+          res.json({ success: true, photo_path: `/${photoFileName}` });
+        });
+
+    } catch (ftpErr) {
+      client.close();
+      throw ftpErr;
     }
-  });
+  } catch (err) {
+    console.error('Regenerate image error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch thumbnail from printer: ' + err.message });
+  }
 });
 
 // GET /api/analytics
