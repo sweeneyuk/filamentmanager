@@ -107,21 +107,23 @@ function FilamentManager() {
     }, true);
   };
 
-  const handleManualDeduct = (spool) => {
-    showPrompt('Manual Deduct', `Enter amount in grams to deduct from ${spool.brand_name} ${spool.material_name}:`, async (val) => {
-      const amount = parseFloat(val);
-      if (isNaN(amount) || amount <= 0) {
-        showAlert('Invalid Amount', 'Please enter a valid positive number.', true);
-        return;
-      }
-      try {
-        await axios.post(`/api/spools/${spool.id}/deduct`, { amount });
-        fetchData();
-        showAlert('Success', `Deducted ${amount}g from spool.`);
-      } catch (err) {
-        showAlert('Error', 'Failed to deduct from spool.', true);
-      }
-    });
+  const handleManualDeduct = async (spool) => {
+    const val = window.prompt(`Enter amount in grams to deduct from ${spool.brand_name} ${spool.material_name}:`);
+    if (val === null) return; // User cancelled
+
+    const amount = parseFloat(val);
+    if (isNaN(amount) || amount <= 0) {
+      showAlert('Invalid Amount', 'Please enter a valid positive number.', true);
+      return;
+    }
+    
+    try {
+      await axios.post(`/api/spools/${spool.id}/deduct`, { amount });
+      fetchData();
+      showAlert('Success', `Deducted ${amount}g from spool.`);
+    } catch (err) {
+      showAlert('Error', 'Failed to deduct from spool.', true);
+    }
   };
 
   const handleArchiveToggle = async (spool) => {
