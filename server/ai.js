@@ -288,7 +288,10 @@ CRITICAL RULES:
       if (response.functionCalls && response.functionCalls.length > 0) {
         // Execute the function
         const call = response.functionCalls[0];
-        const result = await executeTool(call);
+        let result = await executeTool(call);
+        if (typeof result !== 'string') {
+          result = JSON.stringify(result);
+        }
 
         // Bypass thought_signature API requirement by injecting the tool result 
         // directly into the user's last message instead of creating a functionResponse part.
