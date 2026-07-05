@@ -34,8 +34,11 @@ function PrintersManagement() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  const [isAdding, setIsAdding] = useState(false);
+
   const handleEdit = (printer) => {
     setEditingId(printer.id);
+    setIsAdding(false);
     setFormData({
       name: printer.name,
       ip: printer.ip,
@@ -46,6 +49,7 @@ function PrintersManagement() {
 
   const handleCancelEdit = () => {
     setEditingId(null);
+    setIsAdding(false);
     setFormData({ name: '', ip: '', serial: '', access_code: '' });
   };
 
@@ -80,11 +84,11 @@ function PrintersManagement() {
   if (loading) return <div>Loading printers...</div>;
 
   return (
-    <div className="settings-section">
-      <h3>Printer Management</h3>
-      <p className="settings-desc">Manage your fleet of Bambu Lab printers.</p>
+    <div className="settings-section" style={{ border: 'none', padding: 0 }}>
+      <h3>Printer Fleet</h3>
+      <p className="settings-desc">Manage your connected Bambu Lab printers.</p>
       
-      {printers.length > 0 && !editingId && (
+      {printers.length > 0 && !editingId && !isAdding && (
         <div style={{ marginBottom: '20px' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '10px' }}>
             <thead>
@@ -112,29 +116,39 @@ function PrintersManagement() {
         </div>
       )}
 
-      <form onSubmit={handleSave} style={{ backgroundColor: '#1a1a1a', padding: '15px', borderRadius: '8px', border: '1px solid #333' }}>
-        <h4 style={{ marginTop: 0, marginBottom: '15px' }}>{editingId ? 'Edit Printer' : 'Add New Printer'}</h4>
-        <div className="form-group">
-          <label>Printer Name</label>
-          <input type="text" name="name" value={formData.name} onChange={handleInputChange} placeholder="e.g. X1C - Left" required />
-        </div>
-        <div className="form-group">
-          <label>IP Address</label>
-          <input type="text" name="ip" value={formData.ip} onChange={handleInputChange} placeholder="192.168.1.100" required />
-        </div>
-        <div className="form-group">
-          <label>Serial Number</label>
-          <input type="text" name="serial" value={formData.serial} onChange={handleInputChange} required />
-        </div>
-        <div className="form-group">
-          <label>Access Code</label>
-          <input type="password" name="access_code" value={formData.access_code} onChange={handleInputChange} placeholder={editingId ? 'Leave blank to keep unchanged' : 'Required'} required={!editingId} />
-        </div>
-        <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-          <button type="submit">{editingId ? 'Update Printer' : 'Add Printer'}</button>
-          {editingId && <button type="button" onClick={handleCancelEdit} style={{ backgroundColor: '#555' }}>Cancel</button>}
-        </div>
-      </form>
+      {(!editingId && !isAdding) ? (
+        <button 
+          className="btn-primary" 
+          onClick={() => setIsAdding(true)}
+          style={{ marginTop: '10px' }}
+        >
+          + Add New Printer
+        </button>
+      ) : (
+        <form onSubmit={handleSave} style={{ backgroundColor: 'var(--secondary-bg)', padding: '20px', borderRadius: '8px', border: '1px solid var(--border-color)', marginTop: '15px' }}>
+          <h4 style={{ marginTop: 0, marginBottom: '15px', fontSize: '1.1rem', color: 'var(--text-color)' }}>{editingId ? 'Edit Printer' : 'Add New Printer'}</h4>
+          <div className="form-group">
+            <label>Printer Name</label>
+            <input type="text" name="name" value={formData.name} onChange={handleInputChange} placeholder="e.g. X1C - Left" required />
+          </div>
+          <div className="form-group">
+            <label>IP Address</label>
+            <input type="text" name="ip" value={formData.ip} onChange={handleInputChange} placeholder="192.168.1.100" required />
+          </div>
+          <div className="form-group">
+            <label>Serial Number</label>
+            <input type="text" name="serial" value={formData.serial} onChange={handleInputChange} required />
+          </div>
+          <div className="form-group">
+            <label>Access Code</label>
+            <input type="password" name="access_code" value={formData.access_code} onChange={handleInputChange} placeholder={editingId ? 'Leave blank to keep unchanged' : 'Required'} required={!editingId} />
+          </div>
+          <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+            <button type="submit" className="btn-primary">{editingId ? 'Update Printer' : 'Add Printer'}</button>
+            <button type="button" onClick={handleCancelEdit} style={{ backgroundColor: 'transparent', border: '1px solid #555' }}>Cancel</button>
+          </div>
+        </form>
+      )}
     </div>
   );
 }

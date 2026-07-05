@@ -346,16 +346,16 @@ function PrintStatus() {
                                     </div>
                                   )}
                                   <button 
-                                    className="btn-secondary" 
-                                    style={{ width: '100%', fontSize: '0.7rem', padding: '4px' }}
+                                    className={assignedSpool ? "btn-secondary" : "btn-primary"} 
+                                    style={{ width: '100%', fontSize: '0.75rem', padding: '6px 4px', fontWeight: 'bold' }}
                                     onClick={() => { setActivePrinterId(printer.id); setActiveTrayId(trayId); setIsAssignModalOpen(true); }}
                                   >
-                                    {assignedSpool ? 'Change' : 'Assign Spool'}
+                                    {assignedSpool ? 'Change Spool' : '+ Assign Spool'}
                                   </button>
                                   {assignedSpool && (
                                     <button 
                                       className="btn-secondary" 
-                                      style={{ width: '100%', fontSize: '0.7rem', padding: '4px', marginTop: '4px', backgroundColor: 'transparent', color: '#ff5555', border: '1px solid #ff5555' }}
+                                      style={{ width: '100%', fontSize: '0.7rem', padding: '4px', marginTop: '4px', backgroundColor: 'transparent', color: 'var(--danger-color)', border: '1px solid var(--danger-color)' }}
                                       onClick={() => handleAssignAms(printer.id, trayId, '')}
                                     >
                                       Clear
