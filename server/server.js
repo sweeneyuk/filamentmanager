@@ -371,6 +371,7 @@ app.delete('/api/archives/:id', (req, res) => {
 app.post('/api/archives/:id/regenerate-image', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
+  const source = req.body.source || 'live';
 
   try {
     const { captureCameraSnapshot, extractFrameFromMp4 } = require('./camera');
@@ -387,7 +388,8 @@ app.post('/api/archives/:id/regenerate-image', async (req, res) => {
       const triggerAiAndRespond = async (photoPath, relativePath) => {
         db.run('UPDATE archives SET photo_path = ? WHERE id = ?', [relativePath, id]);
         
-        const absolutePhotoPath = path.isAbsolute(photoPath) ? photoPath : path.join(__dirname, 'data', photoPath.replace(/^\//, ''));
+        // Fix: Always use the relative path to resolve against the data directory for AI analysis
+        const absolutePhotoPath = path.join(__dirname, 'data', relativePath.replace(/^\//, ''));
         const aiResult = await analyzePrint(absolutePhotoPath, absoluteThumbPath, archive.print_name, archive.duration_seconds || 0);
         
         if (aiResult) {
@@ -396,35 +398,37 @@ app.post('/api/archives/:id/regenerate-image', async (req, res) => {
         return res.json({ success: true, photo_path: relativePath, ai_analysis: aiResult });
       };
 
-      // 1. Try RTSP Snapshot First
-      const rtspPhotoPath = await captureCameraSnapshot(id);
-      if (rtspPhotoPath) {
-        return await triggerAiAndRespond(rtspPhotoPath, rtspPhotoPath);
-      }
-
-      // 2. Fallback: Try to extract from an existing timelapse
-      if (archive.timelapse_path) {
-        const absoluteMp4Path = path.join(__dirname, 'data', archive.timelapse_path.replace(/^\//, ''));
-        const fallbackPhotoPath = path.join(__dirname, 'data', 'media', `${id}_photo.jpg`);
-        const extracted = await extractFrameFromMp4(absoluteMp4Path, fallbackPhotoPath);
-        if (extracted) {
-          return await triggerAiAndRespond(extracted, `/media/${id}_photo.jpg`);
+      if (source === 'live') {
+        // 1. Try RTSP Snapshot First
+        const rtspPhotoPath = await captureCameraSnapshot(id);
+        if (rtspPhotoPath) {
+          return await triggerAiAndRespond(rtspPhotoPath, rtspPhotoPath);
         }
-      }
-
-      // 3. Fallback: Attempt to download latest MP4 and extract
-      const { downloadLatestTimelapse } = require('./ftp');
-      const paths = await downloadLatestTimelapse(archive.print_name, id);
-      if (paths.localPath) {
-        const fallbackPhotoPath = path.join(__dirname, 'data', 'media', `${id}_photo.jpg`);
-        const extracted = await extractFrameFromMp4(paths.localPath, fallbackPhotoPath);
-        if (extracted) {
-          db.run('UPDATE archives SET timelapse_path = ? WHERE id = ?', [paths.timelapsePath, id]);
-          return await triggerAiAndRespond(extracted, `/media/${id}_photo.jpg`);
+        return res.status(500).json({ error: 'Failed to capture RTSP live snapshot.' });
+      } else {
+        // 2. Fallback: Try to extract from an existing timelapse
+        if (archive.timelapse_path) {
+          const absoluteMp4Path = path.join(__dirname, 'data', archive.timelapse_path.replace(/^\//, ''));
+          const fallbackPhotoPath = path.join(__dirname, 'data', 'media', `${id}_photo.jpg`);
+          const extracted = await extractFrameFromMp4(absoluteMp4Path, fallbackPhotoPath);
+          if (extracted) {
+            return await triggerAiAndRespond(extracted, `/media/${id}_photo.jpg`);
+          }
         }
-      }
 
-      res.status(500).json({ error: 'Failed to capture RTSP snapshot and failed to extract frame from timelapse.' });
+        // 3. Fallback: Attempt to download latest MP4 and extract
+        const { downloadLatestTimelapse } = require('./ftp');
+        const paths = await downloadLatestTimelapse(archive.print_name, id);
+        if (paths.localPath) {
+          const fallbackPhotoPath = path.join(__dirname, 'data', 'media', `${id}_photo.jpg`);
+          const extracted = await extractFrameFromMp4(paths.localPath, fallbackPhotoPath);
+          if (extracted) {
+            db.run('UPDATE archives SET timelapse_path = ? WHERE id = ?', [paths.timelapsePath, id]);
+            return await triggerAiAndRespond(extracted, `/media/${id}_photo.jpg`);
+          }
+        }
+        return res.status(500).json({ error: 'Failed to extract frame from timelapse.' });
+      }
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

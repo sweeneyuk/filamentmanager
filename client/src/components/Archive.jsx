@@ -11,10 +11,10 @@ function Archive() {
   const [selectedArchives, setSelectedArchives] = useState([]);
   const [openMenuId, setOpenMenuId] = useState(null);
 
-  const handleRegenerateImage = async (id) => {
+  const handleRegenerateImage = async (id, source) => {
     try {
-      showAlert('Processing', 'Extracting image from timelapse video...', false);
-      const res = await axios.post(`/api/archives/${id}/regenerate-image`);
+      showAlert('Processing', `Extracting image from ${source}...`, false);
+      const res = await axios.post(`/api/archives/${id}/regenerate-image`, { source });
       if (res.data.success) {
         showAlert('Success', 'Image regenerated successfully!');
         fetchArchives(); // Refresh to show new image
@@ -263,12 +263,20 @@ function Archive() {
                       padding: '5px', minWidth: '160px', zIndex: 12
                     }}>
                       <button 
-                        onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleRegenerateImage(arch.id); }}
+                        onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleRegenerateImage(arch.id, 'live'); }}
                         style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', background: 'transparent', border: 'none', color: 'var(--text-color)', cursor: 'pointer', borderRadius: '4px' }}
                         onMouseOver={(e) => e.target.style.background = 'rgba(255,255,255,0.1)'}
                         onMouseOut={(e) => e.target.style.background = 'transparent'}
                       >
-                        📸 Regenerate Image
+                        📸 Fetch Live Camera
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleRegenerateImage(arch.id, 'timelapse'); }}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', background: 'transparent', border: 'none', color: 'var(--text-color)', cursor: 'pointer', borderRadius: '4px', marginTop: '4px' }}
+                        onMouseOver={(e) => e.target.style.background = 'rgba(255,255,255,0.1)'}
+                        onMouseOut={(e) => e.target.style.background = 'transparent'}
+                      >
+                        📼 Extract from Timelapse
                       </button>
                       <button 
                         onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleDeleteArchive(arch.id); }}
