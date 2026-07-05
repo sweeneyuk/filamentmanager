@@ -158,7 +158,22 @@ const getAssignedSpools = () => {
       LEFT JOIN materials m ON s.material_id = m.id
     `, [], (err, rows) => {
       if (err) resolve(JSON.stringify({ error: err.message }));
-      else resolve(JSON.stringify(rows));
+      else {
+        db.all("SELECT key, value FROM settings WHERE key LIKE 'ams_name_%'", [], (err2, settingRows) => {
+          if (!err2) {
+            const amsNames = {};
+            settingRows.forEach(row => amsNames[row.key] = row.value);
+            
+            rows = rows.map(r => {
+              const amsId = r.tray_id.split('-')[0];
+              const defaultName = (amsId === "128" || amsId === "255") ? "External Spool" : `AMS ${parseInt(amsId) + 1}`;
+              r.ams_custom_name = amsNames[`ams_name_${amsId}`] || defaultName;
+              return r;
+            });
+          }
+          resolve(JSON.stringify(rows));
+        });
+      }
     });
   });
 };
