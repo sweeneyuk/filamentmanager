@@ -61,6 +61,7 @@ const initDb = () => {
           empty_weight REAL,
           used_weight REAL DEFAULT 0,
           shopify_variant_id TEXT,
+          rfid TEXT UNIQUE,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (brand_id) REFERENCES brands(id),
           FOREIGN KEY (material_id) REFERENCES materials(id)
@@ -171,6 +172,7 @@ const initDb = () => {
       db.run('ALTER TABLE spools ADD COLUMN last_used_at DATETIME', (err) => { /* ignore */ });
       db.run('ALTER TABLE spools ADD COLUMN last_print_name TEXT', (err) => { /* ignore */ });
       db.run('ALTER TABLE spools ADD COLUMN shopify_variant_id TEXT', (err) => { /* ignore */ });
+      db.run('ALTER TABLE spools ADD COLUMN rfid TEXT UNIQUE', (err) => { /* ignore */ });
       db.run('ALTER TABLE spools ADD COLUMN color_name TEXT', (err) => {
         // Multi-printer migration: Migrate global bambu settings to a printer record
         db.get("SELECT COUNT(*) as count FROM printers", (err, row) => {

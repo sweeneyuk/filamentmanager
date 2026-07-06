@@ -1,6 +1,7 @@
 const mqtt = require('mqtt');
-const { db, allQuery } = require('./database');
+const { db, allQuery, getQuery, runQuery } = require('./database');
 const { getPrinterEnergyUsage, getEnergyRate } = require('./ha');
+const { getBambuVariantId } = require('./bambuCatalog');
 
 const clients = {}; // printer_id -> mqtt client
 const amsDataMap = {}; // printer_id -> ams data
@@ -116,7 +117,14 @@ const handlePrintStatus = async (printer, printData) => {
   const state = printStates[pid];
 
   if (printData.ams && printData.ams.ams) {
+    const oldAmsStr = JSON.stringify(amsDataMap[pid]);
+    const newAmsStr = JSON.stringify(printData.ams.ams);
+    
     amsDataMap[pid] = printData.ams.ams;
+    
+    if (oldAmsStr !== newAmsStr) {
+      syncAmsSpools(pid, printData.ams.ams).catch(err => console.error('[MQTT] AMS Sync Error:', err.message));
+    }
   }
 
   const newStatus = printData.gcode_state;
@@ -388,6 +396,96 @@ const handlePrintStatus = async (printer, printData) => {
     ioInstance.emit('ams_update', { printer_id: pid, ams: amsDataMap[pid] });
   }
 };
+
+async function syncAmsSpools(pid, amsDataArray) {
+  if (!Array.isArray(amsDataArray)) return;
+  
+  let didChangeAssignments = false;
+
+  for (const amsUnit of amsDataArray) {
+    if (!amsUnit.tray || !Array.isArray(amsUnit.tray)) continue;
+    
+    for (let i = 0; i < amsUnit.tray.length; i++) {
+      const tray = amsUnit.tray[i];
+      if (tray.id === undefined) continue;
+      
+      const trayId = `${amsUnit.id}-${tray.id}`;
+      const tagUid = tray.tag_uid;
+      const subBrand = tray.tray_sub_brands;
+      
+      // We only auto-add Bambu smart spools
+      if (!tagUid || tagUid === '0000000000000000' || subBrand !== 'Bambu') {
+        continue;
+      }
+      
+      try {
+        let spool = await getQuery('SELECT id FROM spools WHERE rfid = ?', [tagUid]);
+        let spoolId;
+        
+        if (!spool) {
+          // Auto-create spool
+          let brand = await getQuery("SELECT id FROM brands WHERE name = 'Bambu' OR name = 'Bambu Lab'");
+          let brandId = brand ? brand.id : null;
+          if (!brandId) {
+             const result = await runQuery("INSERT INTO brands (name, default_empty_weight) VALUES ('Bambu', 250)");
+             brandId = result.lastID;
+          }
+          
+          let material = await getQuery("SELECT id FROM materials WHERE name = ?", [tray.tray_type]);
+          let materialId = material ? material.id : null;
+          if (!materialId && tray.tray_type) {
+             const result = await runQuery("INSERT INTO materials (name) VALUES (?)", [tray.tray_type]);
+             materialId = result.lastID;
+          }
+          
+          const hexColor = tray.tray_color ? `#${tray.tray_color.substring(0, 6)}` : '#FFFFFF';
+          const variantId = getBambuVariantId(tray.tray_type, 'Basic', hexColor);
+          
+          const result = await runQuery(`
+            INSERT INTO spools (brand_id, material_id, color, total_weight, empty_weight, used_weight, shopify_variant_id, rfid)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `, [brandId, materialId, hexColor, 1000, 250, 0, variantId, tagUid]);
+          
+          spoolId = result.lastID;
+          
+          // Emit WebSocket event so inventory page updates immediately
+          if (ioInstance) ioInstance.emit('spool_added', { id: spoolId });
+        } else {
+          spoolId = spool.id;
+        }
+        
+        // Auto-assign to ams_assignments
+        const existingAssign = await getQuery('SELECT spool_id FROM ams_assignments WHERE printer_id = ? AND tray_id = ?', [pid, trayId]);
+        
+        if (!existingAssign || existingAssign.spool_id !== spoolId) {
+          await runQuery(`
+            INSERT INTO ams_assignments (printer_id, tray_id, spool_id)
+            VALUES (?, ?, ?)
+            ON CONFLICT(printer_id, tray_id) DO UPDATE SET spool_id = excluded.spool_id
+          `, [pid, trayId, spoolId]);
+          didChangeAssignments = true;
+        }
+      } catch (e) {
+        console.error('[MQTT] AMS Sync Error for slot', trayId, ':', e.message);
+      }
+    }
+  }
+  
+  // Broadcast updated assignments if they changed
+  if (didChangeAssignments && ioInstance) {
+    try {
+      const assignmentsData = await allQuery('SELECT printer_id, tray_id, spool_id FROM ams_assignments');
+      const assignmentsMap = {};
+      assignmentsData.forEach(r => {
+        if (!assignmentsMap[r.printer_id]) assignmentsMap[r.printer_id] = {};
+        assignmentsMap[r.printer_id][r.tray_id] = r.spool_id;
+      });
+      ioInstance.emit('ams_assignments_update', assignmentsMap);
+    } catch (e) {
+      console.error('[MQTT] Failed to broadcast AMS assignments:', e.message);
+    }
+  }
+}
 
 const getAmsStatus = () => {
   return amsDataMap;
