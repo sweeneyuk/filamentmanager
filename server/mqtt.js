@@ -460,6 +460,7 @@ async function syncAmsSpools(pid, amsDataArray) {
           let subtype = 'Basic';
           if (subBrand && subBrand.toLowerCase().includes('matte')) subtype = 'Matte';
           else if (subBrand && subBrand.toLowerCase().includes('silk')) subtype = 'Silk';
+          else if (subBrand && subBrand.toLowerCase().includes('support')) subtype = subBrand;
           
           const variantId = getBambuVariantId(tray.tray_type, subtype, hexColor);
           
