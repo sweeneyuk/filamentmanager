@@ -422,6 +422,23 @@ async function syncAmsSpools(pid, amsDataArray) {
         let spool = await getQuery('SELECT id FROM spools WHERE rfid = ?', [tagUid]);
         let spoolId;
         
+        // Hoist the existing assignment check
+        const existingAssign = await getQuery('SELECT spool_id FROM ams_assignments WHERE printer_id = ? AND tray_id = ?', [pid, trayId]);
+        
+        // --- RFID Adoption Logic ---
+        if (!spool && existingAssign) {
+          let assignedSpool = await getQuery('SELECT id, rfid FROM spools WHERE id = ?', [existingAssign.spool_id]);
+          // If the assigned spool doesn't have an RFID yet, it's an old manual entry we can adopt!
+          if (assignedSpool && !assignedSpool.rfid) {
+            await runQuery('UPDATE spools SET rfid = ? WHERE id = ?', [tagUid, assignedSpool.id]);
+            spool = { id: assignedSpool.id };
+            console.log(`[MQTT] Adopted manual spool ${spool.id} with new RFID ${tagUid}`);
+            
+            // Notify frontend that this spool got updated
+            if (ioInstance) ioInstance.emit('spool_updated', { id: spool.id, rfid: tagUid });
+          }
+        }
+        
         if (!spool) {
           // Auto-create spool
           let brand = await getQuery("SELECT id FROM brands WHERE name = 'Bambu' OR name = 'Bambu Lab'");
@@ -455,8 +472,6 @@ async function syncAmsSpools(pid, amsDataArray) {
         }
         
         // Auto-assign to ams_assignments
-        const existingAssign = await getQuery('SELECT spool_id FROM ams_assignments WHERE printer_id = ? AND tray_id = ?', [pid, trayId]);
-        
         if (!existingAssign || existingAssign.spool_id !== spoolId) {
           await runQuery(`
             INSERT INTO ams_assignments (printer_id, tray_id, spool_id)
