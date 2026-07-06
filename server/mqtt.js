@@ -413,8 +413,8 @@ async function syncAmsSpools(pid, amsDataArray) {
       const tagUid = tray.tag_uid;
       const subBrand = tray.tray_sub_brands;
       
-      // We only auto-add Bambu smart spools
-      if (!tagUid || tagUid === '0000000000000000' || subBrand !== 'Bambu') {
+      // We only auto-add Bambu smart spools (detected by valid RFID)
+      if (!tagUid || tagUid === '0000000000000000') {
         continue;
       }
       
@@ -456,12 +456,17 @@ async function syncAmsSpools(pid, amsDataArray) {
           }
           
           const hexColor = tray.tray_color ? `#${tray.tray_color.substring(0, 6)}` : '#FFFFFF';
-          const variantId = getBambuVariantId(tray.tray_type, 'Basic', hexColor);
+          
+          let subtype = 'Basic';
+          if (subBrand && subBrand.toLowerCase().includes('matte')) subtype = 'Matte';
+          else if (subBrand && subBrand.toLowerCase().includes('silk')) subtype = 'Silk';
+          
+          const variantId = getBambuVariantId(tray.tray_type, subtype, hexColor);
           
           const result = await runQuery(`
-            INSERT INTO spools (brand_id, material_id, color, total_weight, empty_weight, used_weight, shopify_variant_id, rfid)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `, [brandId, materialId, hexColor, 1000, 250, 0, variantId, tagUid]);
+            INSERT INTO spools (brand_id, material_id, subtype, color, total_weight, empty_weight, used_weight, shopify_variant_id, rfid)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `, [brandId, materialId, subtype, hexColor, 1000, 250, 0, variantId, tagUid]);
           
           spoolId = result.lastID;
           
