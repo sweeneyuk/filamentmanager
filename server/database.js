@@ -172,7 +172,9 @@ const initDb = () => {
       db.run('ALTER TABLE spools ADD COLUMN last_used_at DATETIME', (err) => { /* ignore */ });
       db.run('ALTER TABLE spools ADD COLUMN last_print_name TEXT', (err) => { /* ignore */ });
       db.run('ALTER TABLE spools ADD COLUMN shopify_variant_id TEXT', (err) => { /* ignore */ });
-      db.run('ALTER TABLE spools ADD COLUMN rfid TEXT UNIQUE', (err) => { /* ignore */ });
+      db.run('ALTER TABLE spools ADD COLUMN rfid TEXT', (err) => { 
+        if (err && !err.message.includes("duplicate column name")) console.error("Migration error (rfid):", err.message); 
+      });
       db.run('ALTER TABLE spools ADD COLUMN color_name TEXT', (err) => {
         // Multi-printer migration: Migrate global bambu settings to a printer record
         db.get("SELECT COUNT(*) as count FROM printers", (err, row) => {
