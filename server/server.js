@@ -744,11 +744,13 @@ app.post('/api/calculator/parse', upload3mf.single('file'), (req, res) => {
     let weights = [];
     let printTimeSeconds = 0;
     
-    const detailsEntry = zipEntries.find(e => e.entryName === 'Metadata/project_details.json' || e.entryName === 'Metadata/slice_info.config');
-    if (detailsEntry) {
-      const contentStr = detailsEntry.getData().toString('utf8');
+    const sliceInfoEntry = zipEntries.find(e => e.entryName.toLowerCase() === 'metadata/slice_info.config');
+    const projectDetailsEntry = zipEntries.find(e => e.entryName.toLowerCase() === 'metadata/project_details.json');
+    
+    // First try project_details.json
+    if (projectDetailsEntry) {
       try {
-        const data = JSON.parse(contentStr);
+        const data = JSON.parse(projectDetailsEntry.getData().toString('utf8'));
         if (data.filament_weight) {
           weights = Array.isArray(data.filament_weight) ? data.filament_weight : [data.filament_weight];
         } else if (data.plate_summary && data.plate_summary.length > 0) {
@@ -761,18 +763,27 @@ app.post('/api/calculator/parse', upload3mf.single('file'), (req, res) => {
           printTimeSeconds = data.plate_summary[0].prediction;
         }
       } catch (e) {
-        // XML
-        const filamentRegex = /<filament\s+[^>]*used_g="([\d\.]+)"/gi;
-        let match;
-        while ((match = filamentRegex.exec(contentStr)) !== null) {
-          weights.push(parseFloat(match[1]));
+        console.error("Failed to parse project_details.json", e);
+      }
+    }
+    
+    // If we didn't get weights/time, or just to be safe, check slice_info.config
+    if ((weights.length === 0 || printTimeSeconds === 0) && sliceInfoEntry) {
+      const contentStr = sliceInfoEntry.getData().toString('utf8');
+      const filamentRegex = /<filament\s+[^>]*used_g="([\d\.]+)"/gi;
+      let match;
+      while ((match = filamentRegex.exec(contentStr)) !== null) {
+        weights.push(parseFloat(match[1]));
+      }
+      
+      if (weights.length === 0) {
+        const weightMatch = contentStr.match(/<metadata\s+key="weight"\s+value="([\d\.\,\s]+)"/i);
+        if (weightMatch && weightMatch[1]) {
+           weights = [parseFloat(weightMatch[1])];
         }
-        if (weights.length === 0) {
-          const weightMatch = contentStr.match(/<metadata\s+key="weight"\s+value="([\d\.\,\s]+)"/i);
-          if (weightMatch && weightMatch[1]) {
-             weights = [parseFloat(weightMatch[1])];
-          }
-        }
+      }
+      
+      if (printTimeSeconds === 0) {
         const timeMatch = contentStr.match(/<metadata\s+key="prediction"\s+value="([\d]+)"/i);
         if (timeMatch && timeMatch[1]) {
           printTimeSeconds = parseInt(timeMatch[1], 10);

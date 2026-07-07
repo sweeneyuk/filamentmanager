@@ -7,6 +7,7 @@ function Calculator() {
   const [file, setFile] = useState(null);
   const [parsing, setParsing] = useState(false);
   const [parseResult, setParseResult] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
   
   const [spools, setSpools] = useState([]);
   const [settings, setSettings] = useState({});
@@ -40,6 +41,24 @@ function Calculator() {
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files.length > 0) {
       setFile(e.target.files[0]);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      setFile(e.dataTransfer.files[0]);
     }
   };
 
@@ -133,12 +152,16 @@ function Calculator() {
           </h3>
           <p style={{ margin: 0, color: '#888', fontSize: '0.9rem' }}>Select a sliced .3mf file from Bambu Studio.</p>
           
-          <div style={{ 
-            border: '2px dashed var(--border-color)', 
+          <div 
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            style={{ 
+            border: `2px dashed ${isDragging ? 'var(--primary-color)' : 'var(--border-color)'}`, 
             borderRadius: '8px', 
             padding: '20px', 
             textAlign: 'center',
-            backgroundColor: 'var(--secondary-bg)'
+            backgroundColor: isDragging ? 'rgba(0, 255, 0, 0.05)' : 'var(--secondary-bg)'
           }}>
             <input 
               type="file" 
