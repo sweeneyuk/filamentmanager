@@ -153,7 +153,9 @@ function Calculator() {
           <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Upload size={18} /> 1. Upload File
           </h3>
-          <p style={{ margin: 0, color: '#888', fontSize: '0.9rem' }}>Select a sliced .3mf file from Bambu Studio.</p>
+          <p style={{ margin: 0, color: '#888', fontSize: '0.9rem' }}>
+            Upload a <strong>.gcode.3mf</strong> file (Bambu Studio &rarr; File &rarr; Export &rarr; Export Plate Sliced File)
+          </p>
           
           <div 
             onDragOver={handleDragOver}
