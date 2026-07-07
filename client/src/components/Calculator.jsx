@@ -100,6 +100,7 @@ function Calculator() {
   const [dynamicEnergyRate, setDynamicEnergyRate] = useState(null);
   
   const [laborMinutes, setLaborMinutes] = useState(15);
+  const [quantity, setQuantity] = useState(1);
   
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [quoteForm, setQuoteForm] = useState({ project_name: '', customer_name: '', notes: '' });
@@ -195,7 +196,7 @@ function Calculator() {
   };
 
   // Calculations
-  const printHours = parseResult ? parseResult.printTimeSeconds / 3600 : 0;
+  const printHours = parseResult ? (parseResult.printTimeSeconds / 3600) * quantity : 0;
   
   let materialCost = 0;
   if (parseResult && parseResult.weights) {
@@ -205,7 +206,7 @@ function Calculator() {
         const spool = spools.find(s => s.id === parseInt(spoolId, 10));
         if (spool && spool.cost && spool.total_weight) {
           const costPerGram = spool.cost / spool.total_weight;
-          materialCost += costPerGram * (wObj.weight || 0);
+          materialCost += costPerGram * (wObj.weight || 0) * quantity;
         }
       }
     });
@@ -226,7 +227,7 @@ function Calculator() {
 
   // 4. Labor Cost
   const laborRate = parseFloat(settings.calc_labor_rate) || 0;
-  const laborCost = (laborMinutes / 60) * laborRate;
+  const laborCost = ((laborMinutes * quantity) / 60) * laborRate;
 
   // Totals
   const totalCost = materialCost + machineCost + energyCost + laborCost;
@@ -246,10 +247,10 @@ function Calculator() {
       const spool = spools.find(s => s.id === parseInt(spoolId, 10));
       return {
         slot: i + 1,
-        weight: wObj.weight,
+        weight: (wObj.weight || 0) * quantity,
         spool_id: spool ? spool.id : null,
         spool_name: spool ? `${spool.brand_name} ${spool.material_name} ${spool.color_name || ''}`.trim() : 'Unknown',
-        cost: spool ? (wObj.weight / 1000) * spool.cost : 0
+        cost: spool ? (((wObj.weight || 0) * quantity) / 1000) * spool.cost : 0
       };
     }) || [];
 
@@ -410,8 +411,19 @@ function Calculator() {
               <Settings size={18} /> 3. Adjust Variables
             </h3>
             
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+              <label>Quantity (Multiplier)</label>
+              <input 
+                type="number" 
+                min="1"
+                value={quantity} 
+                onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                style={{ width: '80px', textAlign: 'right' }}
+              />
+            </div>
+            
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <label>Prep & Post-processing (Mins)</label>
+              <label>Prep & Post-processing (Mins per item)</label>
               <input 
                 type="number" 
                 value={laborMinutes} 
