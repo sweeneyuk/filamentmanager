@@ -211,7 +211,7 @@ const handlePrintStatus = async (printer, printData) => {
             }).catch(err => console.log(`[MQTT ${pid}] Failed to fetch weights via FTP:`, err.message));
             
             const thumbPrefix = Date.now().toString();
-            extractThumbnailFrom3mf(printer, printData.gcode_file, thumbPrefix).then(thumbPath => {
+            extractThumbnailFrom3mf(printer, printData.gcode_file, thumbPrefix, printData.subtask_name).then(thumbPath => {
               if (thumbPath) {
                 state.thumbnailPath = thumbPath;
                 if (state.archiveId) {

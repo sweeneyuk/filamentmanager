@@ -139,13 +139,11 @@ const findRemotePrintFile = async (client, gcodeFile, subtaskName) => {
  * Extracts the 3MF thumbnail at the start of a print.
  */
 const extractThumbnailFrom3mf = async (printer, gcodeFile, prefix, subtaskName = null) => {
-  if (!gcodeFile || !gcodeFile.toLowerCase().endsWith('.3mf')) return null;
-  
   let client;
   try {
     client = await connectFtp(printer);
     const remotePath = await findRemotePrintFile(client, gcodeFile, subtaskName);
-    if (!remotePath) {
+    if (!remotePath || !remotePath.toLowerCase().endsWith('.3mf')) {
       console.log(`Could not find remote file for thumbnail extraction.`);
       client.close();
       return null;
