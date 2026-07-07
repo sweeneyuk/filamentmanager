@@ -97,6 +97,7 @@ function Calculator() {
   const [spools, setSpools] = useState([]);
   const [settings, setSettings] = useState({});
   const [selectedSpools, setSelectedSpools] = useState({});
+  const [dynamicEnergyRate, setDynamicEnergyRate] = useState(null);
   
   const [laborMinutes, setLaborMinutes] = useState(15);
   const { showAlert } = useAlert();
@@ -111,6 +112,17 @@ function Calculator() {
         ]);
         setSpools(spoolsRes.data.filter(s => s.archived !== 1));
         setSettings(settingsRes.data);
+        
+        if (settingsRes.data.energy_rate_source === 'ha') {
+          try {
+            const rateRes = await axios.get('/api/ha/rate');
+            if (rateRes.data && rateRes.data.rate) {
+              setDynamicEnergyRate(rateRes.data.rate);
+            }
+          } catch (err) {
+            console.error('Failed to fetch dynamic HA energy rate:', err);
+          }
+        }
         
         // Setup defaults
         if (settingsRes.data.calc_avg_wattage) {
@@ -201,7 +213,10 @@ function Calculator() {
   // 3. Energy Cost
   const avgWattage = parseFloat(settings.calc_avg_wattage) || 150;
   const kwhUsed = (avgWattage * printHours) / 1000;
-  const energyRate = parseFloat(settings.calc_energy_rate) || 0;
+  let energyRate = parseFloat(settings.calc_energy_rate) || 0;
+  if (settings.energy_rate_source === 'ha' && dynamicEnergyRate !== null) {
+    energyRate = parseFloat(dynamicEnergyRate);
+  }
   const energyCost = kwhUsed * energyRate;
 
   // 4. Labor Cost

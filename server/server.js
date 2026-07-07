@@ -851,6 +851,17 @@ app.post('/api/test/ha', async (req, res) => {
   }
 });
 
+// GET /api/ha/rate
+app.get('/api/ha/rate', async (req, res) => {
+  const { getEnergyRate } = require('./ha');
+  try {
+    const rate = await getEnergyRate();
+    res.json({ rate });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/test/bambu
 app.post('/api/test/bambu', async (req, res) => {
   const { connectFtp } = require('./ftp');
