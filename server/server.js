@@ -741,6 +741,12 @@ app.post('/api/calculator/parse', upload3mf.single('file'), (req, res) => {
     const zip = new AdmZip(req.file.path);
     const zipEntries = zip.getEntries();
     
+    // TEMPORARY DEBUG: Write to file
+    try {
+      const debugFile = path.join(__dirname, '..', 'scratch', '3mf_debug.txt');
+      fs.writeFileSync(debugFile, "ZIP ENTRIES:\n" + zipEntries.map(e => e.entryName).join("\n"));
+    } catch(e) {}
+    
     let weights = [];
     let printTimeSeconds = 0;
     
