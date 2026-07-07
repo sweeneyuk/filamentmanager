@@ -19,7 +19,8 @@ function Settings() {
     calc_labor_rate: '',
     calc_wear_rate: '',
     calc_markup: '',
-    calc_avg_wattage: ''
+    calc_avg_wattage: '',
+    calc_energy_rate: ''
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -205,7 +206,11 @@ function Settings() {
                   <p className="settings-desc">Global default rates used to generate print quotes.</p>
                   <div className="form-group">
                     <label>Machine Wear Rate (£/hour)</label>
-                    <input type="number" step="0.01" name="calc_wear_rate" value={settings.calc_wear_rate || ''} onChange={handleChange} placeholder="e.g. 0.50" />
+                    <input type="number" step="0.1" name="calc_wear_rate" value={settings.calc_wear_rate || ''} onChange={handleChange} placeholder="e.g. 0.50" />
+                  </div>
+                  <div className="form-group">
+                    <label>Electricity Rate (£/kWh)</label>
+                    <input type="number" step="0.01" name="calc_energy_rate" value={settings.calc_energy_rate || ''} onChange={handleChange} placeholder="e.g. 0.25" />
                   </div>
                   <div className="form-group">
                     <label>Labor Rate (£/hour)</label>

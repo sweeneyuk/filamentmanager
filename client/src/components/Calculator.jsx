@@ -117,7 +117,7 @@ function Calculator() {
   // 3. Energy Cost
   const avgWattage = parseFloat(settings.calc_avg_wattage) || 150;
   const kwhUsed = (avgWattage * printHours) / 1000;
-  const energyRate = parseFloat(settings.manual_energy_rate) || 0; // Use manual rate for quoting to keep it simple and predictable
+  const energyRate = parseFloat(settings.calc_energy_rate) || 0;
   const energyCost = kwhUsed * energyRate;
 
   // 4. Labor Cost

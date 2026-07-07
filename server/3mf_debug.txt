@@ -7,9 +7,10 @@ Metadata/top_1.png
 Metadata/pick_1.png
 Metadata/plate_1.json
 3D/3dmodel.model
-3D/_rels/3dmodel.model.rels
-3D/Objects/object_1.model
 Metadata/project_settings.config
+Metadata/plate_1.gcode.md5
+Metadata/plate_1.gcode
+Metadata/_rels/model_settings.config.rels
 Metadata/model_settings.config
 Metadata/cut_information.xml
 Metadata/slice_info.config
