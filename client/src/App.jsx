@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
-import { Database, Archive as ArchiveIcon, Settings as SettingsIcon, Printer, Activity, Recycle, User } from 'lucide-react';
+import { Database, Archive as ArchiveIcon, Settings as SettingsIcon, Printer, Activity, Recycle, User, Calculator as CalculatorIcon } from 'lucide-react';
 import FilamentManager from './components/FilamentManager';
 import Archive from './components/Archive';
 import Analytics from './components/Analytics';
@@ -9,6 +9,7 @@ import ScrapSaver from './components/ScrapSaver';
 import Profile from './components/Profile';
 import Login from './components/Login';
 import FloatingAssistant from './components/FloatingAssistant';
+import Calculator from './components/Calculator';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AlertProvider } from './contexts/AlertContext';
 
@@ -45,6 +46,9 @@ function MainApp() {
             <NavLink to="/analytics" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               <Activity size={20} /> Analytics
             </NavLink>
+            <NavLink to="/calculator" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+              <CalculatorIcon size={20} /> Calculator
+            </NavLink>
             <div className="nav-spacer"></div>
             <NavLink to="/profile" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               <User size={20} /> Profile
@@ -62,6 +66,7 @@ function MainApp() {
             <Route path="/archive" element={<PrivateRoute><Archive /></PrivateRoute>} />
             <Route path="/scrap-saver" element={<PrivateRoute><ScrapSaver /></PrivateRoute>} />
             <Route path="/analytics" element={<PrivateRoute><Analytics /></PrivateRoute>} />
+            <Route path="/calculator" element={<PrivateRoute><Calculator /></PrivateRoute>} />
             <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
             <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
           </Routes>

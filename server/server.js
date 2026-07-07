@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const multer = require('multer');
+const fs = require('fs');
+const AdmZip = require('adm-zip');
 const { db, initDb, populateDefaults } = require('./database');
 const { connectMqtt, getAmsStatus, getPrintState, setIo } = require('./mqtt');
 const { getBambuVariantId } = require('./bambuCatalog');
@@ -725,6 +727,74 @@ app.post('/api/import/csv', upload.single('csvFile'), (req, res) => {
       fs.unlink(req.file.path, () => {}); // Clean up temp file on parse error
       res.status(400).json({ error: 'Failed to parse CSV: ' + err.message });
     });
+});
+
+// POST /api/calculator/parse
+app.post('/api/calculator/parse', upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  try {
+    const zip = new AdmZip(req.file.path);
+    const zipEntries = zip.getEntries();
+    
+    let weights = [];
+    let printTimeSeconds = 0;
+    
+    const detailsEntry = zipEntries.find(e => e.entryName === 'Metadata/project_details.json' || e.entryName === 'Metadata/slice_info.config');
+    if (detailsEntry) {
+      const contentStr = detailsEntry.getData().toString('utf8');
+      try {
+        const data = JSON.parse(contentStr);
+        if (data.filament_weight) {
+          weights = Array.isArray(data.filament_weight) ? data.filament_weight : [data.filament_weight];
+        } else if (data.plate_summary && data.plate_summary.length > 0) {
+          weights = data.plate_summary[0].filament_weight || [];
+        }
+        
+        if (data.prediction) {
+          printTimeSeconds = data.prediction;
+        } else if (data.plate_summary && data.plate_summary.length > 0 && data.plate_summary[0].prediction) {
+          printTimeSeconds = data.plate_summary[0].prediction;
+        }
+      } catch (e) {
+        // XML
+        const filamentRegex = /<filament\s+[^>]*used_g="([\d\.]+)"/gi;
+        let match;
+        while ((match = filamentRegex.exec(contentStr)) !== null) {
+          weights.push(parseFloat(match[1]));
+        }
+        if (weights.length === 0) {
+          const weightMatch = contentStr.match(/<metadata\s+key="weight"\s+value="([\d\.\,\s]+)"/i);
+          if (weightMatch && weightMatch[1]) {
+             weights = [parseFloat(weightMatch[1])];
+          }
+        }
+        const timeMatch = contentStr.match(/<metadata\s+key="prediction"\s+value="([\d]+)"/i);
+        if (timeMatch && timeMatch[1]) {
+          printTimeSeconds = parseInt(timeMatch[1], 10);
+        }
+      }
+    }
+    
+    let thumbnailPath = null;
+    const thumbnailEntry = zipEntries.find(e => e.entryName.toLowerCase() === 'metadata/plate_1.png');
+    if (thumbnailEntry) {
+      const prefix = Date.now().toString();
+      const localThumbPath = path.join(__dirname, 'data', 'media', `${prefix}_quote_thumb.png`);
+      fs.writeFileSync(localThumbPath, thumbnailEntry.getData());
+      thumbnailPath = `/media/${prefix}_quote_thumb.png`;
+    }
+    
+    fs.unlinkSync(req.file.path);
+    
+    res.json({
+      weights,
+      printTimeSeconds,
+      thumbnailPath
+    });
+  } catch (err) {
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    res.status(500).json({ error: 'Failed to parse 3mf file: ' + err.message });
+  }
 });
 
 // POST /api/test/ha

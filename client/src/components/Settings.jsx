@@ -15,7 +15,11 @@ function Settings() {
     manual_energy_rate: '',
     oidc_issuer: '',
     oidc_client_id: '',
-    oidc_client_secret: ''
+    oidc_client_secret: '',
+    calc_labor_rate: '',
+    calc_wear_rate: '',
+    calc_markup: '',
+    calc_avg_wattage: ''
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -192,6 +196,27 @@ function Settings() {
                     <div style={{ fontSize: '0.8rem', color: '#888', marginTop: '4px' }}>
                       Leave blank to default to https://uk.store.bambulab.com
                     </div>
+                  </div>
+                </div>
+                
+                <div className="settings-section">
+                  <h3>Print Costing Calculator</h3>
+                  <p className="settings-desc">Global default rates used to generate print quotes.</p>
+                  <div className="form-group">
+                    <label>Machine Wear Rate (£/hour)</label>
+                    <input type="number" step="0.01" name="calc_wear_rate" value={settings.calc_wear_rate || ''} onChange={handleChange} placeholder="e.g. 0.50" />
+                  </div>
+                  <div className="form-group">
+                    <label>Labor Rate (£/hour)</label>
+                    <input type="number" step="0.01" name="calc_labor_rate" value={settings.calc_labor_rate || ''} onChange={handleChange} placeholder="e.g. 15.00" />
+                  </div>
+                  <div className="form-group">
+                    <label>Default Markup (%)</label>
+                    <input type="number" step="1" name="calc_markup" value={settings.calc_markup || ''} onChange={handleChange} placeholder="e.g. 50" />
+                  </div>
+                  <div className="form-group">
+                    <label>Average Printer Power (Watts)</label>
+                    <input type="number" step="1" name="calc_avg_wattage" value={settings.calc_avg_wattage || ''} onChange={handleChange} placeholder="e.g. 150" />
                   </div>
                 </div>
               )}
