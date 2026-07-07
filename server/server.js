@@ -143,7 +143,7 @@ app.get('/api/brands', (req, res) => {
 });
 
 // GET /api/jobs
-app.get('/api/jobs', requireAuth, (req, res) => {
+app.get('/api/jobs', (req, res) => {
   db.all('SELECT * FROM jobs ORDER BY updated_at DESC', (err, rows) => {
     if (err) res.status(500).json({ error: err.message });
     else {
@@ -159,7 +159,7 @@ app.get('/api/jobs', requireAuth, (req, res) => {
 });
 
 // POST /api/jobs
-app.post('/api/jobs', requireAuth, (req, res) => {
+app.post('/api/jobs', (req, res) => {
   const { project_name, customer_name, notes, status, filament_cost, electricity_cost, wear_cost, labor_cost, total_cost, markup_amount, final_price, print_time_hours, spool_data } = req.body;
   const stmt = db.prepare(`
     INSERT INTO jobs (project_name, customer_name, notes, status, filament_cost, electricity_cost, wear_cost, labor_cost, total_cost, markup_amount, final_price, print_time_hours, spool_data)
@@ -172,7 +172,7 @@ app.post('/api/jobs', requireAuth, (req, res) => {
 });
 
 // PUT /api/jobs/:id
-app.put('/api/jobs/:id', requireAuth, (req, res) => {
+app.put('/api/jobs/:id', (req, res) => {
   const id = req.params.id;
   const { project_name, customer_name, notes, status } = req.body;
   const stmt = db.prepare(`
@@ -185,7 +185,7 @@ app.put('/api/jobs/:id', requireAuth, (req, res) => {
 });
 
 // DELETE /api/jobs/:id
-app.delete('/api/jobs/:id', requireAuth, (req, res) => {
+app.delete('/api/jobs/:id', (req, res) => {
   const id = req.params.id;
   db.run('DELETE FROM jobs WHERE id = ?', id, function(err) {
     if (err) res.status(500).json({ error: err.message });
