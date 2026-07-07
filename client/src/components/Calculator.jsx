@@ -95,16 +95,15 @@ function Calculator() {
   // Calculations
   const printHours = parseResult ? parseResult.printTimeSeconds / 3600 : 0;
   
-  // 1. Material Cost
   let materialCost = 0;
   if (parseResult && parseResult.weights) {
-    parseResult.weights.forEach((weight, i) => {
+    parseResult.weights.forEach((wObj, i) => {
       const spoolId = selectedSpools[i];
       if (spoolId) {
         const spool = spools.find(s => s.id === parseInt(spoolId, 10));
         if (spool && spool.cost && spool.total_weight) {
           const costPerGram = spool.cost / spool.total_weight;
-          materialCost += costPerGram * weight;
+          materialCost += costPerGram * (wObj.weight || 0);
         }
       }
     });
@@ -239,10 +238,11 @@ function Calculator() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               <h4 style={{ margin: 0 }}>Assign Inventory Spools</h4>
-              {parseResult.weights?.map((weight, i) => (
+              {parseResult.weights?.map((wObj, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '10px', backgroundColor: 'var(--secondary-bg)', borderRadius: '8px' }}>
                   <div style={{ minWidth: '80px', fontWeight: 'bold' }}>Slot {i + 1}:</div>
-                  <div style={{ minWidth: '70px', color: 'var(--primary-color)' }}>{weight.toFixed(1)}g</div>
+                  <div style={{ minWidth: '70px', color: 'var(--primary-color)' }}>{(wObj.weight || 0).toFixed(1)}g</div>
+                  <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: wObj.hex || '#888', border: '1px solid var(--border-color)', flexShrink: 0 }} title={`Hex: ${wObj.hex || '#888'}`}></div>
                   <select 
                     value={selectedSpools[i] || ''} 
                     onChange={(e) => handleSpoolChange(i, e.target.value)}

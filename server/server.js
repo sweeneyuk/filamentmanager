@@ -758,11 +758,21 @@ app.post('/api/calculator/parse', upload3mf.single('file'), (req, res) => {
     if (projectDetailsEntry) {
       try {
         const data = JSON.parse(projectDetailsEntry.getData().toString('utf8'));
+        
+        let wArr = [];
+        let cArr = [];
         if (data.filament_weight) {
-          weights = Array.isArray(data.filament_weight) ? data.filament_weight : [data.filament_weight];
+          wArr = Array.isArray(data.filament_weight) ? data.filament_weight : [data.filament_weight];
+          cArr = data.filament_colors ? (Array.isArray(data.filament_colors) ? data.filament_colors : [data.filament_colors]) : [];
         } else if (data.plate_summary && data.plate_summary.length > 0) {
-          weights = data.plate_summary[0].filament_weight || [];
+          wArr = data.plate_summary[0].filament_weight || [];
+          cArr = data.plate_summary[0].filament_colors || [];
         }
+        
+        weights = wArr.map((w, i) => ({
+          weight: w,
+          hex: cArr[i] ? cArr[i].substring(0, 7) : '#888888'
+        }));
         
         if (data.prediction) {
           printTimeSeconds = data.prediction;
@@ -777,16 +787,24 @@ app.post('/api/calculator/parse', upload3mf.single('file'), (req, res) => {
     // If we didn't get weights/time, or just to be safe, check slice_info.config
     if ((weights.length === 0 || printTimeSeconds === 0) && sliceInfoEntry) {
       const contentStr = sliceInfoEntry.getData().toString('utf8');
-      const filamentRegex = /<filament\s+[^>]*used_g="([\d\.]+)"/gi;
+      const filamentRegex = /<filament\s+([^>]+)>/gi;
       let match;
       while ((match = filamentRegex.exec(contentStr)) !== null) {
-        weights.push(parseFloat(match[1]));
+        const attrs = match[1];
+        const weightMatch = attrs.match(/used_g="([\d\.]+)"/i);
+        const colorMatch = attrs.match(/color="([^"]+)"/i);
+        if (weightMatch) {
+          weights.push({
+            weight: parseFloat(weightMatch[1]),
+            hex: colorMatch ? colorMatch[1].substring(0, 7) : '#888888'
+          });
+        }
       }
       
       if (weights.length === 0) {
         const weightMatch = contentStr.match(/<metadata\s+key="weight"\s+value="([\d\.\,\s]+)"/i);
         if (weightMatch && weightMatch[1]) {
-           weights = [parseFloat(weightMatch[1])];
+           weights = [{ weight: parseFloat(weightMatch[1]), hex: '#888888' }];
         }
       }
       
