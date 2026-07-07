@@ -229,6 +229,12 @@ function Calculator() {
               </div>
             </div>
 
+            {parseResult.printTimeSeconds === 0 && (
+              <div style={{ backgroundColor: 'var(--warning-color)', color: '#000', padding: '12px', borderRadius: '8px', fontWeight: 'bold' }}>
+                ⚠️ No print statistics found! Please open this file in Bambu Studio, click "Slice plate", save the project, and upload it again.
+              </div>
+            )}
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               <h4 style={{ margin: 0 }}>Assign Inventory Spools</h4>
               {parseResult.weights?.map((weight, i) => (
