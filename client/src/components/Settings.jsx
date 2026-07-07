@@ -180,6 +180,7 @@ function Settings() {
               )}
 
               {activeTab === 'stock' && (
+                <>
                 <div className="settings-section">
                   <h3>Stock Rules</h3>
                   <p className="settings-desc">Configure the low stock threshold and store links.</p>
@@ -219,6 +220,7 @@ function Settings() {
                     <input type="number" step="1" name="calc_avg_wattage" value={settings.calc_avg_wattage || ''} onChange={handleChange} placeholder="e.g. 150" />
                   </div>
                 </div>
+                </>
               )}
 
               {activeTab === 'security' && (
