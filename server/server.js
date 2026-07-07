@@ -743,8 +743,9 @@ app.post('/api/calculator/parse', upload3mf.single('file'), (req, res) => {
     
     // TEMPORARY DEBUG: Write to file
     try {
-      const debugFile = path.join(__dirname, '..', 'scratch', '3mf_debug.txt');
+      const debugFile = path.join(__dirname, '3mf_debug.txt');
       fs.writeFileSync(debugFile, "ZIP ENTRIES:\n" + zipEntries.map(e => e.entryName).join("\n"));
+      fs.copyFileSync(req.file.path, path.join(__dirname, 'test_hanger.3mf'));
     } catch(e) {}
     
     let weights = [];
