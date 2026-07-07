@@ -1,18 +1,91 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Upload, Calculator as CalcIcon, Clock, Zap, Banknote, Scissors, Package, Settings, RefreshCw } from 'lucide-react';
+import { Upload, Calculator as CalcIcon, Clock, Zap, Banknote, Scissors, Package, Settings, RefreshCw, ChevronDown } from 'lucide-react';
 import { useAlert } from '../contexts/AlertContext';
 
-import namer from 'color-namer';
+const CustomSpoolSelect = ({ spools, value, onChange, formatCurrency }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const selectedSpool = spools.find(s => s.id === parseInt(value, 10));
 
-const hexToColorName = (hex) => {
-  if (!hex || !hex.startsWith('#')) return hex;
-  try {
-    const name = namer(hex).ntc[0].name;
-    return name;
-  } catch (e) {
-    return hex;
-  }
+  return (
+    <div style={{ position: 'relative', flex: 1 }}>
+      <div 
+        onClick={() => setIsOpen(!isOpen)}
+        style={{ 
+          padding: '8px 12px', 
+          backgroundColor: 'var(--bg-color)', 
+          border: '1px solid var(--border-color)', 
+          borderRadius: '4px',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px'
+        }}
+      >
+        {selectedSpool ? (
+          <>
+            <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: selectedSpool.color || '#888', flexShrink: 0, border: '1px solid rgba(255,255,255,0.1)' }}></div>
+            <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '0.95rem' }}>
+              {selectedSpool.brand_name} {selectedSpool.material_name} {selectedSpool.color_name || ''} ({formatCurrency(selectedSpool.cost || 0)})
+            </span>
+          </>
+        ) : (
+          <span style={{ color: '#888', flex: 1, fontSize: '0.95rem' }}>-- Select Spool --</span>
+        )}
+        <ChevronDown size={16} style={{ color: '#888' }} />
+      </div>
+
+      {isOpen && (
+        <>
+          <div 
+            style={{ position: 'fixed', inset: 0, zIndex: 9 }} 
+            onClick={() => setIsOpen(false)}
+          />
+          <div style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            right: 0,
+            maxHeight: '250px',
+            overflowY: 'auto',
+            backgroundColor: 'var(--bg-color)',
+            border: '1px solid var(--border-color)',
+            borderRadius: '4px',
+            zIndex: 10,
+            marginTop: '4px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
+          }}>
+            <div 
+              onClick={() => { onChange(''); setIsOpen(false); }}
+              style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-color)', color: '#888', fontSize: '0.95rem' }}
+            >
+              -- Select Spool --
+            </div>
+            {spools.map(s => (
+              <div 
+                key={s.id}
+                onClick={() => { onChange(s.id); setIsOpen(false); }}
+                style={{ 
+                  padding: '10px 12px', 
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  backgroundColor: value == s.id ? 'rgba(255,255,255,0.05)' : 'transparent',
+                  borderBottom: '1px solid rgba(255,255,255,0.02)'
+                }}
+              >
+                <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: s.color || '#888', flexShrink: 0, border: '1px solid rgba(255,255,255,0.1)' }}></div>
+                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '0.95rem' }}>
+                  {s.brand_name} {s.material_name} {s.color_name || ''} ({formatCurrency(s.cost || 0)})
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
 };
 
 function Calculator() {
@@ -255,18 +328,12 @@ function Calculator() {
                   <div style={{ minWidth: '80px', fontWeight: 'bold' }}>Slot {i + 1}:</div>
                   <div style={{ minWidth: '70px', color: 'var(--primary-color)' }}>{(wObj.weight || 0).toFixed(1)}g</div>
                   <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: wObj.hex || '#888', border: '1px solid var(--border-color)', flexShrink: 0 }} title={`Hex: ${wObj.hex || '#888'}`}></div>
-                  <select 
+                  <CustomSpoolSelect 
+                    spools={spools} 
                     value={selectedSpools[i] || ''} 
-                    onChange={(e) => handleSpoolChange(i, e.target.value)}
-                    style={{ flex: 1 }}
-                  >
-                    <option value="">-- Select Spool --</option>
-                    {spools.map(s => (
-                      <option key={s.id} value={s.id}>
-                        {s.brand_name} {s.material_name} {s.color_name || hexToColorName(s.color)} ({formatCurrency(s.cost || 0)})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => handleSpoolChange(i, val)}
+                    formatCurrency={formatCurrency}
+                  />
                 </div>
               ))}
             </div>
