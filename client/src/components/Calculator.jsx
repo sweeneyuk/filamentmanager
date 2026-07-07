@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Upload, Calculator as CalcIcon, Clock, Zap, Banknote, Scissors, Package, Settings, RefreshCw, ChevronDown } from 'lucide-react';
+import { Upload, Calculator as CalcIcon, Clock, Zap, Banknote, Scissors, Package, Settings, RefreshCw, ChevronDown, Save, X } from 'lucide-react';
 import { useAlert } from '../contexts/AlertContext';
 
 const CustomSpoolSelect = ({ spools, value, onChange, formatCurrency }) => {
@@ -100,6 +100,11 @@ function Calculator() {
   const [dynamicEnergyRate, setDynamicEnergyRate] = useState(null);
   
   const [laborMinutes, setLaborMinutes] = useState(15);
+  
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [quoteForm, setQuoteForm] = useState({ project_name: '', customer_name: '', notes: '' });
+  const [savingQuote, setSavingQuote] = useState(false);
+  
   const { showAlert } = useAlert();
 
   useEffect(() => {
@@ -226,7 +231,50 @@ function Calculator() {
   // Totals
   const totalCost = materialCost + machineCost + energyCost + laborCost;
   const markupPercentage = parseFloat(settings.calc_markup) || 0;
-  const salePrice = totalCost * (1 + (markupPercentage / 100));
+  const markupAmount = totalCost * (markupPercentage / 100);
+  const finalPrice = totalCost + markupAmount;
+
+  const handleSaveQuote = async () => {
+    if (!quoteForm.project_name) {
+      showAlert('Error', 'Project Name is required', true);
+      return;
+    }
+    setSavingQuote(true);
+    
+    const spoolData = parseResult?.weights?.map((wObj, i) => {
+      const spoolId = selectedSpools[i];
+      const spool = spools.find(s => s.id === parseInt(spoolId, 10));
+      return {
+        slot: i + 1,
+        weight: wObj.weight,
+        spool_id: spool ? spool.id : null,
+        spool_name: spool ? `${spool.brand_name} ${spool.material_name} ${spool.color_name || ''}`.trim() : 'Unknown',
+        cost: spool ? (wObj.weight / 1000) * spool.cost : 0
+      };
+    }) || [];
+
+    try {
+      await axios.post('/api/jobs', {
+        ...quoteForm,
+        filament_cost: materialCost,
+        electricity_cost: energyCost,
+        wear_cost: machineCost,
+        labor_cost: laborCost,
+        total_cost: totalCost,
+        markup_amount: markupAmount,
+        final_price: finalPrice,
+        print_time_hours: printHours,
+        spool_data: spoolData
+      });
+      showAlert('Success', 'Quote saved successfully!');
+      setShowSaveModal(false);
+      setQuoteForm({ project_name: '', customer_name: '', notes: '' });
+    } catch (err) {
+      console.error(err);
+      showAlert('Error', 'Failed to save quote', true);
+    }
+    setSavingQuote(false);
+  };
 
   const formatCurrency = (val) => {
     return new Intl.NumberFormat('en-GB', { style: 'currency', currency: settings.currency || 'GBP' }).format(val);
@@ -410,18 +458,89 @@ function Calculator() {
                 <span style={{ color: 'var(--warning-color)' }}>{formatCurrency(totalCost)}</span>
               </div>
               
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 'bold', fontSize: '1.4rem', borderTop: '1px solid var(--border-color)', paddingTop: '10px' }}>
-                <span>Selling Price:</span>
-                <span style={{ color: 'var(--primary-color)' }}>{formatCurrency(salePrice)}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 'bold', fontSize: '1.4rem', borderTop: '1px solid var(--border-color)', paddingTop: '10px', color: 'var(--primary-color)' }}>
+                <span>Final Quote Price:</span>
+                <span>{formatCurrency(finalPrice)}</span>
               </div>
               <div style={{ textAlign: 'right', fontSize: '0.8rem', color: '#888' }}>
                 Based on {markupPercentage}% markup
               </div>
+
+              <button 
+                  className="btn-primary" 
+                  style={{ width: '100%', marginTop: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', padding: '12px', fontSize: '1.1rem' }}
+                  onClick={() => {
+                    setQuoteForm({ project_name: file ? file.name.replace('.gcode.3mf', '') : '', customer_name: '', notes: '' });
+                    setShowSaveModal(true);
+                  }}
+                >
+                  <Save size={20} />
+                  Save as Quote
+              </button>
             </div>
           </div>
         )}
 
       </div>
+
+      {showSaveModal && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '20px' }}>
+          <div className="card" style={{ width: '100%', maxWidth: '500px', backgroundColor: 'var(--card-bg)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', padding: '20px', borderBottom: '1px solid var(--border-color)' }}>
+              <h3 style={{ margin: 0, color: 'var(--primary-color)' }}>Save Quote</h3>
+              <button className="icon-btn" onClick={() => setShowSaveModal(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div style={{ padding: '0 20px 20px 20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', color: '#ccc' }}>Project Name *</label>
+                <input 
+                  type="text" 
+                  value={quoteForm.project_name} 
+                  onChange={e => setQuoteForm({...quoteForm, project_name: e.target.value})}
+                  placeholder="e.g. Articulated Dragon"
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', color: '#ccc' }}>Customer Name (Optional)</label>
+                <input 
+                  type="text" 
+                  value={quoteForm.customer_name} 
+                  onChange={e => setQuoteForm({...quoteForm, customer_name: e.target.value})}
+                  placeholder="e.g. John Doe"
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', color: '#ccc' }}>Notes (Optional)</label>
+                <textarea 
+                  value={quoteForm.notes} 
+                  onChange={e => setQuoteForm({...quoteForm, notes: e.target.value})}
+                  placeholder="Any additional details..."
+                  style={{ width: '100%', minHeight: '80px', resize: 'vertical' }}
+                />
+              </div>
+              
+              <div style={{ backgroundColor: 'rgba(0,0,0,0.2)', padding: '15px', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#aaa' }}>Calculated Total</span>
+                <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--primary-color)' }}>{formatCurrency(finalPrice)}</span>
+              </div>
+              
+              <button 
+                className="btn-primary" 
+                onClick={handleSaveQuote} 
+                disabled={savingQuote || !quoteForm.project_name}
+                style={{ width: '100%', padding: '12px', marginTop: '10px' }}
+              >
+                {savingQuote ? 'Saving...' : 'Save Quote Record'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

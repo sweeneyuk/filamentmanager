@@ -142,6 +142,57 @@ app.get('/api/brands', (req, res) => {
   });
 });
 
+// GET /api/jobs
+app.get('/api/jobs', requireAuth, (req, res) => {
+  db.all('SELECT * FROM jobs ORDER BY updated_at DESC', (err, rows) => {
+    if (err) res.status(500).json({ error: err.message });
+    else {
+      // Parse spool_data JSON
+      rows.forEach(r => {
+        if (r.spool_data) {
+          try { r.spool_data = JSON.parse(r.spool_data); } catch(e) {}
+        }
+      });
+      res.json(rows);
+    }
+  });
+});
+
+// POST /api/jobs
+app.post('/api/jobs', requireAuth, (req, res) => {
+  const { project_name, customer_name, notes, status, filament_cost, electricity_cost, wear_cost, labor_cost, total_cost, markup_amount, final_price, print_time_hours, spool_data } = req.body;
+  const stmt = db.prepare(`
+    INSERT INTO jobs (project_name, customer_name, notes, status, filament_cost, electricity_cost, wear_cost, labor_cost, total_cost, markup_amount, final_price, print_time_hours, spool_data)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  stmt.run(project_name, customer_name, notes, status || 'Quote', filament_cost, electricity_cost, wear_cost, labor_cost, total_cost, markup_amount, final_price, print_time_hours, JSON.stringify(spool_data || []), function(err) {
+    if (err) res.status(500).json({ error: err.message });
+    else res.json({ id: this.lastID, success: true });
+  });
+});
+
+// PUT /api/jobs/:id
+app.put('/api/jobs/:id', requireAuth, (req, res) => {
+  const id = req.params.id;
+  const { project_name, customer_name, notes, status } = req.body;
+  const stmt = db.prepare(`
+    UPDATE jobs SET project_name = ?, customer_name = ?, notes = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+  `);
+  stmt.run(project_name, customer_name, notes, status, id, function(err) {
+    if (err) res.status(500).json({ error: err.message });
+    else res.json({ success: true, changes: this.changes });
+  });
+});
+
+// DELETE /api/jobs/:id
+app.delete('/api/jobs/:id', requireAuth, (req, res) => {
+  const id = req.params.id;
+  db.run('DELETE FROM jobs WHERE id = ?', id, function(err) {
+    if (err) res.status(500).json({ error: err.message });
+    else res.json({ success: true, changes: this.changes });
+  });
+});
+
 // GET /api/knowledge/brands
 app.get('/api/knowledge/brands', (req, res) => {
   try {

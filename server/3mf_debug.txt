@@ -15,13 +15,4 @@ Metadata/model_settings.config
 Metadata/cut_information.xml
 Metadata/slice_info.config
 Metadata/filament_sequence.json
-Auxiliaries/.thumbnails/thumbnail_3mf.png
-Auxiliaries/.thumbnails/thumbnail_middle.png
-Auxiliaries/.thumbnails/thumbnail_small.png
-Auxiliaries/Model Pictures/20231224_115538941_iOS_cf5b4466-9658-4a08-86f8-7d17109e5a8f.webp
-Auxiliaries/Model Pictures/20240203_163054191_iOS_54a91a8f-e4bc-4d78-9237-c322c5946faf.webp
-Auxiliaries/Model Pictures/20240203_163100892_iOS_7472a8c8-1cc7-490b-ba8b-5a8b37d290ab.webp
-Auxiliaries/Model Pictures/20240203_163114203_iOS_07d90c80-de3b-4951-84e1-23ec4f0f2746.webp
-Auxiliaries/Profile Pictures/20240203_163100892_iOS_74aae97e-e308-45c7-9f1a-7ae7caeb24c9.webp
-Auxiliaries/Profile Pictures/plate_1.webp
 _rels/.rels

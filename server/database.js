@@ -145,6 +145,28 @@ const initDb = () => {
         )
       `);
       
+      // Create jobs table for quotes and sales
+      db.run(`
+        CREATE TABLE IF NOT EXISTS jobs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          project_name TEXT NOT NULL,
+          customer_name TEXT,
+          notes TEXT,
+          status TEXT DEFAULT 'Quote',
+          filament_cost REAL DEFAULT 0,
+          electricity_cost REAL DEFAULT 0,
+          wear_cost REAL DEFAULT 0,
+          labor_cost REAL DEFAULT 0,
+          total_cost REAL DEFAULT 0,
+          markup_amount REAL DEFAULT 0,
+          final_price REAL DEFAULT 0,
+          print_time_hours REAL DEFAULT 0,
+          spool_data TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      
       // Create printers table
       db.run(`
         CREATE TABLE IF NOT EXISTS printers (
