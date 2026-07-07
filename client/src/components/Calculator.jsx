@@ -3,6 +3,39 @@ import axios from 'axios';
 import { Upload, Calculator as CalcIcon, Clock, Zap, Banknote, Scissors, Package, Settings, RefreshCw } from 'lucide-react';
 import { useAlert } from '../contexts/AlertContext';
 
+const hexToColorName = (hex) => {
+  if (!hex || !hex.startsWith('#')) return hex;
+  
+  const colors = {
+    'Black': '#000000', 'White': '#FFFFFF', 'Gray': '#808080', 'Light Gray': '#D3D3D3', 'Dark Gray': '#A9A9A9',
+    'Red': '#FF0000', 'Green': '#00FF00', 'Blue': '#0000FF', 'Yellow': '#FFFF00', 'Cyan': '#00FFFF', 
+    'Magenta': '#FF00FF', 'Orange': '#FFA500', 'Purple': '#800080', 'Pink': '#FFC0CB', 'Brown': '#A52A2A',
+    'Silver': '#C0C0C0', 'Gold': '#FFD700', 'Beige': '#F5F5DC', 'Teal': '#008080', 'Navy': '#000080',
+    'Maroon': '#800000', 'Olive': '#808000', 'Lime': '#00FF00', 'Aqua': '#00FFFF', 'Fuchsia': '#FF00FF'
+  };
+
+  const r = parseInt(hex.slice(1, 3), 16) || 0;
+  const g = parseInt(hex.slice(3, 5), 16) || 0;
+  const b = parseInt(hex.slice(5, 7), 16) || 0;
+
+  let closest = hex;
+  let minDiff = Infinity;
+
+  for (const [name, colorHex] of Object.entries(colors)) {
+    const cr = parseInt(colorHex.slice(1, 3), 16);
+    const cg = parseInt(colorHex.slice(3, 5), 16);
+    const cb = parseInt(colorHex.slice(5, 7), 16);
+    const diff = Math.sqrt((r - cr)**2 + (g - cg)**2 + (b - cb)**2);
+    if (diff < minDiff) {
+      minDiff = diff;
+      closest = name;
+    }
+  }
+
+  // Only return the name if it's reasonably close, otherwise append it
+  return minDiff < 80 ? closest : `${closest} (${hex})`;
+};
+
 function Calculator() {
   const [file, setFile] = useState(null);
   const [parsing, setParsing] = useState(false);
@@ -251,7 +284,7 @@ function Calculator() {
                     <option value="">-- Select Spool --</option>
                     {spools.map(s => (
                       <option key={s.id} value={s.id}>
-                        {s.brand_name} {s.material_name} {s.color_name || s.color} ({formatCurrency(s.cost || 0)})
+                        {s.brand_name} {s.material_name} {s.color_name || hexToColorName(s.color)} ({formatCurrency(s.cost || 0)})
                       </option>
                     ))}
                   </select>
