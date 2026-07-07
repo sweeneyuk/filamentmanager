@@ -729,8 +729,13 @@ app.post('/api/import/csv', upload.single('csvFile'), (req, res) => {
     });
 });
 
+const upload3mf = multer({
+  dest: 'uploads/',
+  limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit for 3mf
+});
+
 // POST /api/calculator/parse
-app.post('/api/calculator/parse', upload.single('file'), (req, res) => {
+app.post('/api/calculator/parse', upload3mf.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   try {
     const zip = new AdmZip(req.file.path);
