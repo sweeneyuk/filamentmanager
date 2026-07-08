@@ -160,13 +160,20 @@ const handlePrintStatus = async (printer, printData) => {
     state.chamberTemp = printData.device.ctc.info.temp;
   }
 
+  const decodeTrayId = (m) => {
+    if (m === 255 || m === 65535) return null;
+    if (m === 254) return '128-0';
+    if (m >= 256) return `${m >> 8}-${m & 0xFF}`;
+    return `${Math.floor(m / 4)}-${m % 4}`;
+  };
+
   if (printData.ams && printData.ams.tray_now !== undefined) {
     const m = parseInt(printData.ams.tray_now, 10);
-    if (m !== 255 && !isNaN(m)) {
-      state.currentTrayId = `${Math.floor(m / 4)}-${m % 4}`;
-    } else {
-      state.currentTrayId = null;
-    }
+    state.currentTrayId = !isNaN(m) ? decodeTrayId(m) : null;
+  }
+  
+  if (state.currentTrayId && state.activeTrays && !state.activeTrays.includes(state.currentTrayId)) {
+    state.activeTrays.push(state.currentTrayId);
   }
 
   if (newStatus && newStatus !== state.status) {
@@ -182,10 +189,7 @@ const handlePrintStatus = async (printer, printData) => {
 
       const mappingArray = printData.mapping || printData.ams_mapping;
       if (mappingArray && Array.isArray(mappingArray)) {
-        state.activeTrays = mappingArray.map(m => {
-          if (m === 255 || m === 65535) return null;
-          return `${Math.floor(m / 4)}-${m % 4}`;
-        }).filter(Boolean);
+        state.activeTrays = mappingArray.map(m => decodeTrayId(m)).filter(Boolean);
       } else if (printData.vt_tray && printData.vt_tray.id !== 255) {
         state.activeTrays = [`0-${printData.vt_tray.id}`];
       }
@@ -232,10 +236,7 @@ const handlePrintStatus = async (printer, printData) => {
       if (!state.activeTrays || state.activeTrays.length === 0) {
         const mappingArray = printData.mapping || printData.ams_mapping;
         if (mappingArray && Array.isArray(mappingArray)) {
-          state.activeTrays = mappingArray.map(m => {
-            if (m === 255 || m === 65535) return null;
-            return `${Math.floor(m / 4)}-${m % 4}`;
-          }).filter(Boolean);
+          state.activeTrays = mappingArray.map(m => decodeTrayId(m)).filter(Boolean);
         } else if (printData.vt_tray && printData.vt_tray.id !== 255) {
           state.activeTrays = [`0-${printData.vt_tray.id}`];
         } else {
@@ -412,6 +413,17 @@ async function syncAmsSpools(pid, amsDataArray) {
       const trayId = `${amsUnit.id}-${tray.id}`;
       const tagUid = tray.tag_uid;
       const subBrand = tray.tray_sub_brands;
+      
+      const isEmpty = !tray.tray_type || tray.tray_type === '';
+      if (isEmpty) {
+        const existingAssign = await getQuery('SELECT spool_id FROM ams_assignments WHERE printer_id = ? AND tray_id = ?', [pid, trayId]);
+        if (existingAssign) {
+          await runQuery('DELETE FROM ams_assignments WHERE printer_id = ? AND tray_id = ?', [pid, trayId]);
+          didChangeAssignments = true;
+          console.log(`[MQTT] Unassigned spool from empty tray ${trayId}`);
+        }
+        continue;
+      }
       
       // We only auto-add Bambu smart spools (detected by valid RFID)
       if (!tagUid || tagUid === '0000000000000000') {
