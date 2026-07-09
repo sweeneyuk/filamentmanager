@@ -155,8 +155,11 @@ const extractThumbnailFrom3mf = async (printer, gcodeFile, prefix, subtaskName =
     
     const zip = new AdmZip(localTemp3mf);
     const zipEntries = zip.getEntries();
-    // Match plate_1.png, plate_2.png, etc. Ignore _small and _no_light.
-    const thumbnailEntry = zipEntries.find(e => /^metadata\/plate_\d+\.png$/i.test(e.entryName));
+    // Match any standard thumbnail, ignore small/lighting ones
+    const thumbnailEntry = zipEntries.find(e => {
+      const n = e.entryName.toLowerCase();
+      return n.startsWith('metadata/') && n.endsWith('.png') && !n.includes('_small') && !n.includes('no_light') && !n.includes('top') && !n.includes('pick');
+    });
     
     let thumbnailPath = null;
     if (thumbnailEntry) {

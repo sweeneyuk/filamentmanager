@@ -364,9 +364,9 @@ const handlePrintStatus = async (printer, printData) => {
 
         if (state.archiveId) {
           db.run(`
-            UPDATE archives SET status = ?, duration_seconds = ?, energy_kwh = ?, energy_cost = ?, filament_used_g = ?, filament_cost = ?, total_cost = ?
+            UPDATE archives SET status = ?, duration_seconds = ?, energy_kwh = ?, energy_cost = ?, filament_used_g = ?, filament_cost = ?, total_cost = ?, thumbnail_path = COALESCE(?, thumbnail_path)
             WHERE id = ?
-          `, [newStatus, durationSeconds, energyUsed, energyCost, filamentUsed, filamentCost, totalCost, state.archiveId], function(err) {
+          `, [newStatus, durationSeconds, energyUsed, energyCost, filamentUsed, filamentCost, totalCost, archivedState.thumbnailPath || null, state.archiveId], function(err) {
             handleArchiveSave(err, state.archiveId);
             state.archiveId = null;
           });
