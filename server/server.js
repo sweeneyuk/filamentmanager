@@ -564,6 +564,85 @@ app.post('/api/archives/:id/regenerate-image', async (req, res) => {
   }
 });
 
+const uploadArchiveMedia = multer({
+  dest: 'data/media/',
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit for videos
+  fileFilter: (req, file, cb) => {
+    const isImage = file.mimetype.startsWith('image/');
+    const isVideo = file.mimetype.startsWith('video/');
+    if (!isImage && !isVideo) {
+      return cb(new Error('Only images and videos are allowed'));
+    }
+    cb(null, true);
+  }
+});
+
+// POST /api/archives/:id/media
+app.post('/api/archives/:id/media', requireAuth, uploadArchiveMedia.single('file'), (req, res) => {
+  const { id } = req.params;
+  const { type } = req.body; // 'photo' or 'video'
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  if (type !== 'photo' && type !== 'video') {
+    fs.unlinkSync(req.file.path);
+    return res.status(400).json({ error: 'Invalid media type' });
+  }
+
+  db.get('SELECT photo_path, timelapse_path FROM archives WHERE id = ?', [id], (err, archive) => {
+    if (err || !archive) {
+      fs.unlinkSync(req.file.path);
+      return res.status(404).json({ error: 'Archive not found' });
+    }
+
+    const ext = req.file.originalname.split('.').pop();
+    const newFileName = `${id}_custom_${type}_${Date.now()}.${ext}`;
+    const newFilePath = path.join(__dirname, 'data', 'media', newFileName);
+    const relPath = `/media/${newFileName}`;
+
+    fs.renameSync(req.file.path, newFilePath);
+
+    let columnToUpdate = type === 'photo' ? 'photo_path' : 'timelapse_path';
+    let oldPath = type === 'photo' ? archive.photo_path : archive.timelapse_path;
+
+    // Delete old file if exists
+    if (oldPath) {
+      const oldAbsPath = path.join(__dirname, 'data', oldPath.replace(/^\//, ''));
+      if (fs.existsSync(oldAbsPath)) {
+        try { fs.unlinkSync(oldAbsPath); } catch(e) {}
+      }
+    }
+
+    db.run(`UPDATE archives SET ${columnToUpdate} = ? WHERE id = ?`, [relPath, id], function(err) {
+      if (err) return res.status(500).json({ error: 'Database update failed' });
+      res.json({ success: true, path: relPath });
+    });
+  });
+});
+
+// DELETE /api/archives/:id/media/:type
+app.delete('/api/archives/:id/media/:type', requireAuth, (req, res) => {
+  const { id, type } = req.params;
+  if (type !== 'photo' && type !== 'video') return res.status(400).json({ error: 'Invalid media type' });
+
+  db.get('SELECT photo_path, timelapse_path FROM archives WHERE id = ?', [id], (err, archive) => {
+    if (err || !archive) return res.status(404).json({ error: 'Archive not found' });
+
+    let columnToUpdate = type === 'photo' ? 'photo_path' : 'timelapse_path';
+    let oldPath = type === 'photo' ? archive.photo_path : archive.timelapse_path;
+
+    if (oldPath) {
+      const oldAbsPath = path.join(__dirname, 'data', oldPath.replace(/^\//, ''));
+      if (fs.existsSync(oldAbsPath)) {
+        try { fs.unlinkSync(oldAbsPath); } catch(e) {}
+      }
+    }
+
+    db.run(`UPDATE archives SET ${columnToUpdate} = NULL WHERE id = ?`, [id], function(err) {
+      if (err) return res.status(500).json({ error: 'Database update failed' });
+      res.json({ success: true });
+    });
+  });
+});
+
 // GET /api/analytics
 app.get('/api/analytics', (req, res) => {
   const query = `

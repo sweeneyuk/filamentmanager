@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useAlert } from '../contexts/AlertContext';
-import { MoreVertical, Camera, Video, Trash2, Clock, Scale, Banknote, FileText, Sparkles, AlertTriangle, Zap, Disc, Printer, X, Download } from 'lucide-react';
+import { MoreVertical, Camera, Video, Trash2, Clock, Scale, Banknote, FileText, Sparkles, AlertTriangle, Zap, Disc, Printer, X, Download, Upload } from 'lucide-react';
 
 function Archive() {
   const [archives, setArchives] = useState([]);
@@ -11,6 +11,9 @@ function Archive() {
   const { showAlert, showConfirm } = useAlert();
   const [selectedArchives, setSelectedArchives] = useState([]);
   const [openMenuId, setOpenMenuId] = useState(null);
+  
+  const fileInputRef = useRef(null);
+  const [uploadTarget, setUploadTarget] = useState({ id: null, type: null }); // type: 'photo' or 'video'
 
   const handleRegenerateImage = async (id, source) => {
     try {
@@ -24,6 +27,54 @@ function Archive() {
       console.error(err);
       showAlert('Error', err.response?.data?.error || err.message, true);
     }
+  };
+
+  const handleTriggerUpload = (id, type) => {
+    setUploadTarget({ id, type });
+    setOpenMenuId(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.accept = type === 'photo' ? 'image/*' : 'video/*';
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !uploadTarget.id) return;
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('type', uploadTarget.type);
+
+    try {
+      showAlert('Uploading', `Uploading custom ${uploadTarget.type}...`, false);
+      const res = await axios.post(`/api/archives/${uploadTarget.id}/media`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      if (res.data.success) {
+        showAlert('Success', `${uploadTarget.type} uploaded successfully!`);
+        fetchArchives();
+      }
+    } catch (err) {
+      console.error(err);
+      showAlert('Error', err.response?.data?.error || err.message, true);
+    }
+    setUploadTarget({ id: null, type: null });
+  };
+
+  const handleDeleteMedia = (id, type) => {
+    setOpenMenuId(null);
+    showConfirm(`Delete ${type}?`, `Are you sure you want to delete the custom ${type} for this print?`, async () => {
+      try {
+        await axios.delete(`/api/archives/${id}/media/${type}`);
+        fetchArchives();
+        showAlert('Success', `${type} deleted.`);
+      } catch (err) {
+        console.error(err);
+        showAlert('Error', 'Failed to delete media: ' + err.message, true);
+      }
+    });
   };
 
   const handleToggleSelect = (id) => {
@@ -120,6 +171,12 @@ function Archive() {
 
   return (
     <div>
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        style={{ display: 'none' }} 
+        onChange={handleFileChange} 
+      />
       <div className="card title-card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--primary-color)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
@@ -286,6 +343,44 @@ function Archive() {
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Video size={16} /> Extract from Timelapse</div>
                       </button>
+                      <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '4px 0' }} />
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleTriggerUpload(arch.id, 'photo'); }}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', background: 'transparent', border: 'none', color: 'var(--text-color)', cursor: 'pointer', borderRadius: '4px', marginTop: '4px' }}
+                        onMouseOver={(e) => e.target.style.background = 'rgba(255,255,255,0.1)'}
+                        onMouseOut={(e) => e.target.style.background = 'transparent'}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Upload size={16} /> Upload Photo</div>
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleTriggerUpload(arch.id, 'video'); }}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', background: 'transparent', border: 'none', color: 'var(--text-color)', cursor: 'pointer', borderRadius: '4px', marginTop: '4px' }}
+                        onMouseOver={(e) => e.target.style.background = 'rgba(255,255,255,0.1)'}
+                        onMouseOut={(e) => e.target.style.background = 'transparent'}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Upload size={16} /> Upload Video</div>
+                      </button>
+                      {arch.photo_path && (
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleDeleteMedia(arch.id, 'photo'); }}
+                          style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', background: 'transparent', border: 'none', color: 'var(--danger-color)', cursor: 'pointer', borderRadius: '4px', marginTop: '4px' }}
+                          onMouseOver={(e) => e.target.style.background = 'rgba(220,53,69,0.2)'}
+                          onMouseOut={(e) => e.target.style.background = 'transparent'}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Trash2 size={16} /> Delete Photo</div>
+                        </button>
+                      )}
+                      {arch.timelapse_path && (
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleDeleteMedia(arch.id, 'video'); }}
+                          style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', background: 'transparent', border: 'none', color: 'var(--danger-color)', cursor: 'pointer', borderRadius: '4px', marginTop: '4px' }}
+                          onMouseOver={(e) => e.target.style.background = 'rgba(220,53,69,0.2)'}
+                          onMouseOut={(e) => e.target.style.background = 'transparent'}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Trash2 size={16} /> Delete Video</div>
+                        </button>
+                      )}
+                      <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '4px 0' }} />
                       <button 
                         onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleDeleteArchive(arch.id); }}
                         style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', background: 'transparent', border: 'none', color: 'var(--danger-color)', cursor: 'pointer', borderRadius: '4px', marginTop: '4px' }}
