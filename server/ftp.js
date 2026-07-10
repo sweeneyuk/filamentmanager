@@ -112,21 +112,34 @@ const findRemotePrintFile = async (client, gcodeFile, subtaskName) => {
     } catch(e) {}
   }
   
-  // 2. Try fuzzy match or fallback to the newest .3mf file in root
+  // 2. Try fuzzy match or fallback to the newest .3mf file in root or cache or tasks
   try {
-    const rootFiles = await client.list('/');
-    const candidates = rootFiles.filter(f => f.name.toLowerCase().endsWith('.3mf'));
+    const allCandidates = [];
+    const dirsToTry = ['/', '/tasks', '/cache'];
+    
+    for (const d of dirsToTry) {
+      try {
+        const files = await client.list(d);
+        const candidates = files.filter(f => f.name.toLowerCase().endsWith('.3mf'));
+        for (const f of candidates) {
+          allCandidates.push({
+            name: f.name,
+            path: d === '/' ? `/${f.name}` : `${d}/${f.name}`,
+            modifiedAt: f.modifiedAt ? f.modifiedAt.getTime() : new Date(f.rawModifiedAt).getTime()
+          });
+        }
+      } catch(e) {}
+    }
     
     if (subtaskName) {
       const subClean = subtaskName.trim().toLowerCase();
-      const bestMatch = candidates.find(f => f.name.toLowerCase().includes(subClean));
-      if (bestMatch) return `/${bestMatch.name}`;
+      const bestMatch = allCandidates.find(f => f.name.toLowerCase().includes(subClean));
+      if (bestMatch) return bestMatch.path;
     }
     
-    if (candidates.length > 0) {
-      // rawModifiedAt is usually like 'Jul 02 17:18'
-      candidates.sort((a, b) => new Date(b.rawModifiedAt) - new Date(a.rawModifiedAt));
-      return `/${candidates[0].name}`;
+    if (allCandidates.length > 0) {
+      allCandidates.sort((a, b) => b.modifiedAt - a.modifiedAt);
+      return allCandidates[0].path;
     }
   } catch (e) {
     console.error('Fallback search failed:', e.message);
@@ -156,10 +169,25 @@ const extractThumbnailFrom3mf = async (printer, gcodeFile, prefix, subtaskName =
     const zip = new AdmZip(localTemp3mf);
     const zipEntries = zip.getEntries();
     // Match any standard thumbnail, ignore small/lighting ones
-    const thumbnailEntry = zipEntries.find(e => {
+    const validThumbnails = zipEntries.filter(e => {
       const n = e.entryName.toLowerCase();
       return n.startsWith('metadata/') && n.endsWith('.png') && !n.includes('_small') && !n.includes('no_light') && !n.includes('top') && !n.includes('pick');
     });
+    
+    let thumbnailEntry = null;
+    if (validThumbnails.length > 0) {
+      // Sort by modification time descending (newest first)
+      validThumbnails.sort((a, b) => b.header.time - a.header.time);
+      
+      if (subtaskName) {
+        const subClean = subtaskName.trim().toLowerCase();
+        thumbnailEntry = validThumbnails.find(e => e.entryName.toLowerCase().includes(subClean));
+      }
+      
+      if (!thumbnailEntry) {
+        thumbnailEntry = validThumbnails[0];
+      }
+    }
     
     let thumbnailPath = null;
     if (thumbnailEntry) {
