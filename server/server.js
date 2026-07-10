@@ -578,7 +578,7 @@ const uploadArchiveMedia = multer({
 });
 
 // POST /api/archives/:id/media
-app.post('/api/archives/:id/media', requireAuth, uploadArchiveMedia.single('file'), (req, res) => {
+app.post('/api/archives/:id/media', uploadArchiveMedia.single('file'), (req, res) => {
   const { id } = req.params;
   const { type } = req.body; // 'photo' or 'video'
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
@@ -619,7 +619,7 @@ app.post('/api/archives/:id/media', requireAuth, uploadArchiveMedia.single('file
 });
 
 // DELETE /api/archives/:id/media/:type
-app.delete('/api/archives/:id/media/:type', requireAuth, (req, res) => {
+app.delete('/api/archives/:id/media/:type', (req, res) => {
   const { id, type } = req.params;
   if (type !== 'photo' && type !== 'video') return res.status(400).json({ error: 'Invalid media type' });
 
