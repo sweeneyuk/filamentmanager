@@ -119,22 +119,39 @@ const handlePrintStatus = async (printer, printData) => {
   let amsList = Array.isArray(amsDataMap[pid]) ? [...amsDataMap[pid]] : [];
   let updated = false;
 
+  // Diagnostic: log raw AMS payload keys when they appear
+  if (printData.ams) {
+    const amsKeys = Object.keys(printData.ams);
+    if (amsKeys.length > 0) {
+      console.log(`[AMS DEBUG ${pid}] ams keys: ${amsKeys.join(', ')}`);
+      if (printData.ams.vt_tray !== undefined) {
+        console.log(`[AMS DEBUG ${pid}] vt_tray (nested): ${JSON.stringify(printData.ams.vt_tray)}`);
+      }
+    }
+  }
+  if (printData.vt_tray !== undefined) {
+    console.log(`[AMS DEBUG ${pid}] vt_tray (top-level): ${JSON.stringify(printData.vt_tray)}`);
+  }
+
   if (printData.ams && Array.isArray(printData.ams.ams)) {
     // Keep vt_tray, replace real AMS units
     amsList = amsList.filter(a => a.id === "254");
     amsList.unshift(...printData.ams.ams);
     updated = true;
   }
+
+  // vt_tray can be at top level OR nested under printData.ams on some firmware versions
+  const rawVtTray = printData.vt_tray || (printData.ams && printData.ams.vt_tray);
   
-  if (printData.vt_tray) {
-    // Remove old vt_tray
+  if (rawVtTray) {
+    // Remove old vt_tray entry
     amsList = amsList.filter(a => a.id !== "254");
     
     // Bambu uses id=255 to mean empty/unloaded for the external spool
-    if (printData.vt_tray.id !== 255 && Object.keys(printData.vt_tray).length > 1) {
+    if (rawVtTray.id !== 255 && Object.keys(rawVtTray).length > 1) {
       amsList.push({
         id: "254",
-        tray: [{ ...printData.vt_tray, id: "0" }]
+        tray: [{ ...rawVtTray, id: "0" }]
       });
     } else {
       amsList.push({
