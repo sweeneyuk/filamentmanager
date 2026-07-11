@@ -212,16 +212,47 @@ const handlePrintStatus = async (printer, printData) => {
     state.chamberTemp = printData.device.ctc.info.temp;
   }
 
-  const decodeTrayId = (m) => {
+  let activeExtruder = 0;
+  if (printData.device?.extruder?.state !== undefined) {
+    activeExtruder = (printData.device.extruder.state >> 8) & 1;
+  }
+
+  const decodeTrayId = (m, activeExt = 0) => {
     if (m === 255 || m === 65535) return null;
-    if (m === 254) return '128-0';
+    
+    if (m === 254 || m === -1) {
+      // 254 (or -1 from slicer mapping) is generic external spool.
+      if (activeExt === 0 && printData.device?.extruder?.info?.length > 1) {
+        return '255-0';
+      }
+      return '254-0';
+    }
+    
+    // AMS HT units use IDs 128 to 135 (single slot)
+    if (m >= 128 && m <= 135) return `${m}-0`;
+    
+    // Snow encoded values (e.g. from ams_mapping)
     if (m >= 256) return `${m >> 8}-${m & 0xFF}`;
+    
+    // Regular AMS slots (0-15)
     return `${Math.floor(m / 4)}-${m % 4}`;
   };
 
   if (printData.ams && printData.ams.tray_now !== undefined) {
-    const m = parseInt(printData.ams.tray_now, 10);
-    state.currentTrayId = !isNaN(m) ? decodeTrayId(m) : null;
+    let m = parseInt(printData.ams.tray_now, 10);
+    
+    // H2D dual-nozzle only reports the slot number (0-3) in tray_now.
+    // Use the snow field from device.extruder.info for the true global ID.
+    if (printData.device?.extruder?.info && Array.isArray(printData.device.extruder.info)) {
+      if (printData.device.extruder.info.length > 1) {
+        const snowTray = printData.device.extruder.info[activeExtruder]?.snow;
+        if (snowTray !== undefined && snowTray !== null && snowTray !== 255) {
+          m = snowTray;
+        }
+      }
+    }
+    
+    state.currentTrayId = !isNaN(m) ? decodeTrayId(m, activeExtruder) : null;
   }
   
   if (state.currentTrayId && state.activeTrays && !state.activeTrays.includes(state.currentTrayId)) {
