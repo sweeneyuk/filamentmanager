@@ -116,14 +116,34 @@ const handlePrintStatus = async (printer, printData) => {
   const pid = printer.id;
   const state = printStates[pid];
 
+  let amsList = [];
   if (printData.ams && printData.ams.ams) {
+    amsList = [...printData.ams.ams];
+  }
+  
+  if (printData.vt_tray) {
+    // Bambu uses id=255 to mean empty/unloaded for the external spool
+    if (printData.vt_tray.id !== 255 && Object.keys(printData.vt_tray).length > 1) {
+      amsList.push({
+        id: "254",
+        tray: [{ ...printData.vt_tray, id: "0" }]
+      });
+    } else {
+      amsList.push({
+        id: "254",
+        tray: [{ id: "0", tray_type: "", tray_color: "000000FF" }]
+      });
+    }
+  }
+
+  if (amsList.length > 0) {
     const oldAmsStr = JSON.stringify(amsDataMap[pid]);
-    const newAmsStr = JSON.stringify(printData.ams.ams);
+    const newAmsStr = JSON.stringify(amsList);
     
-    amsDataMap[pid] = printData.ams.ams;
+    amsDataMap[pid] = amsList;
     
     if (oldAmsStr !== newAmsStr) {
-      syncAmsSpools(pid, printData.ams.ams).catch(err => console.error('[MQTT] AMS Sync Error:', err.message));
+      syncAmsSpools(pid, amsList).catch(err => console.error('[MQTT] AMS Sync Error:', err.message));
     }
   }
 

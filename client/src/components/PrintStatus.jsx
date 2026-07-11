@@ -57,7 +57,7 @@ function PrintStatus() {
   };
 
   const handleRenameAms = (printerId, amsId) => {
-    const defaultName = amsId === "128" || amsId === "255" ? "External Spool" : `AMS ${parseInt(amsId) + 1}`;
+    const defaultName = amsId === "128" || amsId === "255" || amsId === "254" ? "External Spool" : `AMS ${parseInt(amsId) + 1}`;
     const key = `ams_name_${printerId}_${amsId}`;
     const currentName = settings[key] || defaultName;
     
@@ -258,7 +258,7 @@ function PrintStatus() {
                           onClick={() => handleRenameAms(printer.id, amsUnit.id)} 
                           title="Click to rename"
                         >
-                          {settings[`ams_name_${printer.id}_${amsUnit.id}`] || (amsUnit.id === "128" || amsUnit.id === "255" ? "External Spool" : `AMS ${parseInt(amsUnit.id) + 1}`)}
+                          {settings[`ams_name_${printer.id}_${amsUnit.id}`] || (amsUnit.id === "128" || amsUnit.id === "255" || amsUnit.id === "254" ? "External Spool" : `AMS ${parseInt(amsUnit.id) + 1}`)}
                           <Edit2 size={12} color="#888" />
                         </h3>
                         <div style={{ display: 'flex', gap: '15px', fontSize: '0.85rem', color: '#aaa', alignItems: 'center' }}>
@@ -318,7 +318,7 @@ function PrintStatus() {
                                   color: hasFilament && isColorDark(hexColor) ? '#fff' : '#000',
                                   borderBottom: '1px solid rgba(0,0,0,0.1)'
                                 }}>
-                                  {amsUnit.id === "128" || amsUnit.id === "255" ? 'EXT' : tIndex + 1}
+                                  {amsUnit.id === "128" || amsUnit.id === "255" || amsUnit.id === "254" ? '1' : tIndex + 1}
                                 </div>
                                 <div style={{ padding: '8px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', textAlign: 'center' }}>
                                   {assignedSpool ? (
