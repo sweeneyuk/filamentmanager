@@ -119,23 +119,6 @@ const handlePrintStatus = async (printer, printData) => {
   let amsList = Array.isArray(amsDataMap[pid]) ? [...amsDataMap[pid]] : [];
   let updated = false;
 
-  // Diagnostic: log raw AMS payload keys when they appear
-  if (printData.ams) {
-    const amsKeys = Object.keys(printData.ams);
-    if (amsKeys.length > 0) {
-      // Only log once per session to avoid spam - check if we've logged it
-      if (!amsDataMap[`${pid}_debug_logged`]) {
-        console.log(`[AMS DEBUG ${pid}] ams keys: ${amsKeys.join(', ')}`);
-        if (printData.ams.cfs !== undefined) {
-          console.log(`[AMS DEBUG ${pid}] cfs full: ${JSON.stringify(printData.ams.cfs)}`);
-        }
-        if (printData.ams.ams !== undefined) {
-          console.log(`[AMS DEBUG ${pid}] ams.ams full: ${JSON.stringify(printData.ams.ams)}`);
-        }
-        amsDataMap[`${pid}_debug_logged`] = true;
-      }
-    }
-  }
 
   if (printData.ams && Array.isArray(printData.ams.ams)) {
     // Keep vt_tray, replace real AMS units
