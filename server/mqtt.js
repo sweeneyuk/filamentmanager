@@ -120,33 +120,52 @@ const handlePrintStatus = async (printer, printData) => {
   let updated = false;
 
 
+
   if (printData.ams && Array.isArray(printData.ams.ams)) {
-    // Keep vt_tray, replace real AMS units
-    amsList = amsList.filter(a => a.id === "254");
+    // Keep external trays (254, 255), replace real AMS units
+    amsList = amsList.filter(a => a.id === "254" || a.id === "255");
     amsList.unshift(...printData.ams.ams);
     updated = true;
   }
 
-  // vt_tray can be at top level OR nested under printData.ams on some firmware versions
-  const rawVtTray = printData.vt_tray || (printData.ams && printData.ams.vt_tray);
-  
-  if (rawVtTray) {
-    // Remove old vt_tray entry
-    amsList = amsList.filter(a => a.id !== "254");
+  // Handle vir_slot (X2D dual-nozzle external spools)
+  if (Array.isArray(printData.vir_slot)) {
+    // Remove old external spools
+    amsList = amsList.filter(a => a.id !== "254" && a.id !== "255");
     
-    // Bambu uses id=255 to mean empty/unloaded for the external spool
-    if (rawVtTray.id !== 255 && Object.keys(rawVtTray).length > 1) {
+    printData.vir_slot.forEach(slot => {
+      let unitId = String(slot.id);
+      // Bambu sometimes uses 255 for a single external spool, remap to 254
+      if (printData.vir_slot.length === 1 && unitId === "255") {
+        unitId = "254";
+      }
       amsList.push({
-        id: "254",
-        tray: [{ ...rawVtTray, id: "0" }]
+        id: unitId,
+        tray: [{ ...slot, id: "0" }]
       });
-    } else {
-      amsList.push({
-        id: "254",
-        tray: [{ id: "0", tray_type: "", tray_color: "000000FF" }]
-      });
-    }
+    });
     updated = true;
+  } else {
+    // Handle vt_tray (single-nozzle external spool fallback)
+    const rawVtTray = printData.vt_tray || (printData.ams && printData.ams.vt_tray);
+    if (rawVtTray) {
+      // Remove old external spool
+      amsList = amsList.filter(a => a.id !== "254");
+      
+      // Bambu uses id=255 to mean empty/unloaded for the external spool
+      if (rawVtTray.id !== 255 && Object.keys(rawVtTray).length > 1) {
+        amsList.push({
+          id: "254",
+          tray: [{ ...rawVtTray, id: "0" }]
+        });
+      } else {
+        amsList.push({
+          id: "254",
+          tray: [{ id: "0", tray_type: "", tray_color: "000000FF" }]
+        });
+      }
+      updated = true;
+    }
   }
 
   if (updated) {

@@ -82,44 +82,6 @@ function PrintStatus() {
     }
   };
 
-  const handleAddVirtualSpool = async (printerId) => {
-    const key = `virtual_spools_${printerId}`;
-    const current = parseInt(settings[key] || '0', 10);
-    try {
-      await axios.post('/api/settings', { [key]: String(current + 1) });
-      fetchData();
-    } catch (err) {
-      showAlert('Error', 'Failed to add external spool', true);
-    }
-  };
-
-  const handleRemoveVirtualSpool = async (printerId) => {
-    const key = `virtual_spools_${printerId}`;
-    const current = parseInt(settings[key] || '0', 10);
-    if (current <= 0) return;
-    try {
-      await axios.post('/api/settings', { [key]: String(current - 1) });
-      fetchData();
-    } catch (err) {
-      showAlert('Error', 'Failed to remove external spool', true);
-    }
-  };
-
-  const handleRenameVirtualSpool = (printerId, slotIndex) => {
-    const key = `virtual_spool_name_${printerId}_${slotIndex}`;
-    const currentName = settings[key] || `External Spool ${slotIndex + 1}`;
-    showPrompt('Rename External Spool', 'Enter a new name:', currentName, async (newName) => {
-      if (newName !== null) {
-        try {
-          await axios.post('/api/settings', { [key]: newName.trim() });
-          fetchData();
-        } catch (err) {
-          showAlert('Error', 'Failed to rename spool', true);
-        }
-      }
-    });
-  };
-
   // Returns true if a hex colour is perceptually dark (so we should use white text on it)
   const isColorDark = (hex) => {
     if (!hex) return true;
@@ -284,96 +246,11 @@ function PrintStatus() {
             <div className="card title-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                 <h2>AMS Overview</h2>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    className="btn-secondary"
-                    style={{ fontSize: '0.8rem', padding: '5px 10px' }}
-                    onClick={() => handleAddVirtualSpool(printer.id)}
-                    title="Add a virtual external spool slot">
-                    + External Spool
-                  </button>
-                  {parseInt(settings[`virtual_spools_${printer.id}`] || '0', 10) > 0 && (
-                    <button
-                      className="btn-secondary"
-                      style={{ fontSize: '0.8rem', padding: '5px 10px', color: 'var(--danger-color)', border: '1px solid var(--danger-color)' }}
-                      onClick={() => handleRemoveVirtualSpool(printer.id)}
-                      title="Remove last virtual external spool">
-                      − Remove
-                    </button>
-                  )}
-                </div>
               </div>
               
-              {(() => {
-                const virtualCount = parseInt(settings[`virtual_spools_${printer.id}`] || '0', 10);
-                const virtualSlots = Array.from({ length: virtualCount }, (_, i) => ({
-                  id: `virtual_${i}`,
-                  isVirtual: true,
-                  slotIndex: i,
-                  name: settings[`virtual_spool_name_${printer.id}_${i}`] || `External Spool ${i + 1}`
-                }));
-                const allUnits = [...(Array.isArray(amsData) ? amsData : []), ...virtualSlots];
-                return allUnits.length > 0 ? (
+              {amsData && Object.keys(amsData).length > 0 ? (
                 <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
-                  {allUnits.map((amsUnit, index) => (
-                    amsUnit.isVirtual ? (
-                      <div key={`virtual_${amsUnit.slotIndex}`} style={{ border: '1px solid var(--border-color)', borderRadius: '8px', padding: '15px', minWidth: '200px', flex: 1, maxWidth: '250px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                          <h3
-                            style={{ margin: 0, fontSize: '1.1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
-                            onClick={() => handleRenameVirtualSpool(printer.id, amsUnit.slotIndex)}
-                            title="Click to rename"
-                          >
-                            {amsUnit.name}
-                            <Edit2 size={12} color="#888" />
-                          </h3>
-                        </div>
-                        <div style={{ display: 'flex', gap: '10px' }}>
-                          {(() => {
-                            const trayId = `virtual-${amsUnit.slotIndex}`;
-                            const assignedSpoolId = assignments[trayId];
-                            const assignedSpool = assignedSpoolId ? spools.find(s => s.id === assignedSpoolId) : null;
-                            const remaining = assignedSpool ? (assignedSpool.total_weight - assignedSpool.used_weight) : 0;
-                            const remainingPct = assignedSpool ? (remaining / assignedSpool.total_weight) * 100 : 0;
-                            const isLowStock = remainingPct < 15;
-                            const hexColor = assignedSpool?.color || '#333';
-                            return (
-                              <div style={{ flex: 1, backgroundColor: 'var(--secondary-bg)', borderRadius: '6px', overflow: 'hidden', border: '2px solid transparent', display: 'flex', flexDirection: 'column' }}>
-                                <div style={{ height: '25px', backgroundColor: assignedSpool ? hexColor : '#222', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 'bold', color: '#fff', borderBottom: '1px solid rgba(0,0,0,0.1)' }}>1</div>
-                                <div style={{ padding: '8px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', textAlign: 'center' }}>
-                                  {assignedSpool ? (
-                                    <div style={{ fontSize: '0.75rem', marginBottom: '5px' }}>
-                                      <div style={{ color: 'var(--primary-color)', fontWeight: 'normal' }}>{assignedSpool.brand_name} {assignedSpool.material_name}</div>
-                                      <div style={{ marginTop: '4px', textAlign: 'left' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: '0.65rem', color: '#888', marginBottom: '2px' }}><span>{remaining.toFixed(0)}g</span></div>
-                                        <div className="progress-bar-container" style={{ height: '4px' }}>
-                                          <div className="progress-bar" style={{ width: `${remainingPct}%`, backgroundColor: isLowStock ? '#f44336' : (remainingPct < 40 ? '#ff9800' : '#4caf50') }}></div>
-                                        </div>
-                                      </div>
-                                      {isLowStock && (<div style={{ marginTop: '4px' }}><span style={{ backgroundColor: 'rgba(244,67,54,0.2)', color: '#f87171', fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(244,67,54,0.4)', fontWeight: 'bold' }}>Low Stock</span></div>)}
-                                    </div>
-                                  ) : (
-                                    <div style={{ fontSize: '0.75rem', marginBottom: '5px', color: '#666' }}>Not Assigned</div>
-                                  )}
-                                  <button
-                                    className={assignedSpool ? 'btn-secondary' : 'btn-primary'}
-                                    style={{ width: '100%', fontSize: '0.75rem', padding: '6px 4px', fontWeight: 'bold' }}
-                                    onClick={() => { setActivePrinterId(printer.id); setActiveTrayId(trayId); setIsAssignModalOpen(true); }}
-                                  >{assignedSpool ? 'Change Spool' : '+ Assign Spool'}</button>
-                                  {assignedSpool && (
-                                    <button
-                                      className="btn-secondary"
-                                      style={{ width: '100%', fontSize: '0.7rem', padding: '4px', marginTop: '4px', backgroundColor: 'transparent', color: 'var(--danger-color)', border: '1px solid var(--danger-color)' }}
-                                      onClick={() => handleAssignAms(printer.id, trayId, '')}
-                                    >Clear</button>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      </div>
-                    ) : (
+                  {Array.isArray(amsData) ? amsData.map((amsUnit, index) => (
                     <div key={index} style={{ border: '1px solid var(--border-color)', borderRadius: '8px', padding: '15px', minWidth: '300px', flex: 1 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                         <h3 
@@ -491,13 +368,13 @@ function PrintStatus() {
                         })}
                       </div>
                     </div>
-                    )
-                  ))}
+                  )) : (
+                    <pre style={{fontSize: '12px', color: '#888'}}>Waiting for detailed AMS payload...</pre>
+                  )}
                 </div>
-                ) : (
-                  <p style={{color: '#888'}}>No AMS data received yet. Use the button above to add external spools, or ensure your Bambu printer is connected via MQTT in Settings.</p>
-                );
-              })()} 
+              ) : (
+                <p style={{color: '#888'}}>No AMS data received yet. Ensure your Bambu printer is connected via MQTT in Settings.</p>
+              )}
             </div>
           </div>
         );
