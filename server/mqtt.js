@@ -116,10 +116,10 @@ const handlePrintStatus = async (printer, printData) => {
   const pid = printer.id;
   const state = printStates[pid];
 
-  let amsList = amsDataMap[pid] ? [...amsDataMap[pid]] : [];
+  let amsList = Array.isArray(amsDataMap[pid]) ? [...amsDataMap[pid]] : [];
   let updated = false;
 
-  if (printData.ams && printData.ams.ams) {
+  if (printData.ams && Array.isArray(printData.ams.ams)) {
     // Keep vt_tray, replace real AMS units
     amsList = amsList.filter(a => a.id === "254");
     amsList.unshift(...printData.ams.ams);
