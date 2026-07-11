@@ -162,8 +162,9 @@ function PrintStatus() {
                   const hasDualExtruder = extInfo && Array.isArray(extInfo) && extInfo.length > 1;
                   
                   if (hasDualExtruder) {
-                    const labels = ['Right Nozzle', 'Left Nozzle'];
-                    return extInfo.map((ext, i) => {
+                    const labels = ['Left Nozzle', 'Right Nozzle'];
+                    // Reverse the array so Left Nozzle (originally index 1) renders on the left
+                    return [...extInfo].reverse().map((ext, i) => {
                       const label = labels[i] || `Nozzle ${i + 1}`;
                       const isPacked = ext.temp > 1000;
                       const currentTemp = isPacked ? (ext.temp & 0xFFFF) : (ext.temp || 0);
