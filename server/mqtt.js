@@ -116,12 +116,20 @@ const handlePrintStatus = async (printer, printData) => {
   const pid = printer.id;
   const state = printStates[pid];
 
-  let amsList = [];
+  let amsList = amsDataMap[pid] ? [...amsDataMap[pid]] : [];
+  let updated = false;
+
   if (printData.ams && printData.ams.ams) {
-    amsList = [...printData.ams.ams];
+    // Keep vt_tray, replace real AMS units
+    amsList = amsList.filter(a => a.id === "254");
+    amsList.unshift(...printData.ams.ams);
+    updated = true;
   }
   
   if (printData.vt_tray) {
+    // Remove old vt_tray
+    amsList = amsList.filter(a => a.id !== "254");
+    
     // Bambu uses id=255 to mean empty/unloaded for the external spool
     if (printData.vt_tray.id !== 255 && Object.keys(printData.vt_tray).length > 1) {
       amsList.push({
@@ -134,9 +142,10 @@ const handlePrintStatus = async (printer, printData) => {
         tray: [{ id: "0", tray_type: "", tray_color: "000000FF" }]
       });
     }
+    updated = true;
   }
 
-  if (amsList.length > 0) {
+  if (updated) {
     const oldAmsStr = JSON.stringify(amsDataMap[pid]);
     const newAmsStr = JSON.stringify(amsList);
     
