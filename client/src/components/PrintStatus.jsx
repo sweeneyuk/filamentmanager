@@ -251,7 +251,7 @@ function PrintStatus() {
               {amsData && Object.keys(amsData).length > 0 ? (
                 <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
                   {Array.isArray(amsData) ? amsData.map((amsUnit, index) => (
-                    <div key={index} style={{ border: '1px solid var(--border-color)', borderRadius: '8px', padding: '15px', minWidth: '300px', flex: 1 }}>
+                    <div key={index} style={{ border: '1px solid var(--border-color)', borderRadius: '8px', padding: '15px', minWidth: amsUnit.tray && amsUnit.tray.length === 1 ? '150px' : '300px', flex: amsUnit.tray ? amsUnit.tray.length : 1, maxWidth: amsUnit.tray && amsUnit.tray.length === 1 ? '250px' : '100%' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                         <h3 
                           style={{ margin: 0, fontSize: '1.1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }} 
