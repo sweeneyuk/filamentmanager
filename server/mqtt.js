@@ -123,14 +123,18 @@ const handlePrintStatus = async (printer, printData) => {
   if (printData.ams) {
     const amsKeys = Object.keys(printData.ams);
     if (amsKeys.length > 0) {
-      console.log(`[AMS DEBUG ${pid}] ams keys: ${amsKeys.join(', ')}`);
-      if (printData.ams.vt_tray !== undefined) {
-        console.log(`[AMS DEBUG ${pid}] vt_tray (nested): ${JSON.stringify(printData.ams.vt_tray)}`);
+      // Only log once per session to avoid spam - check if we've logged it
+      if (!amsDataMap[`${pid}_debug_logged`]) {
+        console.log(`[AMS DEBUG ${pid}] ams keys: ${amsKeys.join(', ')}`);
+        if (printData.ams.cfs !== undefined) {
+          console.log(`[AMS DEBUG ${pid}] cfs full: ${JSON.stringify(printData.ams.cfs)}`);
+        }
+        if (printData.ams.ams !== undefined) {
+          console.log(`[AMS DEBUG ${pid}] ams.ams full: ${JSON.stringify(printData.ams.ams)}`);
+        }
+        amsDataMap[`${pid}_debug_logged`] = true;
       }
     }
-  }
-  if (printData.vt_tray !== undefined) {
-    console.log(`[AMS DEBUG ${pid}] vt_tray (top-level): ${JSON.stringify(printData.vt_tray)}`);
   }
 
   if (printData.ams && Array.isArray(printData.ams.ams)) {
