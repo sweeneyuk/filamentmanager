@@ -167,32 +167,22 @@ const extractThumbnailFrom3mf = async (printer, gcodeFile, prefix, subtaskName =
     await client.downloadTo(localTemp3mf, remotePath);
     
     const zip = new AdmZip(localTemp3mf);
-    const zipEntries = zip.getEntries();
-    // Match any standard thumbnail, ignore small/lighting ones
-    const validThumbnails = zipEntries.filter(e => {
-      const n = e.entryName.toLowerCase();
-      return n.startsWith('metadata/') && n.endsWith('.png') && !n.includes('_small') && !n.includes('no_light') && !n.includes('top') && !n.includes('pick');
-    });
-    
-    let thumbnailEntry = null;
-    if (validThumbnails.length > 0) {
-      // Sort by modification time descending (newest first)
-      validThumbnails.sort((a, b) => b.header.time - a.header.time);
-      
-      if (subtaskName) {
-        const subClean = subtaskName.trim().toLowerCase();
-        thumbnailEntry = validThumbnails.find(e => e.entryName.toLowerCase().includes(subClean));
-      }
-      
-      if (!thumbnailEntry) {
-        thumbnailEntry = validThumbnails[0];
+    const { extract3mfThumbnailBuffer } = require('./3mfUtils');
+
+    let plateNumber = null;
+    if (subtaskName) {
+      const match = subtaskName.match(/(?:plate\s*|plate_)(\d+)/i);
+      if (match) {
+        plateNumber = parseInt(match[1], 10);
       }
     }
-    
+
+    const thumbnailBuffer = extract3mfThumbnailBuffer(zip, plateNumber);
     let thumbnailPath = null;
-    if (thumbnailEntry) {
+
+    if (thumbnailBuffer) {
       const localThumbPath = path.join(mediaDir, `${prefix}_thumbnail.png`);
-      fs.writeFileSync(localThumbPath, thumbnailEntry.getData());
+      fs.writeFileSync(localThumbPath, thumbnailBuffer);
       thumbnailPath = `/media/${prefix}_thumbnail.png`;
       console.log(`Successfully extracted initial 3MF thumbnail for prefix ${prefix}`);
     }

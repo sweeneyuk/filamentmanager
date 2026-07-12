@@ -946,13 +946,16 @@ app.post('/api/calculator/parse', upload3mf.single('file'), (req, res) => {
       }
     }
     
+    const prefix = Date.now().toString();
+    const { extract3mfThumbnailBuffer } = require('./3mfUtils');
+    const thumbnailBuffer = extract3mfThumbnailBuffer(zip);
+    
     let thumbnailPath = null;
-    const thumbnailEntry = zipEntries.find(e => e.entryName.toLowerCase() === 'metadata/plate_1.png');
-    if (thumbnailEntry) {
-      const prefix = Date.now().toString();
+    if (thumbnailBuffer) {
       const localThumbPath = path.join(__dirname, 'data', 'media', `${prefix}_quote_thumb.png`);
-      fs.writeFileSync(localThumbPath, thumbnailEntry.getData());
+      fs.writeFileSync(localThumbPath, thumbnailBuffer);
       thumbnailPath = `/media/${prefix}_quote_thumb.png`;
+      console.log(`Successfully extracted quote 3MF thumbnail for prefix ${prefix}`);
     }
     
     fs.unlinkSync(req.file.path);
