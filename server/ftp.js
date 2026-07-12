@@ -88,93 +88,143 @@ const downloadLatestTimelapse = async (printer, printName, archiveId) => {
 };
 
 const findRemotePrintFile = async (client, gcodeFile, subtaskName) => {
-  let cleanPath = gcodeFile.startsWith('/data/') ? gcodeFile.substring(5) : gcodeFile;
-  if (!cleanPath.startsWith('/')) cleanPath = '/' + cleanPath;
-  
-  const pathsToTry = [];
-  pathsToTry.push(gcodeFile.startsWith('/') ? gcodeFile : '/' + gcodeFile);
-  pathsToTry.push(cleanPath);
-  pathsToTry.push(`/tasks${cleanPath}`);
+  // Build a prioritised list of explicit paths to try
+  const pathsToTry = new Set();
 
-  if (subtaskName) {
-    const sub = subtaskName.trim();
-    pathsToTry.push(`/${sub}.gcode.3mf`);
-    pathsToTry.push(`/cache/${sub}.gcode.3mf`);
-    pathsToTry.push(`/${sub}.3mf`);
-    pathsToTry.push(`/cache/${sub}.3mf`);
+  // 1. Use the raw gcode_file path reported by MQTT
+  if (gcodeFile) {
+    pathsToTry.add(gcodeFile.startsWith('/') ? gcodeFile : '/' + gcodeFile);
+    const clean = gcodeFile.startsWith('/data/') ? gcodeFile.substring(5) : gcodeFile;
+    pathsToTry.add(clean.startsWith('/') ? clean : '/' + clean);
+    pathsToTry.add(`/tasks${clean.startsWith('/') ? clean : '/' + clean}`);
   }
 
-  // 1. Try explicit paths
+  // 2. Build candidates from subtask_name (matching Bambuddy naming conventions)
+  const buildNameVariants = (base) => {
+    const variants = [];
+    for (const name of [`${base}.gcode.3mf`, `${base}.3mf`]) {
+      for (const dir of ['/', '/cache', '/model', '/data', '/data/Metadata']) {
+        variants.push(dir === '/' ? `/${name}` : `${dir}/${name}`);
+      }
+      // Also try with spaces replaced by underscores
+      if (name.includes(' ')) {
+        const normalized = name.replace(/ /g, '_');
+        for (const dir of ['/', '/cache', '/model', '/data']) {
+          variants.push(dir === '/' ? `/${normalized}` : `${dir}/${normalized}`);
+        }
+      }
+    }
+    return variants;
+  };
+
+  if (subtaskName) {
+    buildNameVariants(subtaskName.trim()).forEach(p => pathsToTry.add(p));
+  }
+
+  // 3. Try each explicit path (existence check via size, which is cheap)
   for (const p of pathsToTry) {
     try {
-      await client.size(p); // Throws if file does not exist
+      await client.size(p);
+      console.log(`[FTP] Found 3MF at explicit path: ${p}`);
       return p;
     } catch(e) {}
   }
-  
-  // 2. Try fuzzy match or fallback to the newest .3mf file in root or cache or tasks
+
+  // 4. Fuzzy directory scan across all common locations
+  console.log(`[FTP] Explicit paths failed, scanning directories for 3MF...`);
   try {
     const allCandidates = [];
-    const dirsToTry = ['/', '/tasks', '/cache'];
-    
-    for (const d of dirsToTry) {
+    const dirsToScan = ['/', '/cache', '/model', '/data', '/data/Metadata', '/tasks'];
+    for (const d of dirsToScan) {
       try {
         const files = await client.list(d);
-        const candidates = files.filter(f => f.name.toLowerCase().endsWith('.3mf'));
-        for (const f of candidates) {
-          allCandidates.push({
-            name: f.name,
-            path: d === '/' ? `/${f.name}` : `${d}/${f.name}`,
-            modifiedAt: f.modifiedAt ? f.modifiedAt.getTime() : new Date(f.rawModifiedAt).getTime()
-          });
+        for (const f of files) {
+          if (f.name.toLowerCase().endsWith('.3mf')) {
+            allCandidates.push({
+              name: f.name,
+              path: d === '/' ? `/${f.name}` : `${d}/${f.name}`,
+              modifiedAt: f.modifiedAt ? f.modifiedAt.getTime() : (f.rawModifiedAt ? new Date(f.rawModifiedAt).getTime() : 0)
+            });
+          }
         }
       } catch(e) {}
     }
-    
+
     if (subtaskName) {
-      const subClean = subtaskName.trim().toLowerCase();
-      const bestMatch = allCandidates.find(f => f.name.toLowerCase().includes(subClean));
-      if (bestMatch) return bestMatch.path;
+      const subClean = subtaskName.trim().toLowerCase().replace(/ /g, '_');
+      // Exact-ish name match first (spaces → underscores normalised)
+      const bestMatch = allCandidates.find(f => f.name.toLowerCase().replace(/ /g, '_').includes(subClean));
+      if (bestMatch) {
+        console.log(`[FTP] Fuzzy name match: ${bestMatch.path}`);
+        return bestMatch.path;
+      }
     }
-    
+
+    // Fall back to the most recently modified .3mf file
     if (allCandidates.length > 0) {
       allCandidates.sort((a, b) => b.modifiedAt - a.modifiedAt);
+      console.log(`[FTP] Falling back to most-recent 3MF: ${allCandidates[0].path}`);
       return allCandidates[0].path;
     }
   } catch (e) {
-    console.error('Fallback search failed:', e.message);
+    console.error('[FTP] Fallback directory scan failed:', e.message);
   }
-  
+
   return null;
 };
 
 /**
  * Extracts the 3MF thumbnail at the start of a print.
  */
+/**
+ * Download a remote file with retries on transient FTP errors.
+ * 550 (file not found) is not retried — it means the path is wrong.
+ */
+const downloadWithRetry = async (client, remotePath, localPath, maxRetries = 3) => {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await client.downloadTo(localPath, remotePath);
+      return true;
+    } catch (err) {
+      const msg = err.message || '';
+      // 550 = file does not exist at this path — pointless to retry
+      if (msg.includes('550')) throw err;
+      if (attempt < maxRetries) {
+        const delay = 500 * attempt;
+        console.log(`[FTP] Download attempt ${attempt} failed (${msg}), retrying in ${delay}ms...`);
+        await new Promise(r => setTimeout(r, delay));
+      } else {
+        throw err;
+      }
+    }
+  }
+};
+
 const extractThumbnailFrom3mf = async (printer, gcodeFile, prefix, subtaskName = null) => {
   let client;
   try {
     client = await connectFtp(printer);
     const remotePath = await findRemotePrintFile(client, gcodeFile, subtaskName);
     if (!remotePath || !remotePath.toLowerCase().endsWith('.3mf')) {
-      console.log(`Could not find remote file for thumbnail extraction.`);
+      console.log(`[FTP] Could not find remote 3MF for thumbnail extraction (gcode_file=${gcodeFile}, subtask=${subtaskName}).`);
       client.close();
       return null;
     }
-    
+
     const localTemp3mf = path.join(mediaDir, `${prefix}_temp_thumb.3mf`);
-    console.log(`Attempting to extract initial thumbnail from ${remotePath}`);
-    await client.downloadTo(localTemp3mf, remotePath);
-    
+    console.log(`[FTP] Downloading 3MF for thumbnail from ${remotePath}`);
+    await downloadWithRetry(client, remotePath, localTemp3mf);
+
     const zip = new AdmZip(localTemp3mf);
     const { extract3mfThumbnailBuffer } = require('./3mfUtils');
 
+    // Detect plate number: first from subtask_name, then from gcode_file path
     let plateNumber = null;
-    if (subtaskName) {
-      const match = subtaskName.match(/(?:plate\s*|plate_)(\d+)/i);
-      if (match) {
-        plateNumber = parseInt(match[1], 10);
-      }
+    const plateSource = subtaskName || gcodeFile || '';
+    const plateMatch = plateSource.match(/(?:plate[_ ]?)(\d+)/i);
+    if (plateMatch) {
+      plateNumber = parseInt(plateMatch[1], 10);
+      console.log(`[FTP] Detected plate number ${plateNumber} for thumbnail extraction`);
     }
 
     const thumbnailBuffer = extract3mfThumbnailBuffer(zip, plateNumber);
@@ -184,15 +234,17 @@ const extractThumbnailFrom3mf = async (printer, gcodeFile, prefix, subtaskName =
       const localThumbPath = path.join(mediaDir, `${prefix}_thumbnail.png`);
       fs.writeFileSync(localThumbPath, thumbnailBuffer);
       thumbnailPath = `/media/${prefix}_thumbnail.png`;
-      console.log(`Successfully extracted initial 3MF thumbnail for prefix ${prefix}`);
+      console.log(`[FTP] Successfully extracted 3MF thumbnail for prefix ${prefix}`);
+    } else {
+      console.log(`[FTP] No thumbnail found inside 3MF at ${remotePath} (entries: ${zip.getEntries().map(e => e.entryName).filter(n => n.endsWith('.png')).join(', ') || 'none'})`);
     }
-    
-    fs.unlinkSync(localTemp3mf);
+
+    try { fs.unlinkSync(localTemp3mf); } catch (_) {}
     client.close();
     return thumbnailPath;
   } catch (err) {
     if (client) client.close();
-    console.log('Failed to extract initial thumbnail from 3MF:', err.message);
+    console.log('[FTP] Failed to extract thumbnail from 3MF:', err.message);
     return null;
   }
 };

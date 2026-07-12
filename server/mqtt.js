@@ -285,7 +285,7 @@ const handlePrintStatus = async (printer, printData) => {
           state.archiveId = this.lastID;
           console.log(`[MQTT ${pid}] Created in-progress archive record with ID ${state.archiveId}`);
 
-          if (printData.gcode_file && state.lastFetchedGcode !== printData.gcode_file) {
+          if (printData.gcode_file) {
             state.lastFetchedGcode = printData.gcode_file;
             const { getPredictedWeights, extractThumbnailFrom3mf } = require('./ftp');
             
@@ -297,15 +297,31 @@ const handlePrintStatus = async (printer, printData) => {
               }
             }).catch(err => console.log(`[MQTT ${pid}] Failed to fetch weights via FTP:`, err.message));
             
-            const thumbPrefix = Date.now().toString();
-            extractThumbnailFrom3mf(printer, printData.gcode_file, thumbPrefix, printData.subtask_name).then(thumbPath => {
-              if (thumbPath) {
-                state.thumbnailPath = thumbPath;
-                if (state.archiveId) {
-                  db.run('UPDATE archives SET thumbnail_path = ? WHERE id = ?', [thumbPath, state.archiveId]);
+            // Attempt thumbnail extraction. The 3MF may not be on the printer's FTP
+            // immediately when RUNNING fires (BambuStudio is still uploading), so
+            // we try once right away and, if that fails, retry after a 15-second delay.
+            const attemptThumbnail = (attempt) => {
+              const thumbPrefix = `${Date.now()}`;
+              extractThumbnailFrom3mf(printer, printData.gcode_file, thumbPrefix, printData.subtask_name).then(thumbPath => {
+                if (thumbPath) {
+                  state.thumbnailPath = thumbPath;
+                  if (state.archiveId) {
+                    db.run('UPDATE archives SET thumbnail_path = ? WHERE id = ?', [thumbPath, state.archiveId]);
+                  }
+                  console.log(`[MQTT ${pid}] Thumbnail stored (attempt ${attempt}): ${thumbPath}`);
+                } else if (attempt < 3) {
+                  const delay = attempt * 15000; // 15s, 30s
+                  console.log(`[MQTT ${pid}] Thumbnail attempt ${attempt} failed, retrying in ${delay / 1000}s...`);
+                  setTimeout(() => attemptThumbnail(attempt + 1), delay);
+                } else {
+                  console.log(`[MQTT ${pid}] Could not extract thumbnail after ${attempt} attempts.`);
                 }
-              }
-            }).catch(err => console.log(`[MQTT ${pid}] Failed to fetch thumbnail via FTP:`, err.message));
+              }).catch(err => {
+                console.log(`[MQTT ${pid}] Thumbnail fetch error (attempt ${attempt}):`, err.message);
+                if (attempt < 3) setTimeout(() => attemptThumbnail(attempt + 1), attempt * 15000);
+              });
+            };
+            attemptThumbnail(1);
           }
         }
       });
