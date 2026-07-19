@@ -64,9 +64,6 @@ function Settings() {
     setSaving(false);
   };
 
-    setSaving(false);
-  };
-
   const handleManualBackup = async () => {
     try {
       const res = await axios.post('/api/backups/manual');
