@@ -75,8 +75,21 @@ function Settings() {
     }
   };
 
-  const handleDownloadBackup = (filename) => {
-    window.open(`/api/backups/download/${filename}`, '_blank');
+  const handleDownloadBackup = async (filename) => {
+    try {
+      const response = await axios.get(`/api/backups/download/${filename}`, {
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+    } catch (err) {
+      showAlert('Error', 'Failed to download backup: ' + (err.response?.statusText || err.message), true);
+    }
   };
 
   const [activeTab, setActiveTab] = useState('printers');
