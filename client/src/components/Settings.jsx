@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { useAlert } from '../contexts/AlertContext';
@@ -26,7 +26,7 @@ function Settings() {
   const [saving, setSaving] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [backups, setBackups] = useState([]);
-  const fileInputRef = React.useRef(null);
+  const fileInputRef = useRef(null);
   const { logout } = useAuth();
   const { showAlert } = useAlert();
 
