@@ -24,12 +24,17 @@ function Settings() {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [backups, setBackups] = useState([]);
   const { logout } = useAuth();
   const { showAlert } = useAlert();
 
   useEffect(() => {
-    axios.get('/api/settings').then(res => {
-      setSettings(prev => ({ ...prev, ...res.data }));
+    Promise.all([
+      axios.get('/api/settings'),
+      axios.get('/api/backups').catch(() => ({ data: [] }))
+    ]).then(([settingsRes, backupsRes]) => {
+      setSettings(prev => ({ ...prev, ...settingsRes.data }));
+      setBackups(backupsRes.data || []);
       setLoading(false);
     }).catch(console.error);
   }, []);
@@ -57,6 +62,24 @@ function Settings() {
       showAlert('Error', 'Failed to save settings', true);
     }
     setSaving(false);
+  };
+
+    setSaving(false);
+  };
+
+  const handleManualBackup = async () => {
+    try {
+      const res = await axios.post('/api/backups/manual');
+      showAlert('Success', `Backup created: ${res.data.filename}`);
+      const backupsRes = await axios.get('/api/backups');
+      setBackups(backupsRes.data || []);
+    } catch (err) {
+      showAlert('Error', 'Failed to create manual backup', true);
+    }
+  };
+
+  const handleDownloadBackup = (filename) => {
+    window.open(`/api/backups/download/${filename}`, '_blank');
   };
 
   const [activeTab, setActiveTab] = useState('printers');
@@ -105,6 +128,13 @@ function Settings() {
             onClick={() => setActiveTab('security')}
           >
             Security & SSO
+          </button>
+          <button 
+            className={`btn-secondary`} 
+            style={{ fontWeight: activeTab === 'backups' ? 'bold' : 'normal', backgroundColor: activeTab === 'backups' ? 'var(--hover-bg)' : 'transparent', border: activeTab === 'backups' ? '1px solid var(--primary-color)' : '1px solid transparent' }} 
+            onClick={() => setActiveTab('backups')}
+          >
+            Backups
           </button>
         </div>
 
@@ -248,6 +278,68 @@ function Settings() {
                     Logout Local Admin
                   </button>
                 </div>
+              )}
+
+              {activeTab === 'backups' && (
+                <>
+                <div className="settings-section">
+                  <h2>Auto Backups</h2>
+                  <p className="settings-desc">Configure automated periodic backups of the Filament Manager database.</p>
+                  
+                  <div className="form-group">
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input type="checkbox" name="auto_backup_enabled" checked={settings.auto_backup_enabled === 'true'} onChange={(e) => setSettings({ ...settings, auto_backup_enabled: e.target.checked ? 'true' : 'false' })} />
+                      Enable Auto Backups
+                    </label>
+                  </div>
+                  
+                  {settings.auto_backup_enabled === 'true' && (
+                    <>
+                      <div className="form-group" style={{ marginTop: '15px' }}>
+                        <label>Backup Interval (Days)</label>
+                        <select name="auto_backup_interval_days" value={settings.auto_backup_interval_days || '1'} onChange={handleChange}>
+                          <option value="1">Daily</option>
+                          <option value="7">Weekly</option>
+                          <option value="30">Monthly</option>
+                        </select>
+                      </div>
+                      <div className="form-group" style={{ marginTop: '15px' }}>
+                        <label>Number of Backups to Retain</label>
+                        <input type="number" name="auto_backup_retention" value={settings.auto_backup_retention || '5'} onChange={handleChange} min="1" max="100" />
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div className="settings-section" style={{ marginTop: '30px' }}>
+                  <h2>Manual Backup</h2>
+                  <p className="settings-desc">Generate and download a backup right now.</p>
+                  <button type="button" className="btn-primary" onClick={handleManualBackup}>
+                    Create & Download Manual Backup
+                  </button>
+                </div>
+
+                {backups.length > 0 && (
+                  <div className="settings-section" style={{ marginTop: '30px' }}>
+                    <h2>Available Backups</h2>
+                    <ul style={{ listStyle: 'none', padding: 0 }}>
+                      {backups.map(b => (
+                        <li key={b.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', borderBottom: '1px solid var(--border-color)', alignItems: 'center' }}>
+                          <div>
+                            <strong>{b.name}</strong>
+                            <div style={{ fontSize: '0.8rem', color: '#888' }}>
+                              {new Date(b.time).toLocaleString()} • {(b.size / 1024).toFixed(1)} KB
+                            </div>
+                          </div>
+                          <button type="button" className="btn-secondary" onClick={() => handleDownloadBackup(b.name)}>
+                            Download
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                </>
               )}
 
               <div style={{ marginTop: '20px', borderTop: '1px solid var(--border-color)', paddingTop: '20px' }}>

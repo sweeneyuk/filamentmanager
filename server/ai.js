@@ -57,13 +57,14 @@ const analyzePrint = async (photoPath, thumbnailPath, printName, durationSeconds
       prompt += `\nYou are only provided with the photo of the actual final print.\n`;
     }
 
-    prompt += `
 Determine the quality and outcome of the print. Look for:
 - Spaghetti (massive stringy failures)
 - Stringing (fine hairs between parts)
 - Warping (corners lifting off the bed)
 - Layer shifting (steps in the side of the print)
 - Missing parts or incomplete geometry (compare to intended model if provided)
+
+CRITICAL INSTRUCTION: Do NOT be overly strict. If the print is fully complete and generally looks like the intended model, return "SUCCESS". Do not fail a print for minor imperfections, slight wisps of stringing, shadows, or reflections on the build plate.
 
 Respond in JSON format ONLY with exactly these two keys:
 1. "status": Must be one of ["SUCCESS", "SPAGHETTI", "STRINGING", "WARPED", "LAYER_SHIFT", "UNKNOWN_FAILURE"]
@@ -113,7 +114,7 @@ const getInventorySummary = () => {
   return new Promise((resolve) => {
     db.all(`
       SELECT 
-        s.id, b.name as brand, m.name as material, s.color, s.total_weight, s.used_weight, s.cost
+        s.id, b.name as brand, m.name as material, s.color, s.total_weight, s.used_weight, (s.total_weight - s.used_weight) as remaining_weight, s.cost
       FROM spools s
       LEFT JOIN brands b ON s.brand_id = b.id
       LEFT JOIN materials m ON s.material_id = m.id

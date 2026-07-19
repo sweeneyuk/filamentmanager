@@ -99,7 +99,7 @@ function PrintStatus() {
       <div className="card title-card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--primary-color)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h2 style={{ margin: '0 0 5px 0', color: 'var(--primary-color)' }}>Fleet Status</h2>
+            <h2 style={{ margin: '0 0 5px 0', color: 'var(--primary-color)' }}>Print Status</h2>
             <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Live Dashboards</div>
             <div style={{ fontSize: '0.85rem', color: '#888' }}>Real-time telemetry and AMS tracking for all active printers.</div>
           </div>

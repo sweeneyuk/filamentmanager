@@ -99,6 +99,54 @@ initDb().then(() => {
 // API Endpoints
 app.use('/api/printers', authenticateToken, printersRoutes);
 
+const { autoBackupCheck, createBackup, backupsDir } = require('./backup');
+
+// Start auto-backup check interval (runs every 1 hour)
+setInterval(() => autoBackupCheck(db), 60 * 60 * 1000);
+// Check once on startup
+setTimeout(() => autoBackupCheck(db), 5000);
+
+// --- Backup Routes ---
+app.get('/api/backups', (req, res) => {
+  try {
+    if (!fs.existsSync(backupsDir)) {
+      return res.json([]);
+    }
+    const files = fs.readdirSync(backupsDir)
+      .filter(f => f.endsWith('.zip'))
+      .map(f => {
+        const stats = fs.statSync(path.join(backupsDir, f));
+        return { name: f, size: stats.size, time: stats.mtime.getTime() };
+      })
+      .sort((a, b) => b.time - a.time);
+    res.json(files);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/backups/manual', (req, res) => {
+  try {
+    const filename = createBackup();
+    res.json({ success: true, filename });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/backups/download/:filename', (req, res) => {
+  const filename = req.params.filename;
+  if (!filename.endsWith('.zip') || filename.includes('/') || filename.includes('\\')) {
+    return res.status(400).json({ error: 'Invalid filename' });
+  }
+  const filePath = path.join(backupsDir, filename);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'Backup not found' });
+  }
+  res.download(filePath);
+});
+
+
 // GET /api/settings
 app.get('/api/settings', (req, res) => {
   db.all('SELECT key, value FROM settings', [], (err, rows) => {
