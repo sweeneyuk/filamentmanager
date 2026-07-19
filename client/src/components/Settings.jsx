@@ -24,7 +24,9 @@ function Settings() {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const [backups, setBackups] = useState([]);
+  const fileInputRef = React.useRef(null);
   const { logout } = useAuth();
   const { showAlert } = useAlert();
 
@@ -75,6 +77,37 @@ function Settings() {
     }
   };
 
+  const handleRestoreBackup = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    if (!file.name.endsWith('.zip')) {
+      showAlert('Error', 'Only .zip backup files are supported', true);
+      return;
+    }
+
+    setRestoring(true);
+    const formData = new FormData();
+    formData.append('backup', file);
+
+    try {
+      await axios.post('/api/backups/restore', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      // The server will restart. Show a persistent alert and reload after a delay.
+      showAlert('Restore Complete', 'The database has been restored successfully. The server is restarting. This page will automatically refresh in 5 seconds...');
+      setTimeout(() => {
+        window.location.reload();
+      }, 5000);
+    } catch (err) {
+      setRestoring(false);
+      showAlert('Error', 'Failed to restore backup: ' + (err.response?.data?.error || err.message), true);
+    }
+    
+    // Reset file input
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const handleDownloadBackup = async (filename) => {
     try {
       const response = await axios.get(`/api/backups/download/${filename}`, {
@@ -95,6 +128,16 @@ function Settings() {
   const [activeTab, setActiveTab] = useState('printers');
 
   if (loading) return <div>Loading...</div>;
+
+  if (restoring) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50vh' }}>
+        <h2 style={{ color: 'var(--primary-color)' }}>Restoring Backup...</h2>
+        <p>Uploading the file and overwriting the database. Please wait...</p>
+        <div className="spinner" style={{ marginTop: '20px', width: '40px', height: '40px', border: '4px solid var(--border-color)', borderTop: '4px solid var(--primary-color)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -326,6 +369,21 @@ function Settings() {
                   <p className="settings-desc">Generate and download a backup right now.</p>
                   <button type="button" className="btn-primary" onClick={handleManualBackup}>
                     Create & Download Manual Backup
+                  </button>
+                </div>
+
+                <div className="settings-section" style={{ marginTop: '30px' }}>
+                  <h2>Restore Backup</h2>
+                  <p className="settings-desc">Upload a `.zip` backup file to restore the database. <strong>Warning:</strong> This will completely overwrite your current data and restart the server!</p>
+                  <input 
+                    type="file" 
+                    accept=".zip" 
+                    ref={fileInputRef} 
+                    style={{ display: 'none' }} 
+                    onChange={handleRestoreBackup} 
+                  />
+                  <button type="button" className="btn-danger" style={{ backgroundColor: '#aa3333' }} onClick={() => fileInputRef.current.click()}>
+                    Upload & Restore Backup
                   </button>
                 </div>
 

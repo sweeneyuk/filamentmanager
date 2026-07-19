@@ -87,9 +87,58 @@ const autoBackupCheck = (db) => {
   });
 };
 
+/**
+ * Safely restores a backup zip by closing the DB, overwriting the file, and restarting.
+ * @param {string} zipPath Path to the uploaded zip file
+ * @param {object} db Active sqlite database instance
+ */
+const restoreBackup = (zipPath, db) => {
+  return new Promise((resolve, reject) => {
+    try {
+      const zip = new AdmZip(zipPath);
+      const zipEntries = zip.getEntries();
+      
+      const dbEntry = zipEntries.find(e => e.entryName === 'filamentmanager.db');
+      if (!dbEntry) {
+        return reject(new Error('Invalid backup file: filamentmanager.db not found inside zip.'));
+      }
+
+      console.log('[Backup] Valid backup file detected. Closing active database connection...');
+      
+      // Close DB safely before overwriting
+      db.close((err) => {
+        if (err) {
+          console.error('[Backup] Failed to close database:', err.message);
+          return reject(err);
+        }
+
+        console.log('[Backup] Database closed. Extracting backup...');
+        try {
+          // Extract the db file directly to the data directory, overwriting the existing one
+          zip.extractEntryTo(dbEntry, dataDir, false, true);
+          console.log('[Backup] Restore complete. Triggering server restart.');
+          
+          resolve();
+          
+          // Small delay to allow the HTTP response to be sent before dying
+          setTimeout(() => {
+            process.exit(0);
+          }, 1000);
+        } catch (extractErr) {
+          console.error('[Backup] Extraction failed:', extractErr.message);
+          reject(extractErr);
+        }
+      });
+    } catch (err) {
+      reject(err);
+    }
+  });
+};
+
 module.exports = {
   createBackup,
   pruneBackups,
   autoBackupCheck,
+  restoreBackup,
   backupsDir
 };

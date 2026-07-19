@@ -99,12 +99,15 @@ initDb().then(() => {
 // API Endpoints
 app.use('/api/printers', authenticateToken, printersRoutes);
 
-const { autoBackupCheck, createBackup, backupsDir } = require('./backup');
+const { autoBackupCheck, createBackup, restoreBackup, backupsDir } = require('./backup');
 
 // Start auto-backup check interval (runs every 1 hour)
 setInterval(() => autoBackupCheck(db), 60 * 60 * 1000);
 // Check once on startup
 setTimeout(() => autoBackupCheck(db), 5000);
+
+// Set up multer for restore uploads
+const uploadBackup = multer({ dest: path.join(__dirname, 'data', 'temp') });
 
 // --- Backup Routes ---
 app.get('/api/backups', (req, res) => {
@@ -130,6 +133,22 @@ app.post('/api/backups/manual', (req, res) => {
     const filename = createBackup();
     res.json({ success: true, filename });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/backups/restore', uploadBackup.single('backup'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No backup file provided' });
+  }
+  
+  try {
+    await restoreBackup(req.file.path, db);
+    // Delete temp file (though it gets overwritten or we restart anyway)
+    fs.unlinkSync(req.file.path);
+    res.json({ success: true, message: 'Restore complete. Server restarting.' });
+  } catch (err) {
+    if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     res.status(500).json({ error: err.message });
   }
 });
