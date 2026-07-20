@@ -13,48 +13,52 @@ const getSetting = (key) => {
 };
 
 const captureCameraSnapshot = async (printer, archiveId) => {
-  return new Promise(async (resolve, reject) => {
+  const ip = printer.ip;
+  const accessCode = printer.access_code;
+  
+  if (!ip || !accessCode) {
+    throw new Error('Printer IP or Access Code not configured');
+  }
+
+  const mediaDir = path.join(__dirname, 'data', 'media');
+  if (!fs.existsSync(mediaDir)) {
+    fs.mkdirSync(mediaDir, { recursive: true });
+  }
+
+  const localPhotoPath = path.join(mediaDir, `${archiveId}_photo.jpg`);
+  const rtspUrl = `rtsps://bblp:${accessCode}@${ip}:322/streaming/live/1`;
+  const cmd = `ffmpeg -y -tls_verify 0 -rtsp_transport tcp -i "${rtspUrl}" -vframes 1 -update 1 "${localPhotoPath}"`;
+
+  const maxRetries = 3;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    console.log(`[RTSP] Attempting to capture camera snapshot for archive ${archiveId} (Attempt ${attempt}/${maxRetries})...`);
+    
     try {
-      const ip = printer.ip;
-      const accessCode = printer.access_code;
-      
-      if (!ip || !accessCode) {
-        return reject(new Error('Printer IP or Access Code not configured'));
-      }
-
-      const mediaDir = path.join(__dirname, 'data', 'media');
-      if (!fs.existsSync(mediaDir)) {
-        fs.mkdirSync(mediaDir, { recursive: true });
-      }
-
-      const localPhotoPath = path.join(mediaDir, `${archiveId}_photo.jpg`);
-      const rtspUrl = `rtsps://bblp:${accessCode}@${ip}:322/streaming/live/1`;
-
-      // ffmpeg command to capture a single frame from the RTSPS stream
-      const cmd = `ffmpeg -y -tls_verify 0 -rtsp_transport tcp -i "${rtspUrl}" -vframes 1 -update 1 "${localPhotoPath}"`;
-
-      console.log(`[RTSP] Attempting to capture camera snapshot for archive ${archiveId}...`);
-      
-      exec(cmd, { timeout: 15000 }, (error, stdout, stderr) => {
-        if (error) {
-          console.error(`[RTSP] FFmpeg error: ${error.message}`);
-          return resolve(null); // Return null on failure so caller can fallback
-        }
-        
-        if (fs.existsSync(localPhotoPath)) {
-          console.log(`[RTSP] Successfully captured snapshot to ${localPhotoPath}`);
-          resolve(`/media/${archiveId}_photo.jpg`);
-        } else {
-          console.error(`[RTSP] FFmpeg completed but file was not created`);
-          resolve(null);
-        }
+      await new Promise((resolve, reject) => {
+        exec(cmd, { timeout: 15000 }, (error, stdout, stderr) => {
+          if (error) {
+            reject(error);
+          } else if (fs.existsSync(localPhotoPath)) {
+            resolve();
+          } else {
+            reject(new Error('FFmpeg completed but file was not created'));
+          }
+        });
       });
-
+      
+      console.log(`[RTSP] Successfully captured snapshot to ${localPhotoPath}`);
+      return `/media/${archiveId}_photo.jpg`;
     } catch (err) {
-      console.error(`[RTSP] Setup error: ${err.message}`);
-      resolve(null);
+      console.error(`[RTSP] Attempt ${attempt} failed: ${err.message}`);
+      if (attempt < maxRetries) {
+        console.log(`[RTSP] Waiting 5 seconds before retrying...`);
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      }
     }
-  });
+  }
+
+  console.error(`[RTSP] Failed to capture snapshot after ${maxRetries} attempts.`);
+  return null;
 };
 
 const extractFrameFromMp4 = (mp4Path, outputPath) => {

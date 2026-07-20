@@ -20,7 +20,7 @@ const getSetting = (key) => {
   });
 };
 
-const connectFtp = async (printer) => {
+const connectFtp = async (printer, maxRetries = 3) => {
   const ip = printer.ip;
   const accessCode = printer.access_code;
 
@@ -28,25 +28,32 @@ const connectFtp = async (printer) => {
     throw new Error('Printer FTP credentials not fully configured.');
   }
 
-  const client = new ftp.Client();
-  // client.ftp.verbose = true;
-
-  try {
-    // Bambu uses implicit FTPS on port 990
-    await client.access({
-      host: ip,
-      user: 'bblp',
-      password: accessCode,
-      port: 990,
-      secure: 'implicit',
-      secureOptions: {
-        rejectUnauthorized: false // Ignore self-signed certs
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const client = new ftp.Client();
+    // client.ftp.verbose = true;
+    
+    try {
+      // Bambu uses implicit FTPS on port 990
+      await client.access({
+        host: ip,
+        user: 'bblp',
+        password: accessCode,
+        port: 990,
+        secure: 'implicit',
+        secureOptions: {
+          rejectUnauthorized: false // Ignore self-signed certs
+        }
+      });
+      return client;
+    } catch (err) {
+      client.close();
+      if (attempt < maxRetries) {
+        console.log(`[FTP] Connection attempt ${attempt} failed: ${err.message}. Retrying in 5s...`);
+        await new Promise(r => setTimeout(r, 5000));
+      } else {
+        throw err;
       }
-    });
-    return client;
-  } catch (err) {
-    client.close();
-    throw err;
+    }
   }
 };
 
