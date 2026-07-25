@@ -56,7 +56,7 @@ const analyzePrint = async (photoPath, thumbnailPath, printName, durationSeconds
     } else {
       prompt += `\nYou are only provided with the photo of the actual final print.\n`;
     }
-
+    prompt += `
 Determine the quality and outcome of the print. Look for:
 - Spaghetti (massive stringy failures)
 - Stringing (fine hairs between parts)
