@@ -14,7 +14,7 @@ const IDLE_STATE = () => ({
   progress: 0,
   remainingTime: 0,
   startTime: null,
-  startEnergy: 0,
+  startEnergy: undefined,
   predictedWeights: [],
   activeTrays: [],
   currentTrayId: null,
