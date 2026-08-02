@@ -43,15 +43,6 @@ function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info, actionIn
     }
   }
 
-  // Show appPath input only for shortcut action
-  if (action === "com.sweeneyuk.filamentmanager.shortcut") {
-    document.getElementById("appPathWrapper").style.display = "flex";
-    const settings = actionInfo.payload.settings;
-    if (settings && settings.appPath) {
-      document.getElementById("appPath").value = settings.appPath;
-    }
-  }
-
   document.getElementById("saveBtn").addEventListener("click", () => {
     const serverUrl = document.getElementById("serverUrl").value || "http://localhost:3000";
     const username = document.getElementById("username").value;
@@ -72,9 +63,6 @@ function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info, actionIn
     let payload = {};
     if (action === "com.sweeneyuk.filamentmanager.progress") {
       payload.segment = document.getElementById("segment").value;
-    }
-    if (action === "com.sweeneyuk.filamentmanager.shortcut") {
-      payload.appPath = document.getElementById("appPath").value;
     }
     
     websocket.send(JSON.stringify({

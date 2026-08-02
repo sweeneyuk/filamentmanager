@@ -72,16 +72,10 @@ function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info, actionIn
     } else if (event === "keyUp") {
       if (action === "com.sweeneyuk.filamentmanager.shortcut") {
         if (websocket) {
-          const appPath = activeContexts[context]?.settings?.appPath;
-          let finalUrl = serverUrl;
-          if (appPath && appPath.trim() !== "") {
-            let cleanPath = appPath.trim().replace(/^"|"$/g, '');
-            finalUrl = cleanPath.startsWith("http") ? cleanPath : `file:///${cleanPath.replace(/\\/g, '/')}`;
-          }
           websocket.send(JSON.stringify({
             event: "openUrl",
             payload: {
-              url: finalUrl
+              url: serverUrl
             }
           }));
         }
