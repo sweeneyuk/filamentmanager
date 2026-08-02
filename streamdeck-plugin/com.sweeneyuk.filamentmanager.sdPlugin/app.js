@@ -300,7 +300,7 @@ function drawKey(context, action, settings, state) {
 
     // If segment 3, draw text (center)
     if (seg === 3) {
-      drawScaledText(ctx, `${(state.progress || 0).toFixed(1)}%`, 72, 32, "#ffffff", 130, true);
+      drawScaledText(ctx, `${Math.round(state.progress || 0)}%`, 72, 32, "#ffffff", 130, true);
     }
   }
   else if (action === "com.sweeneyuk.filamentmanager.tempnozzle") {
@@ -321,7 +321,7 @@ function drawKey(context, action, settings, state) {
     drawScaledText(ctx, "Energy", 35, 28, "#00c853");
     let energyText = "N/A";
     if (state.currentEnergy !== undefined) {
-      energyText = `${state.currentEnergy.toFixed(2)}kWh`;
+      energyText = `${Math.round(state.currentEnergy)}kWh`;
     }
     drawScaledText(ctx, energyText, 95, 32, "#ececec");
   }
@@ -335,7 +335,7 @@ function drawKey(context, action, settings, state) {
        fil = totalPred * progress;
     }
     
-    drawScaledText(ctx, `${fil.toFixed(1)}g`, 95, 32, "#ececec");
+    drawScaledText(ctx, `${Math.round(fil)}g`, 95, 32, "#ececec");
   }
 
   sendImageToContext(context, canvas.toDataURL("image/png"));
