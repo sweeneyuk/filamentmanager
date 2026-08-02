@@ -321,7 +321,7 @@ function drawKey(context, action, settings, state) {
     drawScaledText(ctx, "Energy", 35, 28, "#00c853");
     let energyText = "N/A";
     if (state.currentEnergy !== undefined) {
-      energyText = `${Math.round(state.currentEnergy)}kWh`;
+      energyText = `${state.currentEnergy.toFixed(2)}kWh`;
     }
     drawScaledText(ctx, energyText, 95, 32, "#ececec");
   }
@@ -335,7 +335,7 @@ function drawKey(context, action, settings, state) {
        fil = totalPred * progress;
     }
     
-    drawScaledText(ctx, `${Math.round(fil)}g`, 95, 32, "#ececec");
+    drawScaledText(ctx, `${fil.toFixed(1)}g`, 95, 32, "#ececec");
   }
 
   sendImageToContext(context, canvas.toDataURL("image/png"));
