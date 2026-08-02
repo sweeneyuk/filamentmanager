@@ -75,7 +75,8 @@ function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info, actionIn
           const appPath = activeContexts[context]?.settings?.appPath;
           let finalUrl = serverUrl;
           if (appPath && appPath.trim() !== "") {
-            finalUrl = appPath.startsWith("http") ? appPath : `file:///${appPath.replace(/\\/g, '/')}`;
+            let cleanPath = appPath.trim().replace(/^"|"$/g, '');
+            finalUrl = cleanPath.startsWith("http") ? cleanPath : `file:///${cleanPath.replace(/\\/g, '/')}`;
           }
           websocket.send(JSON.stringify({
             event: "openUrl",
