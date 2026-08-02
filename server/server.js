@@ -59,6 +59,20 @@ io.use(async (socket, next) => {
 setIo(io);
 
 io.on('connection', (socket) => {
+  const { getPrintState, getAmsStatus } = require('./mqtt');
+  
+  // Immediately send latest print states to the new client
+  const states = getPrintState();
+  for (const pid of Object.keys(states)) {
+    socket.emit('print_state_update', { printerId: pid, ...states[pid] });
+  }
+
+  // Immediately send latest AMS status to the new client
+  const amsStates = getAmsStatus();
+  for (const pid of Object.keys(amsStates)) {
+    socket.emit('ams_update', { printerId: pid, ams: amsStates[pid] });
+  }
+
   socket.on('disconnect', () => {
   });
 });
