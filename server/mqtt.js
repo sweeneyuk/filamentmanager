@@ -502,6 +502,11 @@ const handlePrintStatus = async (printer, printData) => {
     }
   }
 
+  // Force progress to 0% if the print has finished or failed
+  if (state.status === 'FINISH' || state.status === 'FAILED') {
+    state.progress = 0;
+  }
+
   if (ioInstance) {
     ioInstance.emit('print_state_update', { printer_id: pid, state });
     ioInstance.emit('ams_update', { printer_id: pid, ams: amsDataMap[pid] });
