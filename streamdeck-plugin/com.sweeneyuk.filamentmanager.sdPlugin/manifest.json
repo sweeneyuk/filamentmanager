@@ -54,7 +54,7 @@
     },
     {
       "Icon": "icon",
-      "Name": "App Shortcut",
+      "Name": "Print ETA",
       "States": [
         {
           "Image": "icon",
@@ -62,8 +62,8 @@
         }
       ],
       "SupportedInMultiActions": false,
-      "Tooltip": "Opens the Filament Manager app",
-      "UUID": "com.sweeneyuk.filamentmanager.shortcut"
+      "Tooltip": "Shows estimated time remaining",
+      "UUID": "com.sweeneyuk.filamentmanager.eta"
     },
     {
       "Icon": "icon",

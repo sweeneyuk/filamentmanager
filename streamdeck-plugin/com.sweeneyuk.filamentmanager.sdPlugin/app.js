@@ -70,16 +70,7 @@ function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info, actionIn
         updateAllKeys();
       }
     } else if (event === "keyUp") {
-      if (action === "com.sweeneyuk.filamentmanager.shortcut") {
-        if (websocket) {
-          websocket.send(JSON.stringify({
-            event: "openUrl",
-            payload: {
-              url: serverUrl
-            }
-          }));
-        }
-      }
+      // No interactive actions currently
     }
   };
 }
@@ -255,9 +246,23 @@ function drawKey(context, action, settings, state) {
 
     drawScaledText(ctx, spoolName, 120, 16, "#ececec", 135, false);
   }
-  else if (action === "com.sweeneyuk.filamentmanager.shortcut") {
-    drawScaledText(ctx, "Open", 50, 32, "#00c853");
-    drawScaledText(ctx, "App", 90, 32, "#00c853");
+  else if (action === "com.sweeneyuk.filamentmanager.eta") {
+    drawScaledText(ctx, "ETA", 30, 32, "#00c853");
+    
+    let minutesLeft = state.remainingTime || 0;
+    if (state.status === "IDLE" || state.status === "FINISH" || state.status === "FAILED") {
+      drawScaledText(ctx, "--", 75, 32, "#ececec");
+    } else {
+      let hours = Math.floor(minutesLeft / 60);
+      let mins = minutesLeft % 60;
+      let text = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+      drawScaledText(ctx, text, 75, 32, "#ececec");
+      
+      let d = new Date();
+      d.setMinutes(d.getMinutes() + minutesLeft);
+      let timeStr = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+      drawScaledText(ctx, timeStr, 115, 20, "#999999", 130, false);
+    }
   }
   else if (action === "com.sweeneyuk.filamentmanager.progress") {
     let seg = parseInt(settings.segment || "1");
