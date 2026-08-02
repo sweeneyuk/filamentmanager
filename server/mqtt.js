@@ -327,6 +327,7 @@ const handlePrintStatus = async (printer, printData) => {
       });
 
     } else if ((newStatus === 'FINISH' || newStatus === 'FAILED') && state.status !== 'FINISH' && state.status !== 'FAILED') {
+      state.status = newStatus;
       
       if (!state.name) state.name = subTaskName || 'Unknown Print';
       if (!state.startTime) state.startTime = new Date();
@@ -470,16 +471,26 @@ const handlePrintStatus = async (printer, printData) => {
             state.archiveId = null;
           });
         } else {
-          db.run(`
-            INSERT INTO archives (printer_id, print_name, status, duration_seconds, energy_kwh, energy_cost, filament_used_g, filament_cost, total_cost, thumbnail_path)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `, [pid, archivedState.name, newStatus, durationSeconds, energyUsed, energyCost, filamentUsed, filamentCost, totalCost, archivedState.thumbnailPath || null], function(err) {
-            handleArchiveSave(err, this.lastID);
+          // If state.archiveId is null, the container might have restarted mid-print. Look for an orphaned "In Progress" record.
+          db.get('SELECT id FROM archives WHERE printer_id = ? AND status = "In Progress" ORDER BY id DESC LIMIT 1', [pid], (err, row) => {
+            if (row && row.id) {
+              db.run(`
+                UPDATE archives SET status = ?, duration_seconds = ?, energy_kwh = ?, energy_cost = ?, filament_used_g = ?, filament_cost = ?, total_cost = ?, thumbnail_path = COALESCE(?, thumbnail_path)
+                WHERE id = ?
+              `, [newStatus, durationSeconds, energyUsed, energyCost, filamentUsed, filamentCost, totalCost, archivedState.thumbnailPath || null, row.id], function(err) {
+                handleArchiveSave(err, row.id);
+              });
+            } else {
+              db.run(`
+                INSERT INTO archives (printer_id, print_name, status, duration_seconds, energy_kwh, energy_cost, filament_used_g, filament_cost, total_cost, thumbnail_path)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              `, [pid, archivedState.name, newStatus, durationSeconds, energyUsed, energyCost, filamentUsed, filamentCost, totalCost, archivedState.thumbnailPath || null], function(err) {
+                handleArchiveSave(err, this.lastID);
+              });
+            }
           });
         }
       });
-
-      state.status = newStatus;
     } else {
       if (newStatus === 'IDLE' && state.status !== 'IDLE') {
         const firstPayload = state.isFirstPayload;
