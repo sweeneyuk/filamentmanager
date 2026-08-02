@@ -1,0 +1,172 @@
+{
+  "Actions": [
+    {
+      "Icon": "icon",
+      "Name": "Printer State",
+      "States": [
+        {
+          "Image": "icon",
+          "TitleAlignment": "middle"
+        }
+      ],
+      "SupportedInMultiActions": false,
+      "Tooltip": "Shows printer state",
+      "UUID": "com.sweeneyuk.filamentmanager.state"
+    },
+    {
+      "Icon": "icon",
+      "Name": "Print Name",
+      "States": [
+        {
+          "Image": "icon",
+          "TitleAlignment": "middle"
+        }
+      ],
+      "SupportedInMultiActions": false,
+      "Tooltip": "Shows active print name",
+      "UUID": "com.sweeneyuk.filamentmanager.name"
+    },
+    {
+      "Icon": "icon",
+      "Name": "Layer Progress",
+      "States": [
+        {
+          "Image": "icon",
+          "TitleAlignment": "middle"
+        }
+      ],
+      "SupportedInMultiActions": false,
+      "Tooltip": "Shows current layer vs total",
+      "UUID": "com.sweeneyuk.filamentmanager.layer"
+    },
+    {
+      "Icon": "icon",
+      "Name": "Active Spool",
+      "States": [
+        {
+          "Image": "icon",
+          "TitleAlignment": "middle"
+        }
+      ],
+      "SupportedInMultiActions": false,
+      "Tooltip": "Shows the color of the active spool",
+      "UUID": "com.sweeneyuk.filamentmanager.spool"
+    },
+    {
+      "Icon": "icon",
+      "Name": "App Shortcut",
+      "States": [
+        {
+          "Image": "icon",
+          "TitleAlignment": "middle"
+        }
+      ],
+      "SupportedInMultiActions": false,
+      "Tooltip": "Opens the Filament Manager app",
+      "UUID": "com.sweeneyuk.filamentmanager.shortcut"
+    },
+    {
+      "Icon": "icon",
+      "Name": "Progress Bar Segment",
+      "PropertyInspectorPath": "pi.html",
+      "States": [
+        {
+          "Image": "icon",
+          "TitleAlignment": "middle"
+        }
+      ],
+      "SupportedInMultiActions": false,
+      "Tooltip": "A segment of a 5-key wide progress bar",
+      "UUID": "com.sweeneyuk.filamentmanager.progress"
+    },
+    {
+      "Icon": "icon",
+      "Name": "Nozzle Temp",
+      "States": [
+        {
+          "Image": "icon",
+          "TitleAlignment": "middle"
+        }
+      ],
+      "SupportedInMultiActions": false,
+      "Tooltip": "Nozzle temperature",
+      "UUID": "com.sweeneyuk.filamentmanager.tempnozzle"
+    },
+    {
+      "Icon": "icon",
+      "Name": "Bed Temp",
+      "States": [
+        {
+          "Image": "icon",
+          "TitleAlignment": "middle"
+        }
+      ],
+      "SupportedInMultiActions": false,
+      "Tooltip": "Bed temperature",
+      "UUID": "com.sweeneyuk.filamentmanager.tempbed"
+    },
+    {
+      "Icon": "icon",
+      "Name": "Chamber Temp",
+      "States": [
+        {
+          "Image": "icon",
+          "TitleAlignment": "middle"
+        }
+      ],
+      "SupportedInMultiActions": false,
+      "Tooltip": "Chamber temperature",
+      "UUID": "com.sweeneyuk.filamentmanager.tempchamber"
+    },
+    {
+      "Icon": "icon",
+      "Name": "Energy Used",
+      "States": [
+        {
+          "Image": "icon",
+          "TitleAlignment": "middle"
+        }
+      ],
+      "SupportedInMultiActions": false,
+      "Tooltip": "Energy used so far",
+      "UUID": "com.sweeneyuk.filamentmanager.energy"
+    },
+    {
+      "Icon": "icon",
+      "Name": "Print Cost",
+      "States": [
+        {
+          "Image": "icon",
+          "TitleAlignment": "middle"
+        }
+      ],
+      "SupportedInMultiActions": false,
+      "Tooltip": "Estimated print cost",
+      "UUID": "com.sweeneyuk.filamentmanager.cost"
+    }
+  ],
+  "Author": "Antigravity",
+  "Category": "Filament Manager",
+  "CategoryIcon": "icon",
+  "CodePath": "app.html",
+  "Description": "Stream Deck integration for Filament Manager",
+  "Icon": "icon",
+  "UUID": "com.sweeneyuk.filamentmanager",
+  "Name": "Filament Manager",
+  "PropertyInspectorPath": "pi.html",
+  "SDKVersion": 2,
+  "OS": [
+    {
+      "Platform": "mac",
+      "MinimumVersion": "10.14"
+    },
+    {
+      "Platform": "windows",
+      "MinimumVersion": "10"
+    }
+  ],
+  "Software": {
+    "MinimumVersion": "6.4"
+  },
+  "Version": "1.0.0.0"
+}

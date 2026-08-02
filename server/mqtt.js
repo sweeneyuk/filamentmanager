@@ -631,6 +631,27 @@ const setIo = (io) => {
   ioInstance = io;
 };
 
+// Poll energy usage for running prints every 60 seconds
+setInterval(async () => {
+  for (const pid of Object.keys(printStates)) {
+    const state = printStates[pid];
+    if (state.status === 'RUNNING' && state.startEnergy !== undefined) {
+      try {
+        const { getPrinterEnergyUsage } = require('./ha');
+        const currentTotal = await getPrinterEnergyUsage();
+        if (currentTotal !== undefined && currentTotal !== null) {
+          state.currentEnergy = Math.max(0, currentTotal - state.startEnergy);
+          if (ioInstance) {
+            ioInstance.emit('print_state_update', { printer_id: pid, state });
+          }
+        }
+      } catch (e) {
+        console.error('[MQTT] Live energy polling error:', e.message);
+      }
+    }
+  }
+}, 60000);
+
 module.exports = {
   connectMqtt,
   connectPrinter,
