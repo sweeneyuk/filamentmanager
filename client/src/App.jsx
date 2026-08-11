@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
-import { Database, Archive as ArchiveIcon, Settings as SettingsIcon, Printer, Activity, Recycle, User, Calculator as CalculatorIcon, Briefcase } from 'lucide-react';
+import { Database, Archive as ArchiveIcon, Settings as SettingsIcon, Printer, Activity, Recycle, User, Calculator as CalculatorIcon, Briefcase, Menu, X } from 'lucide-react';
 import FilamentManager from './components/FilamentManager';
 import Archive from './components/Archive';
 import Analytics from './components/Analytics';
@@ -25,42 +26,63 @@ const PrivateRoute = ({ children }) => {
 
 function MainApp() {
   const { user, setupRequired } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  const closeMenu = () => setMobileMenuOpen(false);
   
   return (
     <Router>
       <div className="app-container">
         {user && !setupRequired && (
-          <nav className="sidebar">
+          <div className="mobile-header">
             <h1>Filament Manager</h1>
-            <NavLink to="/" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              <Printer size={20} /> Print Status
-            </NavLink>
-            <NavLink to="/inventory" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              <Database size={20} /> Spool Inventory
-            </NavLink>
-            <NavLink to="/archive" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              <ArchiveIcon size={20} /> Print Archive
-            </NavLink>
-            <NavLink to="/scrap-saver" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              <Recycle size={20} /> Scrap Saver
-            </NavLink>
-            <NavLink to="/analytics" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              <Activity size={20} /> Analytics
-            </NavLink>
-            <NavLink to="/calculator" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              <CalculatorIcon size={20} /> Calculator
-            </NavLink>
-            <NavLink to="/jobs" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              <Briefcase size={20} /> Jobs & Quotes
-            </NavLink>
-            <div className="nav-spacer"></div>
-            <NavLink to="/profile" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              <User size={20} /> Profile
-            </NavLink>
-            <NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              <SettingsIcon size={20} /> Settings
-            </NavLink>
-          </nav>
+            <button className="menu-toggle" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+          </div>
+        )}
+        
+        {user && !setupRequired && (
+          <>
+            <div className={`sidebar-overlay ${mobileMenuOpen ? 'open' : ''}`} onClick={closeMenu}></div>
+            <nav className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
+              <div className="sidebar-header-mobile">
+                <h2>Menu</h2>
+                <button className="menu-toggle-close" onClick={closeMenu}>
+                  <X size={24} />
+                </button>
+              </div>
+              <h1 className="sidebar-title-desktop">Filament Manager</h1>
+              <NavLink to="/" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={closeMenu}>
+                <Printer size={20} /> Print Status
+              </NavLink>
+              <NavLink to="/inventory" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={closeMenu}>
+                <Database size={20} /> Spool Inventory
+              </NavLink>
+              <NavLink to="/archive" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={closeMenu}>
+                <ArchiveIcon size={20} /> Print Archive
+              </NavLink>
+              <NavLink to="/scrap-saver" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={closeMenu}>
+                <Recycle size={20} /> Scrap Saver
+              </NavLink>
+              <NavLink to="/analytics" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={closeMenu}>
+                <Activity size={20} /> Analytics
+              </NavLink>
+              <NavLink to="/calculator" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={closeMenu}>
+                <CalculatorIcon size={20} /> Calculator
+              </NavLink>
+              <NavLink to="/jobs" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={closeMenu}>
+                <Briefcase size={20} /> Jobs & Quotes
+              </NavLink>
+              <div className="nav-spacer"></div>
+              <NavLink to="/profile" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={closeMenu}>
+                <User size={20} /> Profile
+              </NavLink>
+              <NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={closeMenu}>
+                <SettingsIcon size={20} /> Settings
+              </NavLink>
+            </nav>
+          </>
         )}
         
         <main className="main-content">
