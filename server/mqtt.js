@@ -16,11 +16,19 @@ const IDLE_STATE = () => ({
   startTime: null,
   startEnergy: undefined,
   predictedWeights: [],
+  slicerFilaments: [],
+  layerFilamentMap: null,
+  layerCounts: null,
+  activeSlotTrays: {},
+  takeoverMap: {},
+  runoutSpools: {},
+  spoolDeductedGrams: {},
+  totalGramsDeducted: 0,
+  lastDeductedLayer: 0,
   activeTrays: [],
   trayProgress: {},
   lastTrackedProgress: 0,
   takeovers: [],
-  runoutSpools: {},
   currentTrayId: null,
   nozzleTemp: 0,
   nozzleTarget: 0,
@@ -113,6 +121,104 @@ const connectMqtt = async () => {
     }
   } catch (err) {
     console.error('[MQTT] Failed to load printers from DB:', err.message);
+  }
+};
+
+/**
+ * Deduct a given weight (grams) from the spool assigned to trayId.
+ * If the spool runs out (or is already depleted), any overflow is routed to the takeover tray.
+ */
+const deductFilamentForTray = (pid, state, trayId, grams, slotIdx = 0) => {
+  if (!grams || grams <= 0 || !trayId) return;
+
+  db.get(
+    'SELECT aa.spool_id, s.total_weight, s.used_weight FROM ams_assignments aa LEFT JOIN spools s ON aa.spool_id = s.id WHERE aa.printer_id = ? AND aa.tray_id = ?',
+    [pid, trayId],
+    (err, row) => {
+      if (!err && row && row.spool_id) {
+        const spoolId = row.spool_id;
+        const totalWeight = row.total_weight || 0;
+        const currentUsed = row.used_weight || 0;
+        const remaining = Math.max(0, totalWeight - currentUsed);
+
+        // If this spool was marked as run out or has 0g remaining, route to takeover tray if available
+        if (state.runoutSpools?.[trayId] === spoolId || remaining <= 0.001) {
+          const takeoverTray = Object.keys(state.takeoverMap || {}).find(t => state.takeoverMap[t] === trayId);
+          if (takeoverTray && takeoverTray !== trayId) {
+            console.log(`[MQTT ${pid}] Spool ${spoolId} in ${trayId} depleted; routing ${grams.toFixed(2)}g to takeover tray ${takeoverTray}`);
+            return deductFilamentForTray(pid, state, takeoverTray, grams, slotIdx);
+          }
+        }
+
+        // Cap deduction if spool runs out on this layer
+        let actualDeduct = grams;
+        let overflow = 0;
+        if (remaining > 0 && grams > remaining) {
+          actualDeduct = remaining;
+          overflow = grams - remaining;
+          if (!state.runoutSpools) state.runoutSpools = {};
+          state.runoutSpools[trayId] = spoolId;
+          console.log(`[MQTT ${pid}] Spool ${spoolId} in ${trayId} reached 0g during layer; overflow of ${overflow.toFixed(2)}g will route to takeover roll`);
+        }
+
+        db.run(
+          'UPDATE spools SET used_weight = used_weight + ?, last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
+          [actualDeduct, state.name, spoolId],
+          (updateErr) => {
+            if (!updateErr) {
+              if (!state.spoolDeductedGrams) state.spoolDeductedGrams = {};
+              state.spoolDeductedGrams[spoolId] = (state.spoolDeductedGrams[spoolId] || 0) + actualDeduct;
+              state.totalGramsDeducted = (state.totalGramsDeducted || 0) + actualDeduct;
+
+              // Emit updated spool to all connected clients
+              db.get('SELECT * FROM spools WHERE id = ?', [spoolId], (e, updatedSpool) => {
+                if (!e && updatedSpool && ioInstance) {
+                  ioInstance.emit('spool_updated', updatedSpool);
+                }
+              });
+            }
+          }
+        );
+
+        // Route any overflow to the takeover roll
+        if (overflow > 0) {
+          const takeoverTray = Object.keys(state.takeoverMap || {}).find(t => state.takeoverMap[t] === trayId);
+          if (takeoverTray && takeoverTray !== trayId) {
+            deductFilamentForTray(pid, state, takeoverTray, overflow, slotIdx);
+          }
+        }
+      }
+    }
+  );
+};
+
+/**
+ * Deduct filament layer-by-layer from fromLayer to toLayer.
+ */
+const processLayerDeductions = (pid, state, fromLayer, toLayer) => {
+  if (!state.predictedWeights || state.predictedWeights.length === 0) return;
+  for (let l = fromLayer; l <= toLayer; l++) {
+    if (state.layerFilamentMap && state.layerFilamentMap[l]) {
+      const activeFilaments = state.layerFilamentMap[l];
+      for (const fIdx of activeFilaments) {
+        const filamentWeight = state.predictedWeights[fIdx] || 0;
+        const count = (state.layerCounts && state.layerCounts[fIdx]) || 1;
+        const layerGrams = count > 0 ? (filamentWeight / count) : 0;
+        if (layerGrams > 0) {
+          const targetTray = state.activeSlotTrays?.[fIdx] || state.activeTrays?.[fIdx] || state.currentTrayId;
+          deductFilamentForTray(pid, state, targetTray, layerGrams, fIdx);
+        }
+      }
+    } else {
+      // Fallback: distribute total print weight evenly across total layers
+      const totalWeight = state.predictedWeights.reduce((a, b) => a + b, 0);
+      const totalLayers = Math.max(1, state.totalLayerNum || 100);
+      const layerGrams = totalWeight / totalLayers;
+      if (layerGrams > 0) {
+        const targetTray = state.currentTrayId || state.activeTrays?.[0];
+        deductFilamentForTray(pid, state, targetTray, layerGrams, 0);
+      }
+    }
   }
 };
 
@@ -279,9 +385,9 @@ const handlePrintStatus = async (printer, printData) => {
     }
   }
 
-  // --- Spool Takeover Detection ---
+  // --- Spool Takeover & Switch Detection ---
   if (state.status === 'RUNNING' && previousTrayId && state.currentTrayId && previousTrayId !== state.currentTrayId) {
-    console.log(`[MQTT ${pid}] Spool Takeover / Switch detected: from tray ${previousTrayId} to ${state.currentTrayId} at ${state.progress}%`);
+    console.log(`[MQTT ${pid}] Spool Switch detected: from tray ${previousTrayId} to ${state.currentTrayId} at ${state.progress}%`);
     if (!state.takeovers) state.takeovers = [];
     state.takeovers.push({
       fromTray: previousTrayId,
@@ -290,7 +396,7 @@ const handlePrintStatus = async (printer, printData) => {
       timestamp: new Date().toISOString()
     });
 
-    // Check if the previous tray ran out (became empty in amsDataMap)
+    // Check if the previous tray ran out (became empty in amsDataMap or paused on runout)
     const amsList = amsDataMap[pid] || [];
     let isPrevEmpty = false;
     for (const unit of amsList) {
@@ -302,6 +408,9 @@ const handlePrintStatus = async (printer, printData) => {
           }
         }
       }
+    }
+    if (printData.stg_cur === 6 || printData.stg_cur === "6") {
+      isPrevEmpty = true;
     }
 
     db.get('SELECT aa.spool_id, s.total_weight, s.used_weight FROM ams_assignments aa LEFT JOIN spools s ON aa.spool_id = s.id WHERE aa.printer_id = ? AND aa.tray_id = ?', [pid, previousTrayId], (err, row) => {
@@ -324,13 +433,28 @@ const handlePrintStatus = async (printer, printData) => {
       }
     });
 
-    if (ioInstance) {
-      ioInstance.emit('spool_takeover', {
-        printer_id: pid,
-        from_tray: previousTrayId,
-        to_tray: state.currentTrayId,
-        progress: state.progress
-      });
+    if (isPrevEmpty) {
+      if (!state.takeoverMap) state.takeoverMap = {};
+      state.takeoverMap[state.currentTrayId] = previousTrayId;
+
+      // Update activeSlotTrays for any slot that was using the previous tray
+      if (state.activeSlotTrays) {
+        for (const [slot, tId] of Object.entries(state.activeSlotTrays)) {
+          if (tId === previousTrayId) {
+            state.activeSlotTrays[slot] = state.currentTrayId;
+            console.log(`[MQTT ${pid}] Auto-refill takeover: slot ${slot} (${previousTrayId}) taken over by ${state.currentTrayId}`);
+          }
+        }
+      }
+
+      if (ioInstance) {
+        ioInstance.emit('spool_takeover', {
+          printer_id: pid,
+          from_tray: previousTrayId,
+          to_tray: state.currentTrayId,
+          progress: state.progress
+        });
+      }
     }
   }
 
@@ -356,6 +480,20 @@ const handlePrintStatus = async (printer, printData) => {
     }
   }
 
+  // --- Real-time Layer-by-Layer Filament Deduction ---
+  if (state.status === 'RUNNING' && state.layerNum !== undefined && state.layerNum > 0) {
+    if (state.lastDeductedLayer === undefined) {
+      state.lastDeductedLayer = 0;
+    }
+    if (state.predictedWeights && state.predictedWeights.length > 0) {
+      const targetCompletedLayer = state.layerNum - 1;
+      if (targetCompletedLayer >= state.lastDeductedLayer) {
+        processLayerDeductions(pid, state, state.lastDeductedLayer, targetCompletedLayer);
+        state.lastDeductedLayer = targetCompletedLayer + 1;
+      }
+    }
+  }
+
   if (newStatus && newStatus !== state.status) {
     console.log(`[MQTT ${pid}] Print status changed from ${state.status} to ${newStatus}`);
     
@@ -365,11 +503,19 @@ const handlePrintStatus = async (printer, printData) => {
       state.startTime = new Date();
       state.startEnergy = await getPrinterEnergyUsage();
       state.predictedWeights = [];
+      state.slicerFilaments = [];
+      state.layerFilamentMap = null;
+      state.layerCounts = null;
+      state.activeSlotTrays = {};
+      state.takeoverMap = {};
+      state.runoutSpools = {};
+      state.spoolDeductedGrams = {};
+      state.totalGramsDeducted = 0;
+      state.lastDeductedLayer = 0;
       state.activeTrays = [];
       state.trayProgress = {};
       state.lastTrackedProgress = 0;
       state.takeovers = [];
-      state.runoutSpools = {};
 
       const mappingArray = printData.mapping || printData.ams_mapping;
       if (mappingArray && Array.isArray(mappingArray)) {
@@ -377,6 +523,9 @@ const handlePrintStatus = async (printer, printData) => {
       } else if (printData.vt_tray && printData.vt_tray.id !== 255) {
         state.activeTrays = [`0-${printData.vt_tray.id}`];
       }
+      state.activeTrays.forEach((tId, idx) => {
+        state.activeSlotTrays[idx] = tId;
+      });
 
       db.run(`
         INSERT INTO archives (printer_id, print_name, status, created_at)
@@ -393,8 +542,21 @@ const handlePrintStatus = async (printer, printData) => {
             getPredictedWeights(printer, printData.gcode_file, printData.subtask_name).then(res => {
               if (res && res.weights && Array.isArray(res.weights)) {
                 state.predictedWeights = res.weights;
+                state.slicerFilaments = res.filaments || [];
+                state.layerFilamentMap = res.layerMap || null;
+                state.layerCounts = res.layerCounts || null;
                 if (res.path) state.activeGcodeFile = res.path;
                 console.log(`[MQTT ${pid}] Successfully extracted predicted weights:`, res.weights);
+
+                // If print has already progressed past layer 0, immediately deduct completed layers
+                if (state.layerNum > 0 && state.lastDeductedLayer === 0) {
+                  const targetCompleted = state.layerNum - 1;
+                  if (targetCompleted >= 0) {
+                    console.log(`[MQTT ${pid}] Catching up initial layer deductions 0 to ${targetCompleted}`);
+                    processLayerDeductions(pid, state, 0, targetCompleted);
+                    state.lastDeductedLayer = targetCompleted + 1;
+                  }
+                }
               }
             }).catch(err => console.log(`[MQTT ${pid}] Failed to fetch weights via FTP:`, err.message));
             
@@ -456,6 +618,12 @@ const handlePrintStatus = async (printer, printData) => {
         } catch (err) {}
       }
 
+      // If finished, complete any remaining layers up to totalLayerNum
+      if (newStatus === 'FINISH' && state.totalLayerNum > 0 && state.lastDeductedLayer < state.totalLayerNum) {
+        processLayerDeductions(pid, state, state.lastDeductedLayer, state.totalLayerNum - 1);
+        state.lastDeductedLayer = state.totalLayerNum;
+      }
+
       const endTime = new Date();
       const endEnergy = await getPrinterEnergyUsage();
       const durationSeconds = Math.round((endTime - state.startTime) / 1000);
@@ -493,57 +661,81 @@ const handlePrintStatus = async (printer, printData) => {
         }
 
         const totalPredictedWeight = (archivedState.predictedWeights.reduce((a, b) => a + b, 0) || 0) * percentCompleted;
-        const trayProgress = archivedState.trayProgress || {};
-        const totalTrackedProg = Object.values(trayProgress).reduce((a, b) => a + b, 0);
 
-        // Check if multiple trays were used and takeover/switch occurred
-        const allTraysUsed = Array.from(new Set([...archivedState.activeTrays, ...Object.keys(trayProgress)]));
-        const hasTakeover = (archivedState.takeovers && archivedState.takeovers.length > 0) || (allTraysUsed.length > 1 && totalTrackedProg > 0);
-
-        if (hasTakeover && totalTrackedProg > 0 && totalPredictedWeight > 0) {
-          console.log(`[MQTT ${pid}] Distributing ${totalPredictedWeight.toFixed(1)}g proportionately across takeover trays:`, trayProgress);
-          // Proportionate deduction based on tracked progress per tray
-          allTraysUsed.forEach(trayId => {
-            const prog = trayProgress[trayId] || 0;
-            if (prog > 0) {
-              const trayRatio = prog / totalTrackedProg;
-              const weightUsed = totalPredictedWeight * trayRatio;
-              filamentUsed += weightUsed;
-              const spoolId = assignMap[trayId];
-              if (spoolId) {
-                const isRunout = archivedState.runoutSpools && archivedState.runoutSpools[trayId] === spoolId;
-                if (isRunout) {
-                  db.run('UPDATE spools SET used_weight = total_weight, last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
-                    [archivedState.name, spoolId]);
-                } else {
-                  db.run('UPDATE spools SET used_weight = used_weight + ?, last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
-                    [weightUsed, archivedState.name, spoolId]);
-                }
-                spoolDeductions.push({ spoolId, predicted: weightUsed });
-                filamentCost += weightUsed * (costMap[spoolId] || 0);
-              }
+        // Check if live layer-by-layer deductions occurred
+        const deductedSpoolEntries = Object.entries(archivedState.spoolDeductedGrams || {});
+        if (deductedSpoolEntries.length > 0) {
+          console.log(`[MQTT ${pid}] Using live layer-deducted weights for archive:`, archivedState.spoolDeductedGrams);
+          // If FINISH, reconcile any fractional rounding delta between slicer total and sum of layers
+          if (newStatus === 'FINISH' && totalPredictedWeight > 0) {
+            const currentTotalDeducted = deductedSpoolEntries.reduce((sum, [, w]) => sum + w, 0);
+            const delta = totalPredictedWeight - currentTotalDeducted;
+            if (Math.abs(delta) > 0.001 && Math.abs(delta) < 1.0) {
+              const lastSpoolId = parseInt(deductedSpoolEntries[deductedSpoolEntries.length - 1][0], 10);
+              archivedState.spoolDeductedGrams[lastSpoolId] = (archivedState.spoolDeductedGrams[lastSpoolId] || 0) + delta;
+              db.run('UPDATE spools SET used_weight = used_weight + ? WHERE id = ?', [delta, lastSpoolId]);
             }
-          });
+          }
+
+          for (const [sIdStr, weight] of Object.entries(archivedState.spoolDeductedGrams)) {
+            const spoolId = parseInt(sIdStr, 10);
+            if (weight > 0) {
+              filamentUsed += weight;
+              filamentCost += weight * (costMap[spoolId] || 0);
+              spoolDeductions.push({ spoolId, predicted: weight });
+            }
+          }
         } else {
-          archivedState.activeTrays.forEach((trayId, idx) => {
-            const predicted = (archivedState.predictedWeights[idx] || 0) * percentCompleted;
-            if (predicted > 0) {
-              filamentUsed += predicted;
-              const spoolId = assignMap[trayId];
-              if (spoolId) {
-                const isRunout = archivedState.runoutSpools && archivedState.runoutSpools[trayId] === spoolId;
-                if (isRunout) {
-                  db.run('UPDATE spools SET used_weight = total_weight, last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
-                    [archivedState.name, spoolId]);
-                } else {
-                  db.run('UPDATE spools SET used_weight = used_weight + ?, last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
-                    [predicted, archivedState.name, spoolId]);
+          // Fallback if live layer tracking wasn't active
+          const trayProgress = archivedState.trayProgress || {};
+          const totalTrackedProg = Object.values(trayProgress).reduce((a, b) => a + b, 0);
+          const allTraysUsed = Array.from(new Set([...archivedState.activeTrays, ...Object.keys(trayProgress)]));
+          const hasTakeover = (archivedState.takeovers && archivedState.takeovers.length > 0) || (allTraysUsed.length > 1 && totalTrackedProg > 0);
+
+          if (hasTakeover && totalTrackedProg > 0 && totalPredictedWeight > 0) {
+            console.log(`[MQTT ${pid}] Distributing ${totalPredictedWeight.toFixed(1)}g proportionately across takeover trays:`, trayProgress);
+            allTraysUsed.forEach(trayId => {
+              const prog = trayProgress[trayId] || 0;
+              if (prog > 0) {
+                const trayRatio = prog / totalTrackedProg;
+                const weightUsed = totalPredictedWeight * trayRatio;
+                filamentUsed += weightUsed;
+                const spoolId = assignMap[trayId];
+                if (spoolId) {
+                  const isRunout = archivedState.runoutSpools && archivedState.runoutSpools[trayId] === spoolId;
+                  if (isRunout) {
+                    db.run('UPDATE spools SET used_weight = total_weight, last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
+                      [archivedState.name, spoolId]);
+                  } else {
+                    db.run('UPDATE spools SET used_weight = used_weight + ?, last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
+                      [weightUsed, archivedState.name, spoolId]);
+                  }
+                  spoolDeductions.push({ spoolId, predicted: weightUsed });
+                  filamentCost += weightUsed * (costMap[spoolId] || 0);
                 }
-                spoolDeductions.push({ spoolId, predicted });
-                filamentCost += predicted * (costMap[spoolId] || 0);
               }
-            }
-          });
+            });
+          } else {
+            archivedState.activeTrays.forEach((trayId, idx) => {
+              const predicted = (archivedState.predictedWeights[idx] || 0) * percentCompleted;
+              if (predicted > 0) {
+                filamentUsed += predicted;
+                const spoolId = assignMap[trayId];
+                if (spoolId) {
+                  const isRunout = archivedState.runoutSpools && archivedState.runoutSpools[trayId] === spoolId;
+                  if (isRunout) {
+                    db.run('UPDATE spools SET used_weight = total_weight, last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
+                      [archivedState.name, spoolId]);
+                  } else {
+                    db.run('UPDATE spools SET used_weight = used_weight + ?, last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
+                      [predicted, archivedState.name, spoolId]);
+                  }
+                  spoolDeductions.push({ spoolId, predicted });
+                  filamentCost += predicted * (costMap[spoolId] || 0);
+                }
+              }
+            });
+          }
         }
 
         if (filamentUsed === 0 && archivedState.predictedWeights.length > 0) {

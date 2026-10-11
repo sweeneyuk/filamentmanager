@@ -52,6 +52,12 @@ function FilamentManager() {
       setAmsAssignments(data);
     });
 
+    socket.on('spool_updated', (updatedSpool) => {
+      if (updatedSpool && updatedSpool.id) {
+        setSpools(prev => prev.map(s => s.id === updatedSpool.id ? { ...s, ...updatedSpool } : s));
+      }
+    });
+
     return () => socket.disconnect();
   }, []);
 

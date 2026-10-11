@@ -3,7 +3,7 @@ import axios from 'axios';
 import namer from 'color-namer';
 import { io } from 'socket.io-client';
 import { useAlert } from '../contexts/AlertContext';
-import { Thermometer, Box, Lightbulb, Fan, Layers, Droplets, Edit2 } from 'lucide-react';
+import { Thermometer, Box, Lightbulb, Fan, Layers, Droplets, Edit2, Scale } from 'lucide-react';
 
 function PrintStatus() {
   const { showAlert, showPrompt } = useAlert();
@@ -267,6 +267,15 @@ function PrintStatus() {
                   </div>
                   <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{state.layerNum || 0} <span style={{fontSize: '0.9rem', color: '#666', fontWeight: 'normal'}}>/ {state.totalLayerNum || 0}</span></div>
                 </div>
+
+                {state.totalGramsDeducted > 0 && (
+                  <div className="printer-stat-card">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>
+                      <Scale size={16} color="#ec4899" /> Filament Used
+                    </div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{state.totalGramsDeducted.toFixed(1)}g</div>
+                  </div>
+                )}
               </div>
             </div>
 

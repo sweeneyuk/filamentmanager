@@ -270,22 +270,57 @@ const extractWeightsFrom3mf = async (client, remoteFile) => {
       
       try {
         const data = JSON.parse(contentStr);
-        if (data.filament_weight) return Array.isArray(data.filament_weight) ? data.filament_weight : [data.filament_weight];
-        if (data.plate_summary && data.plate_summary.length > 0) return data.plate_summary[0].filament_weight || [];
+        if (data.filament_weight) {
+          const w = Array.isArray(data.filament_weight) ? data.filament_weight : [data.filament_weight];
+          return { weights: w, filaments: null, layerMap: null, layerCounts: null };
+        }
+        if (data.plate_summary && data.plate_summary.length > 0) {
+          const w = data.plate_summary[0].filament_weight || [];
+          return { weights: w, filaments: null, layerMap: null, layerCounts: null };
+        }
       } catch (jsonErr) {
         // It's XML (slice_info.config)
-        const filamentRegex = /<filament\s+[^>]*used_g="([\d\.]+)"/gi;
+        const filamentRegex = /<filament\s+([^>]+)\/>/gi;
+        const filaments = [];
         const weights = [];
-        let match;
-        while ((match = filamentRegex.exec(contentStr)) !== null) {
-          weights.push(parseFloat(match[1]));
+        let fMatch;
+        while ((fMatch = filamentRegex.exec(contentStr)) !== null) {
+          const attrs = fMatch[1];
+          const id = (attrs.match(/id="([^"]+)"/) || [])[1];
+          const used_g = parseFloat((attrs.match(/used_g="([^"]+)"/) || [])[1] || '0');
+          const color = (attrs.match(/color="([^"]+)"/) || [])[1];
+          const type = (attrs.match(/type="([^"]+)"/) || [])[1];
+          filaments.push({ id, used_g, color, type });
+          weights.push(used_g);
         }
-        if (weights.length > 0) return weights;
+
+        const layerMap = {};
+        const layerCounts = {};
+        const lflRegex = /<layer_filament_list\s+filament_list="([^"]+)"\s+layer_ranges="([^"]+)"/gi;
+        let lMatch;
+        while ((lMatch = lflRegex.exec(contentStr)) !== null) {
+          const fList = lMatch[1].trim().split(/\s+/).map(x => parseInt(x, 10));
+          const ranges = lMatch[2].trim().split(/\s+/).map(x => parseInt(x, 10));
+          for (let i = 0; i < ranges.length; i += 2) {
+            const start = ranges[i];
+            const end = ranges[i + 1] !== undefined ? ranges[i + 1] : start;
+            for (let l = start; l <= end; l++) {
+              layerMap[l] = fList;
+              fList.forEach(fIdx => {
+                layerCounts[fIdx] = (layerCounts[fIdx] || 0) + 1;
+              });
+            }
+          }
+        }
+
+        if (weights.length > 0) {
+          return { weights, filaments, layerMap, layerCounts };
+        }
 
         // Fallback to total weight metadata
         const weightMatch = contentStr.match(/<metadata\s+key="weight"\s+value="([\d\.\,\s]+)"/i);
         if (weightMatch && weightMatch[1]) {
-           return [parseFloat(weightMatch[1])];
+           return { weights: [parseFloat(weightMatch[1])], filaments: null, layerMap: null, layerCounts: null };
         }
       }
     }
@@ -307,7 +342,7 @@ const extractWeightsFromGcode = async (client, remoteFile) => {
     if (match && match[1]) {
       const weightsStr = match[1].split(',');
       const weights = weightsStr.map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
-      if (weights.length > 0) return weights;
+      if (weights.length > 0) return { weights, filaments: null, layerMap: null, layerCounts: null };
     }
   } catch (err) {
     console.error(`Failed to extract weights from gcode at ${remoteFile}:`, err.message);
@@ -325,25 +360,30 @@ const getPredictedWeights = async (printer, gcodeFile, subtaskName) => {
     if (!remotePath) {
       console.log(`Could not find remote file for weight extraction.`);
       client.close();
-      return { weights: null, path: null };
+      return { weights: null, filaments: null, layerMap: null, layerCounts: null, path: null };
     }
 
     const isGcode = remotePath.toLowerCase().endsWith('.gcode');
     const extractFn = isGcode ? extractWeightsFromGcode : extractWeightsFrom3mf;
     
-    const weights = await extractFn(client, remotePath);
+    const parsed = await extractFn(client, remotePath);
+    const weights = parsed?.weights || (Array.isArray(parsed) ? parsed : null);
+    const filaments = parsed?.filaments || null;
+    const layerMap = parsed?.layerMap || null;
+    const layerCounts = parsed?.layerCounts || null;
+
     if (weights) {
-      console.log(`Successfully extracted weights from ${remotePath}`);
+      console.log(`Successfully extracted weights from ${remotePath}:`, weights);
     } else {
       console.log(`Failed to parse weights inside ${remotePath}`);
     }
 
     client.close();
-    return { weights, path: remotePath };
+    return { weights, filaments, layerMap, layerCounts, path: remotePath };
   } catch (err) {
     if (client) client.close();
     console.error('FTP Error getting weights:', err.message);
-    return { weights: null, path: null };
+    return { weights: null, filaments: null, layerMap: null, layerCounts: null, path: null };
   }
 };
 
