@@ -120,7 +120,7 @@
     },
     {
       "Icon": "icon",
-      "Name": "Energy Used",
+      "Name": "Energy & Cost",
       "States": [
         {
           "Image": "icon",
@@ -128,12 +128,12 @@
         }
       ],
       "SupportedInMultiActions": false,
-      "Tooltip": "Energy used so far",
+      "Tooltip": "Energy used (kWh) and cost (£)",
       "UUID": "com.sweeneyuk.filamentmanager.energy"
     },
     {
       "Icon": "icon",
-      "Name": "Print Cost",
+      "Name": "Filament Used",
       "States": [
         {
           "Image": "icon",
@@ -141,8 +141,21 @@
         }
       ],
       "SupportedInMultiActions": false,
-      "Tooltip": "Estimated print cost",
+      "Tooltip": "Real-time filament used (g)",
       "UUID": "com.sweeneyuk.filamentmanager.cost"
+    },
+    {
+      "Icon": "icon",
+      "Name": "Filament Used",
+      "States": [
+        {
+          "Image": "icon",
+          "TitleAlignment": "middle"
+        }
+      ],
+      "SupportedInMultiActions": false,
+      "Tooltip": "Real-time filament used (g)",
+      "UUID": "com.sweeneyuk.filamentmanager.filament"
     }
   ],
   "Author": "Antigravity",

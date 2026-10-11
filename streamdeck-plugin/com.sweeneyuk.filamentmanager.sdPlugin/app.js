@@ -318,24 +318,41 @@ function drawKey(context, action, settings, state) {
     drawScaledText(ctx, `${state.chamberTemp || 0}°C`, 95, 32, "#ececec");
   }
   else if (action === "com.sweeneyuk.filamentmanager.energy") {
-    drawScaledText(ctx, "Energy", 35, 28, "#00c853");
-    let energyText = "N/A";
-    if (state.currentEnergy !== undefined) {
-      energyText = `${state.currentEnergy.toFixed(2)}kWh`;
+    drawScaledText(ctx, "Energy", 28, 24, "#00c853");
+    
+    let kwh = state.currentEnergy !== undefined ? state.currentEnergy : 0;
+    let energyText = `${kwh.toFixed(2)}kWh`;
+    drawScaledText(ctx, energyText, 68, 26, "#ececec", 130, true);
+
+    let cost = 0;
+    if (state.currentEnergyCost !== undefined && state.currentEnergyCost > 0) {
+      cost = state.currentEnergyCost;
+    } else if (kwh > 0 && state.energyRate > 0) {
+      cost = kwh * state.energyRate;
     }
-    drawScaledText(ctx, energyText, 95, 32, "#ececec");
+    drawScaledText(ctx, `£${cost.toFixed(2)}`, 112, 22, "#fbbf24", 130, true);
   }
-  else if (action === "com.sweeneyuk.filamentmanager.cost") {
-    drawScaledText(ctx, "Filament", 35, 28, "#00c853");
+  else if (action === "com.sweeneyuk.filamentmanager.cost" || action === "com.sweeneyuk.filamentmanager.filament") {
+    drawScaledText(ctx, "Filament", 28, 24, "#00c853");
     
-    let fil = 0;
-    if (state.predictedWeights && state.predictedWeights.length > 0) {
-       let progress = Math.max(0, Math.min(100, state.progress || 0)) / 100;
-       let totalPred = state.predictedWeights.reduce((a,b)=>a+b, 0);
-       fil = totalPred * progress;
+    let usedGrams = 0;
+    if (state.totalGramsDeducted !== undefined && state.totalGramsDeducted > 0) {
+      usedGrams = state.totalGramsDeducted;
+    } else if (state.predictedWeights && state.predictedWeights.length > 0) {
+      let progress = Math.max(0, Math.min(100, state.progress || 0)) / 100;
+      let totalPred = state.predictedWeights.reduce((a, b) => a + b, 0);
+      usedGrams = totalPred * progress;
     }
     
-    drawScaledText(ctx, `${fil.toFixed(1)}g`, 95, 32, "#ececec");
+    drawScaledText(ctx, `${usedGrams.toFixed(1)}g`, 68, 28, "#ececec", 130, true);
+
+    let totalTarget = (state.predictedWeights && state.predictedWeights.length > 0)
+      ? state.predictedWeights.reduce((a, b) => a + b, 0)
+      : 0;
+
+    if (totalTarget > 0) {
+      drawScaledText(ctx, `/ ${totalTarget.toFixed(0)}g`, 112, 18, "#888888", 130, false);
+    }
   }
 
   sendImageToContext(context, canvas.toDataURL("image/png"));

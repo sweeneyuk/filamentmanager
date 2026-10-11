@@ -15,6 +15,9 @@ const IDLE_STATE = () => ({
   remainingTime: 0,
   startTime: null,
   startEnergy: undefined,
+  currentEnergy: 0,
+  currentEnergyCost: 0,
+  energyRate: 0,
   predictedWeights: [],
   slicerFilaments: [],
   layerFilamentMap: null,
@@ -502,6 +505,14 @@ const handlePrintStatus = async (printer, printData) => {
       state.name = subTaskName || 'Unknown Print';
       state.startTime = new Date();
       state.startEnergy = await getPrinterEnergyUsage();
+      state.currentEnergy = 0;
+      state.currentEnergyCost = 0;
+      try {
+        const { getEnergyRate } = require('./ha');
+        state.energyRate = await getEnergyRate();
+      } catch (e) {
+        state.energyRate = 0;
+      }
       state.predictedWeights = [];
       state.slicerFilaments = [];
       state.layerFilamentMap = null;
@@ -1024,16 +1035,19 @@ const setIo = (io) => {
   ioInstance = io;
 };
 
-// Poll energy usage for running prints every 60 seconds
+// Poll energy usage and cost for running prints every 30 seconds
 setInterval(async () => {
   for (const pid of Object.keys(printStates)) {
     const state = printStates[pid];
     if (state.status === 'RUNNING' && state.startEnergy !== undefined) {
       try {
-        const { getPrinterEnergyUsage } = require('./ha');
+        const { getPrinterEnergyUsage, getEnergyRate } = require('./ha');
         const currentTotal = await getPrinterEnergyUsage();
         if (currentTotal !== undefined && currentTotal !== null) {
           state.currentEnergy = Math.max(0, currentTotal - state.startEnergy);
+          const rate = await getEnergyRate();
+          state.energyRate = rate;
+          state.currentEnergyCost = state.currentEnergy * rate;
           if (ioInstance) {
             ioInstance.emit('print_state_update', { printer_id: pid, state });
           }
@@ -1043,7 +1057,7 @@ setInterval(async () => {
       }
     }
   }
-}, 60000);
+}, 30000);
 
 module.exports = {
   connectMqtt,
