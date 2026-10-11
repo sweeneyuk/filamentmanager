@@ -331,7 +331,7 @@ const handlePrintStatus = async (printer, printData) => {
   }
 
   const decodeTrayId = (m, activeExt = 0) => {
-    if (m === 255 || m === 65535) return null;
+    if (m === 255 || m === 65535 || m === 65279 || (m & 0xFF) === 255) return null;
     
     if (m === 254 || m === -1) {
       // 254 (or -1 from slicer mapping) is generic external spool.
@@ -345,7 +345,12 @@ const handlePrintStatus = async (printer, printData) => {
     if (m >= 128 && m <= 135) return `${m}-0`;
     
     // Snow encoded values (e.g. from ams_mapping)
-    if (m >= 256) return `${m >> 8}-${m & 0xFF}`;
+    if (m >= 256) {
+      const unit = m >> 8;
+      const slot = m & 0xFF;
+      if (slot === 255 || unit === 255) return null;
+      return `${unit}-${slot}`;
+    }
     
     // Regular AMS slots (0-15)
     return `${Math.floor(m / 4)}-${m % 4}`;
@@ -361,7 +366,7 @@ const handlePrintStatus = async (printer, printData) => {
     if (printData.device?.extruder?.info && Array.isArray(printData.device.extruder.info)) {
       if (printData.device.extruder.info.length > 1) {
         const snowTray = printData.device.extruder.info[activeExtruder]?.snow;
-        if (snowTray !== undefined && snowTray !== null && snowTray !== 255) {
+        if (snowTray !== undefined && snowTray !== null && snowTray !== 255 && snowTray !== 65535 && snowTray !== 65279 && (snowTray & 0xFF) !== 255) {
           m = snowTray;
         }
       }
@@ -389,15 +394,13 @@ const handlePrintStatus = async (printer, printData) => {
   }
 
   // --- Spool Takeover & Switch Detection ---
-  if (state.status === 'RUNNING' && previousTrayId && state.currentTrayId && previousTrayId !== state.currentTrayId) {
+  const isValidTray = (t) => t && typeof t === 'string' && !t.includes('255');
+
+  if (state.status === 'RUNNING' && isValidTray(previousTrayId) && isValidTray(state.currentTrayId) && previousTrayId !== state.currentTrayId) {
     console.log(`[MQTT ${pid}] Spool Switch detected: from tray ${previousTrayId} to ${state.currentTrayId} at ${state.progress}%`);
-    if (!state.takeovers) state.takeovers = [];
-    state.takeovers.push({
-      fromTray: previousTrayId,
-      toTray: state.currentTrayId,
-      progress: state.progress || 0,
-      timestamp: new Date().toISOString()
-    });
+
+    // Check if the print has actually started extruding or is in a filament-changing/runout stage
+    const isActivelyPrinting = (state.progress || 0) > 0 || (state.layerNum || 0) > 0 || state.stage === 'Printing' || printData.stg_cur === 4 || printData.stg_cur === 6;
 
     // Check if the previous tray ran out (became empty in amsDataMap or paused on runout)
     const amsList = amsDataMap[pid] || [];
@@ -405,7 +408,7 @@ const handlePrintStatus = async (printer, printData) => {
     for (const unit of amsList) {
       if (unit.tray) {
         for (const t of unit.tray) {
-          if (`${unit.id}-${t.id}` === previousTrayId && (!t.tray_type || t.tray_type === '' || t.id === 255)) {
+          if (`${unit.id}-${t.id}` === previousTrayId && (!t.tray_type || t.tray_type === '' || t.id === 255 || t.remain === 0)) {
             isPrevEmpty = true;
             break;
           }
@@ -417,11 +420,14 @@ const handlePrintStatus = async (printer, printData) => {
     }
 
     db.get('SELECT aa.spool_id, s.total_weight, s.used_weight FROM ams_assignments aa LEFT JOIN spools s ON aa.spool_id = s.id WHERE aa.printer_id = ? AND aa.tray_id = ?', [pid, previousTrayId], (err, row) => {
+      const spoolRemaining = (row && row.total_weight && row.used_weight !== undefined) ? Math.max(0, row.total_weight - row.used_weight) : null;
+      const spoolDepleted = isPrevEmpty || (spoolRemaining !== null && spoolRemaining <= 0.05);
+
       if (!err && row && row.spool_id) {
         if (!state.runoutSpools) state.runoutSpools = {};
         state.runoutSpools[previousTrayId] = row.spool_id;
 
-        if (isPrevEmpty) {
+        if (spoolDepleted && isActivelyPrinting) {
           console.log(`[MQTT ${pid}] Spool ${row.spool_id} in tray ${previousTrayId} ran out! Marking as depleted.`);
           db.run('UPDATE spools SET used_weight = total_weight, last_used_at = CURRENT_TIMESTAMP WHERE id = ?', [row.spool_id]);
           if (ioInstance) {
@@ -434,31 +440,41 @@ const handlePrintStatus = async (printer, printData) => {
           }
         }
       }
-    });
 
-    if (isPrevEmpty) {
-      if (!state.takeoverMap) state.takeoverMap = {};
-      state.takeoverMap[state.currentTrayId] = previousTrayId;
+      // ONLY record and announce an Auto-Refill Takeover if the previous tray was depleted mid-print!
+      if (spoolDepleted && isActivelyPrinting) {
+        console.log(`[MQTT ${pid}] Auto-refill takeover confirmed: from tray ${previousTrayId} to ${state.currentTrayId} at ${state.progress}%`);
+        if (!state.takeovers) state.takeovers = [];
+        state.takeovers.push({
+          fromTray: previousTrayId,
+          toTray: state.currentTrayId,
+          progress: state.progress || 0,
+          timestamp: new Date().toISOString()
+        });
 
-      // Update activeSlotTrays for any slot that was using the previous tray
-      if (state.activeSlotTrays) {
-        for (const [slot, tId] of Object.entries(state.activeSlotTrays)) {
-          if (tId === previousTrayId) {
-            state.activeSlotTrays[slot] = state.currentTrayId;
-            console.log(`[MQTT ${pid}] Auto-refill takeover: slot ${slot} (${previousTrayId}) taken over by ${state.currentTrayId}`);
+        if (!state.takeoverMap) state.takeoverMap = {};
+        state.takeoverMap[state.currentTrayId] = previousTrayId;
+
+        // Update activeSlotTrays for any slot that was using the previous tray
+        if (state.activeSlotTrays) {
+          for (const [slot, tId] of Object.entries(state.activeSlotTrays)) {
+            if (tId === previousTrayId) {
+              state.activeSlotTrays[slot] = state.currentTrayId;
+              console.log(`[MQTT ${pid}] Auto-refill takeover: slot ${slot} (${previousTrayId}) taken over by ${state.currentTrayId}`);
+            }
           }
         }
-      }
 
-      if (ioInstance) {
-        ioInstance.emit('spool_takeover', {
-          printer_id: pid,
-          from_tray: previousTrayId,
-          to_tray: state.currentTrayId,
-          progress: state.progress
-        });
+        if (ioInstance) {
+          ioInstance.emit('spool_takeover', {
+            printer_id: pid,
+            from_tray: previousTrayId,
+            to_tray: state.currentTrayId,
+            progress: state.progress
+          });
+        }
       }
-    }
+    });
   }
 
   // --- Stage 6: Filament Runout Pause Detection ---
@@ -527,6 +543,7 @@ const handlePrintStatus = async (printer, printData) => {
       state.trayProgress = {};
       state.lastTrackedProgress = 0;
       state.takeovers = [];
+      state.currentTrayId = null;
 
       const mappingArray = printData.mapping || printData.ams_mapping;
       if (mappingArray && Array.isArray(mappingArray)) {

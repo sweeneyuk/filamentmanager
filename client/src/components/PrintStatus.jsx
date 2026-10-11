@@ -169,14 +169,19 @@ function PrintStatus() {
                 </div>
               )}
 
-              {state.takeovers && state.takeovers.length > 0 && (
-                <div style={{ backgroundColor: 'rgba(59, 130, 246, 0.15)', border: '1px solid #3b82f6', color: '#60a5fa', padding: '10px 14px', borderRadius: '6px', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}>
-                  <span style={{ fontSize: '1.2rem' }}>🔄</span>
-                  <div>
-                    <strong>Auto-Refill Takeover:</strong> Switched from Slot {state.takeovers[state.takeovers.length - 1].fromTray} to Slot {state.takeovers[state.takeovers.length - 1].toTray} at {state.takeovers[state.takeovers.length - 1].progress}%
+              {(() => {
+                const validTakeovers = (state.takeovers || []).filter(t => t.fromTray && t.toTray && !t.fromTray.includes('255') && !t.toTray.includes('255'));
+                if (validTakeovers.length === 0) return null;
+                const latest = validTakeovers[validTakeovers.length - 1];
+                return (
+                  <div style={{ backgroundColor: 'rgba(59, 130, 246, 0.15)', border: '1px solid #3b82f6', color: '#60a5fa', padding: '10px 14px', borderRadius: '6px', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}>
+                    <span style={{ fontSize: '1.2rem' }}>🔄</span>
+                    <div>
+                      <strong>Auto-Refill Takeover:</strong> Switched from Slot {latest.fromTray} to Slot {latest.toTray} at {latest.progress}%
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               <div style={{ width: '100%', height: '8px', backgroundColor: 'var(--secondary-bg)', borderRadius: '4px', overflow: 'hidden', marginBottom: '20px' }}>
                 <div style={{ width: `${state.progress || 0}%`, height: '100%', backgroundColor: 'var(--primary-color)', transition: 'width 0.5s ease-in-out' }}></div>
