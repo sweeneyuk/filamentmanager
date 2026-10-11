@@ -43,13 +43,17 @@ function SpoolModal({ isOpen, onClose, editingSpool, brands, materials, brandKno
       total_weight: 1000,
       empty_weight: 250,
       used_weight: 0,
-      shopify_variant_id: ''
+      shopify_variant_id: '',
+      rfid: '',
+      rfid_aliases: ''
     };
 
     if (editingSpool) {
       initialSpoolState = {
         brand_id: editingSpool.brand_id || '',
         material_id: editingSpool.material_id || '',
+        rfid: editingSpool.rfid || '',
+        rfid_aliases: editingSpool.rfid_aliases || '',
         ...initialSpoolState,
         ...editingSpool
       };
@@ -291,6 +295,23 @@ function SpoolModal({ isOpen, onClose, editingSpool, brands, materials, brandKno
             </label>
             <input type="text" value={newSpool.shopify_variant_id || ''} onChange={(e) => setNewSpool({...newSpool, shopify_variant_id: e.target.value})} placeholder="e.g. 43105581957262 or https://amazon..." />
           </div>
+
+          {editingSpool && (
+            <div className="form-group" style={{ marginTop: '10px' }}>
+              <label>RFID Tag UID(s)</label>
+              <input 
+                type="text" 
+                value={newSpool.rfid || ''} 
+                onChange={(e) => setNewSpool({ ...newSpool, rfid: e.target.value })} 
+                placeholder="e.g. 69F549FC00000100" 
+              />
+              {newSpool.rfid_aliases && (
+                <div style={{ marginTop: '4px', fontSize: '0.75rem', color: '#888' }}>
+                  Linked Tag(s): {Array.from(new Set([newSpool.rfid, ...newSpool.rfid_aliases.split(',').map(s => s.trim())].filter(Boolean))).join(', ')}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="modal-actions" style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end' }}>
             <button type="button" onClick={onClose} style={{ backgroundColor: '#444' }}>Cancel</button>

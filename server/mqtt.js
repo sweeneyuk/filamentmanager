@@ -546,22 +546,58 @@ async function syncAmsSpools(pid, amsDataArray) {
       }
       
       try {
-        let spool = await getQuery('SELECT id FROM spools WHERE rfid = ?', [tagUid]);
+        // 1. Look up if this RFID is known (in spools.rfid or spool_rfids table)
+        let spool = await getQuery(`
+          SELECT s.id, s.brand_id, s.material_id, s.color, s.subtype, s.rfid
+          FROM spools s
+          LEFT JOIN spool_rfids sr ON sr.spool_id = s.id
+          WHERE s.rfid = ? OR sr.rfid = ?
+          LIMIT 1
+        `, [tagUid, tagUid]);
         let spoolId;
         
         // Hoist the existing assignment check
         const existingAssign = await getQuery('SELECT spool_id FROM ams_assignments WHERE printer_id = ? AND tray_id = ?', [pid, trayId]);
         
-        // --- RFID Adoption Logic ---
+        // --- RFID Adoption / Dual-Tag Linking Logic ---
         if (!spool && existingAssign) {
           let assignedSpool = await getQuery('SELECT id, rfid FROM spools WHERE id = ?', [existingAssign.spool_id]);
-          // If the assigned spool doesn't have an RFID yet, it's an old manual entry we can adopt!
-          if (assignedSpool && !assignedSpool.rfid) {
-            await runQuery('UPDATE spools SET rfid = ? WHERE id = ?', [tagUid, assignedSpool.id]);
-            spool = { id: assignedSpool.id };
-            console.log(`[MQTT] Adopted manual spool ${spool.id} with new RFID ${tagUid}`);
+          if (assignedSpool) {
+            if (!assignedSpool.rfid) {
+              await runQuery('UPDATE spools SET rfid = ? WHERE id = ?', [tagUid, assignedSpool.id]);
+            }
+            await runQuery('INSERT OR IGNORE INTO spool_rfids (spool_id, rfid) VALUES (?, ?)', [assignedSpool.id, tagUid]);
+            spool = assignedSpool;
+            console.log(`[MQTT] Linked tag ${tagUid} to existing assigned spool ${assignedSpool.id}`);
             
             // Notify frontend that this spool got updated
+            if (ioInstance) ioInstance.emit('spool_updated', { id: spool.id, rfid: tagUid });
+          }
+        }
+
+        // --- Match single active unassigned Bambu spool of exact material & color (handles 2nd RFID tag on unassigned spool) ---
+        if (!spool && tray.tray_type) {
+          const hexColor = tray.tray_color ? `#${tray.tray_color.substring(0, 6)}` : '#FFFFFF';
+          const candidates = await allQuery(`
+            SELECT s.id, s.rfid
+            FROM spools s
+            JOIN brands b ON s.brand_id = b.id
+            JOIN materials m ON s.material_id = m.id
+            WHERE (b.name = 'Bambu' OR b.name = 'Bambu Lab')
+              AND m.name = ?
+              AND UPPER(s.color) = UPPER(?)
+              AND s.archived = 0
+              AND s.id NOT IN (SELECT spool_id FROM ams_assignments WHERE spool_id IS NOT NULL)
+          `, [tray.tray_type, hexColor]);
+
+          if (candidates && candidates.length === 1) {
+            const matched = candidates[0];
+            console.log(`[MQTT] Auto-linking secondary RFID ${tagUid} to single matching active Bambu spool ${matched.id}`);
+            await runQuery('INSERT OR IGNORE INTO spool_rfids (spool_id, rfid) VALUES (?, ?)', [matched.id, tagUid]);
+            if (!matched.rfid) {
+              await runQuery('UPDATE spools SET rfid = ? WHERE id = ?', [tagUid, matched.id]);
+            }
+            spool = matched;
             if (ioInstance) ioInstance.emit('spool_updated', { id: spool.id, rfid: tagUid });
           }
         }
@@ -597,6 +633,7 @@ async function syncAmsSpools(pid, amsDataArray) {
           `, [brandId, materialId, subtype, hexColor, 1000, 250, 0, variantId, tagUid]);
           
           spoolId = result.lastID;
+          await runQuery('INSERT OR IGNORE INTO spool_rfids (spool_id, rfid) VALUES (?, ?)', [spoolId, tagUid]);
           
           // Emit WebSocket event so inventory page updates immediately
           if (ioInstance) ioInstance.emit('spool_added', { id: spoolId });

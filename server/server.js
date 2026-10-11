@@ -395,7 +395,8 @@ app.post('/api/materials', (req, res) => {
 // GET /api/spools
 app.get('/api/spools', (req, res) => {
   const query = `
-    SELECT s.*, b.name as brand_name, m.name as material_name 
+    SELECT s.*, b.name as brand_name, m.name as material_name,
+           (SELECT GROUP_CONCAT(rfid, ', ') FROM spool_rfids WHERE spool_id = s.id) as rfid_aliases
     FROM spools s 
     LEFT JOIN brands b ON s.brand_id = b.id 
     LEFT JOIN materials m ON s.material_id = m.id
@@ -408,7 +409,7 @@ app.get('/api/spools', (req, res) => {
 
 // POST /api/spools
 app.post('/api/spools', (req, res) => {
-  const { brand_id, material_id, subtype, color, color_name, cost, total_weight, empty_weight, used_weight, location, shopify_variant_id } = req.body;
+  const { brand_id, material_id, subtype, color, color_name, cost, total_weight, empty_weight, used_weight, location, shopify_variant_id, rfid } = req.body;
   
   db.get('SELECT b.name as brand, m.name as material FROM brands b, materials m WHERE b.id = ? AND m.id = ?', [brand_id, material_id], (err, row) => {
     let finalVariantId = shopify_variant_id || null;
@@ -417,18 +418,22 @@ app.post('/api/spools', (req, res) => {
     }
     
     db.run(`
-      INSERT INTO spools (brand_id, material_id, subtype, color, color_name, cost, total_weight, empty_weight, used_weight, location, shopify_variant_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [brand_id, material_id, subtype, color, color_name, cost, total_weight, empty_weight, used_weight || 0, location, finalVariantId], function(err) {
-      if (err) res.status(500).json({ error: err.message });
-      else res.json({ id: this.lastID });
+      INSERT INTO spools (brand_id, material_id, subtype, color, color_name, cost, total_weight, empty_weight, used_weight, location, shopify_variant_id, rfid)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [brand_id, material_id, subtype, color, color_name, cost, total_weight, empty_weight, used_weight || 0, location, finalVariantId, rfid || null], function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      const spoolId = this.lastID;
+      if (rfid) {
+        db.run('INSERT OR IGNORE INTO spool_rfids (spool_id, rfid) VALUES (?, ?)', [spoolId, rfid]);
+      }
+      res.json({ id: spoolId });
     });
   });
 });
 
 // PUT /api/spools/:id
 app.put('/api/spools/:id', (req, res) => {
-  const { brand_id, material_id, subtype, color, color_name, cost, total_weight, empty_weight, used_weight, location, shopify_variant_id } = req.body;
+  const { brand_id, material_id, subtype, color, color_name, cost, total_weight, empty_weight, used_weight, location, shopify_variant_id, rfid } = req.body;
   
   db.get('SELECT b.name as brand, m.name as material FROM brands b, materials m WHERE b.id = ? AND m.id = ?', [brand_id, material_id], (err, row) => {
     let finalVariantId = shopify_variant_id || null;
@@ -438,11 +443,14 @@ app.put('/api/spools/:id', (req, res) => {
 
     db.run(`
       UPDATE spools 
-      SET brand_id = ?, material_id = ?, subtype = ?, color = ?, color_name = ?, cost = ?, total_weight = ?, empty_weight = ?, used_weight = ?, location = ?, shopify_variant_id = ?
+      SET brand_id = ?, material_id = ?, subtype = ?, color = ?, color_name = ?, cost = ?, total_weight = ?, empty_weight = ?, used_weight = ?, location = ?, shopify_variant_id = ?, rfid = COALESCE(?, rfid)
       WHERE id = ?
-    `, [brand_id, material_id, subtype, color, color_name, cost, total_weight, empty_weight, used_weight, location, finalVariantId, req.params.id], (err) => {
-      if (err) res.status(500).json({ error: err.message });
-      else res.json({ success: true });
+    `, [brand_id, material_id, subtype, color, color_name, cost, total_weight, empty_weight, used_weight, location, finalVariantId, rfid || null, req.params.id], (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (rfid) {
+        db.run('INSERT OR IGNORE INTO spool_rfids (spool_id, rfid) VALUES (?, ?)', [req.params.id, rfid]);
+      }
+      res.json({ success: true });
     });
   });
 });
@@ -471,9 +479,15 @@ app.put('/api/spools/:id/archive', (req, res) => {
 
 // DELETE /api/spools/:id
 app.delete('/api/spools/:id', (req, res) => {
-  db.run('DELETE FROM spools WHERE id = ?', [req.params.id], function(err) {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ success: true });
+  const spoolId = req.params.id;
+  db.serialize(() => {
+    db.run('DELETE FROM ams_assignments WHERE spool_id = ?', [spoolId]);
+    db.run('DELETE FROM spool_rfids WHERE spool_id = ?', [spoolId]);
+    db.run('DELETE FROM spools WHERE id = ?', [spoolId], function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      broadcastAmsAssignments();
+      res.json({ success: true });
+    });
   });
 });
 
@@ -787,6 +801,30 @@ app.post('/api/ams/assignments', (req, res) => {
       res.json({ success: true });
     });
   } else {
+    // If this tray currently has a Bambu RFID tag_uid, link it to this spool!
+    try {
+      const amsStates = getAmsStatus();
+      const amsList = (amsStates && amsStates[printer_id]) || [];
+      let currentTagUid = null;
+      for (const unit of amsList) {
+        if (unit.tray && Array.isArray(unit.tray)) {
+          for (const t of unit.tray) {
+            if (`${unit.id}-${t.id}` === tray_id && t.tag_uid && t.tag_uid !== '0000000000000000') {
+              currentTagUid = t.tag_uid;
+              break;
+            }
+          }
+        }
+      }
+      
+      if (currentTagUid) {
+        db.run('INSERT OR IGNORE INTO spool_rfids (spool_id, rfid) VALUES (?, ?)', [spool_id, currentTagUid]);
+        db.run('UPDATE spools SET rfid = ? WHERE id = ? AND (rfid IS NULL OR rfid = "")', [currentTagUid, spool_id]);
+      }
+    } catch (e) {
+      console.error('[AMS] Error linking RFID on manual assignment:', e.message);
+    }
+
     db.run(`
       INSERT INTO ams_assignments (printer_id, tray_id, spool_id) 
       VALUES (?, ?, ?) 

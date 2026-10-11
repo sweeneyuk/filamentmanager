@@ -179,6 +179,22 @@ const initDb = () => {
         )
       `);
 
+      // Create spool_rfids table to support multiple RFID tags per physical spool (e.g. dual tags on Bambu spools)
+      db.run(`
+        CREATE TABLE IF NOT EXISTS spool_rfids (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          spool_id INTEGER NOT NULL,
+          rfid TEXT NOT NULL UNIQUE,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (spool_id) REFERENCES spools(id) ON DELETE CASCADE
+        )
+      `, () => {
+        db.run(`
+          INSERT OR IGNORE INTO spool_rfids (spool_id, rfid)
+          SELECT id, rfid FROM spools WHERE rfid IS NOT NULL AND rfid != ''
+        `, () => {});
+      });
+
       // Attempt to add new columns to an existing archives table (fails silently if they exist)
       db.run("ALTER TABLE archives ADD COLUMN timelapse_path TEXT", () => {});
       db.run("ALTER TABLE archives ADD COLUMN photo_path TEXT", () => {});
