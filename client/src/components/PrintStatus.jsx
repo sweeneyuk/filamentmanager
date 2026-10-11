@@ -34,6 +34,14 @@ function PrintStatus() {
       setAmsAssignments(data);
     });
 
+    socket.on('spool_takeover', (data) => {
+      showAlert('Spool Takeover', `Auto-Refill: Switched from slot ${data.from_tray} to slot ${data.to_tray} at ${data.progress}% progress!`);
+    });
+
+    socket.on('spool_runout', (data) => {
+      showAlert('Filament Runout', `Spool in slot ${data.tray_id} ran out of filament at ${data.progress}%!`, true);
+    });
+
     return () => socket.disconnect();
   }, []);
 
@@ -151,6 +159,24 @@ function PrintStatus() {
                   </div>
                 </div>
               </div>
+
+              {state.stage?.includes('Runout') && (
+                <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', border: '1px solid #ef4444', color: '#f87171', padding: '10px 14px', borderRadius: '6px', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}>
+                  <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+                  <div>
+                    <strong>Filament Runout:</strong> Print paused waiting for spool reload.
+                  </div>
+                </div>
+              )}
+
+              {state.takeovers && state.takeovers.length > 0 && (
+                <div style={{ backgroundColor: 'rgba(59, 130, 246, 0.15)', border: '1px solid #3b82f6', color: '#60a5fa', padding: '10px 14px', borderRadius: '6px', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}>
+                  <span style={{ fontSize: '1.2rem' }}>🔄</span>
+                  <div>
+                    <strong>Auto-Refill Takeover:</strong> Switched from Slot {state.takeovers[state.takeovers.length - 1].fromTray} to Slot {state.takeovers[state.takeovers.length - 1].toTray} at {state.takeovers[state.takeovers.length - 1].progress}%
+                  </div>
+                </div>
+              )}
 
               <div style={{ width: '100%', height: '8px', backgroundColor: 'var(--secondary-bg)', borderRadius: '4px', overflow: 'hidden', marginBottom: '20px' }}>
                 <div style={{ width: `${state.progress || 0}%`, height: '100%', backgroundColor: 'var(--primary-color)', transition: 'width 0.5s ease-in-out' }}></div>

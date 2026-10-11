@@ -430,7 +430,7 @@ function FilamentManager() {
             </thead>
             <tbody>
               {sortedSpools.map(spool => {
-                const remaining = spool.total_weight - spool.used_weight;
+                const remaining = Math.max(0, spool.total_weight - spool.used_weight);
                 const remainingPct = Math.max(0, Math.min(100, (remaining / spool.total_weight) * 100));
                 let pbColor = '#4caf50';
                 if (remainingPct < 20) pbColor = '#f44336';
@@ -462,7 +462,9 @@ function FilamentManager() {
                     <td>£{spool.cost?.toFixed(2) || '0.00'}</td>
                     <td style={{width: '150px'}}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '0.85rem', minWidth: '40px' }}>{remaining.toFixed(0)}g</span>
+                        <span style={{ fontSize: '0.85rem', minWidth: '40px' }}>
+                          {remaining <= 0 ? <span style={{ color: '#f44336', fontWeight: 'bold' }}>Ran Out</span> : `${remaining.toFixed(0)}g`}
+                        </span>
                         <div className="progress-bar-container" style={{ flex: 1 }}>
                           <div className="progress-bar" style={{width: `${remainingPct}%`, backgroundColor: pbColor}}></div>
                         </div>
@@ -493,7 +495,7 @@ function FilamentManager() {
       ) : (
         <div className="spool-grid">
           {sortedSpools.map(spool => {
-            const remaining = spool.total_weight - spool.used_weight;
+            const remaining = Math.max(0, spool.total_weight - spool.used_weight);
             const remainingPct = Math.max(0, Math.min(100, (remaining / spool.total_weight) * 100));
             let pbColor = '#4caf50';
             if (remainingPct < 20) pbColor = '#f44336';
@@ -522,7 +524,11 @@ function FilamentManager() {
                   <div className="spool-card-header">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div className="spool-title">{spool.brand_name} {spool.material_name}</div>
-                      {isLowStock && <span style={{ backgroundColor: 'rgba(244,67,54,0.2)', color: '#f87171', fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(244,67,54,0.4)', fontWeight: 'bold' }}>Low Stock</span>}
+                      {remaining <= 0 ? (
+                        <span style={{ backgroundColor: 'rgba(244,67,54,0.25)', color: '#ef4444', fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', border: '1px solid #ef4444', fontWeight: 'bold' }}>Ran Out</span>
+                      ) : isLowStock && (
+                        <span style={{ backgroundColor: 'rgba(244,67,54,0.2)', color: '#f87171', fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(244,67,54,0.4)', fontWeight: 'bold' }}>Low Stock</span>
+                      )}
                     </div>
                     <div className="spool-subtitle">{spool.subtype || 'Basic'} • {spool.color_name || 'Unknown Color'}</div>
                   </div>
@@ -530,7 +536,7 @@ function FilamentManager() {
                   <div className="spool-card-stats">
                     <div className="stat">
                       <span className="label">Remaining</span>
-                      <span className="value">{remaining.toFixed(0)}g</span>
+                      <span className="value" style={remaining <= 0 ? { color: '#ef4444' } : {}}>{remaining <= 0 ? '0g (Ran Out)' : `${remaining.toFixed(0)}g`}</span>
                     </div>
                     <div className="stat">
                       <span className="label">Location</span>
