@@ -26,6 +26,7 @@ const IDLE_STATE = () => ({
   takeoverMap: {},
   runoutSpools: {},
   spoolDeductedGrams: {},
+  slotDeductedGrams: {},
   totalGramsDeducted: 0,
   lastDeductedLayer: 0,
   activeTrays: [],
@@ -172,6 +173,10 @@ const deductFilamentForTray = (pid, state, trayId, grams, slotIdx = 0) => {
               if (!state.spoolDeductedGrams) state.spoolDeductedGrams = {};
               state.spoolDeductedGrams[spoolId] = (state.spoolDeductedGrams[spoolId] || 0) + actualDeduct;
               state.totalGramsDeducted = (state.totalGramsDeducted || 0) + actualDeduct;
+              if (slotIdx !== undefined && slotIdx !== null) {
+                if (!state.slotDeductedGrams) state.slotDeductedGrams = {};
+                state.slotDeductedGrams[slotIdx] = (state.slotDeductedGrams[slotIdx] || 0) + actualDeduct;
+              }
 
               // Emit updated spool to all connected clients
               db.get('SELECT * FROM spools WHERE id = ?', [spoolId], (e, updatedSpool) => {
@@ -209,17 +214,39 @@ const processLayerDeductions = (pid, state, fromLayer, toLayer) => {
         const layerGrams = count > 0 ? (filamentWeight / count) : 0;
         if (layerGrams > 0) {
           const targetTray = state.activeSlotTrays?.[fIdx] || state.activeTrays?.[fIdx] || state.currentTrayId;
-          deductFilamentForTray(pid, state, targetTray, layerGrams, fIdx);
+          if (targetTray) {
+            deductFilamentForTray(pid, state, targetTray, layerGrams, fIdx);
+          }
         }
       }
-    } else {
-      // Fallback: distribute total print weight evenly across total layers
-      const totalWeight = state.predictedWeights.reduce((a, b) => a + b, 0);
+    } else if (state.predictedWeights.length === 1) {
+      // Single filament print fallback: distribute total print weight evenly across total layers
+      const totalWeight = state.predictedWeights[0];
       const totalLayers = Math.max(1, state.totalLayerNum || 100);
       const layerGrams = totalWeight / totalLayers;
       if (layerGrams > 0) {
-        const targetTray = state.currentTrayId || state.activeTrays?.[0];
-        deductFilamentForTray(pid, state, targetTray, layerGrams, 0);
+        const targetTray = state.activeSlotTrays?.[0] || state.activeTrays?.[0] || state.currentTrayId;
+        if (targetTray) {
+          deductFilamentForTray(pid, state, targetTray, layerGrams, 0);
+        }
+      }
+    } else {
+      // Multi-colour print without layer map:
+      // Attribute layer consumption to the tray currently printing (state.currentTrayId)
+      const targetTray = state.currentTrayId || state.activeTrays?.[0];
+      let fIdx = 0;
+      if (state.activeSlotTrays) {
+        const foundSlot = Object.keys(state.activeSlotTrays).find(slot => state.activeSlotTrays[slot] === targetTray);
+        if (foundSlot !== undefined) fIdx = parseInt(foundSlot, 10);
+      } else if (state.activeTrays) {
+        const idx = state.activeTrays.indexOf(targetTray);
+        if (idx !== -1) fIdx = idx;
+      }
+      const filamentWeight = state.predictedWeights[fIdx] || (state.predictedWeights[0] || 0);
+      const totalLayers = Math.max(1, state.totalLayerNum || 100);
+      const layerGrams = totalLayers > 0 ? (filamentWeight / totalLayers) : 0;
+      if (layerGrams > 0 && targetTray) {
+        deductFilamentForTray(pid, state, targetTray, layerGrams, fIdx);
       }
     }
   }
@@ -355,6 +382,25 @@ const handlePrintStatus = async (printer, printData) => {
     // Regular AMS slots (0-15)
     return `${Math.floor(m / 4)}-${m % 4}`;
   };
+
+  const mappingArray = printData.mapping || printData.ams_mapping;
+  if (mappingArray && Array.isArray(mappingArray)) {
+    const validTrays = mappingArray.map(m => decodeTrayId(m, activeExtruder)).filter(Boolean);
+    if (validTrays.length > 0) {
+      state.activeTrays = validTrays;
+      if (!state.activeSlotTrays) state.activeSlotTrays = {};
+      validTrays.forEach((tId, idx) => {
+        state.activeSlotTrays[idx] = tId;
+      });
+    }
+  } else if (printData.vt_tray && printData.vt_tray.id !== 255) {
+    const vtId = `0-${printData.vt_tray.id}`;
+    if (!state.activeTrays || state.activeTrays.length === 0) {
+      state.activeTrays = [vtId];
+    }
+    if (!state.activeSlotTrays) state.activeSlotTrays = {};
+    if (!state.activeSlotTrays[0]) state.activeSlotTrays[0] = vtId;
+  }
 
   const previousTrayId = state.currentTrayId;
 
@@ -537,6 +583,7 @@ const handlePrintStatus = async (printer, printData) => {
       state.takeoverMap = {};
       state.runoutSpools = {};
       state.spoolDeductedGrams = {};
+      state.slotDeductedGrams = {};
       state.totalGramsDeducted = 0;
       state.lastDeductedLayer = 0;
       state.activeTrays = [];
@@ -545,15 +592,19 @@ const handlePrintStatus = async (printer, printData) => {
       state.takeovers = [];
       state.currentTrayId = null;
 
-      const mappingArray = printData.mapping || printData.ams_mapping;
-      if (mappingArray && Array.isArray(mappingArray)) {
-        state.activeTrays = mappingArray.map(m => decodeTrayId(m)).filter(Boolean);
+      const runMapping = printData.mapping || printData.ams_mapping;
+      if (runMapping && Array.isArray(runMapping)) {
+        const validTrays = runMapping.map(m => decodeTrayId(m, activeExtruder)).filter(Boolean);
+        if (validTrays.length > 0) {
+          state.activeTrays = validTrays;
+          validTrays.forEach((tId, idx) => {
+            state.activeSlotTrays[idx] = tId;
+          });
+        }
       } else if (printData.vt_tray && printData.vt_tray.id !== 255) {
         state.activeTrays = [`0-${printData.vt_tray.id}`];
+        state.activeSlotTrays[0] = state.activeTrays[0];
       }
-      state.activeTrays.forEach((tId, idx) => {
-        state.activeSlotTrays[idx] = tId;
-      });
 
       db.run(`
         INSERT INTO archives (printer_id, print_name, status, created_at)
@@ -624,12 +675,21 @@ const handlePrintStatus = async (printer, printData) => {
       if (!state.startTime) state.startTime = new Date();
       if (state.startEnergy === undefined) state.startEnergy = await getPrinterEnergyUsage();
       
-      if (!state.activeTrays || state.activeTrays.length === 0) {
-        const mappingArray = printData.mapping || printData.ams_mapping;
-        if (mappingArray && Array.isArray(mappingArray)) {
-          state.activeTrays = mappingArray.map(m => decodeTrayId(m)).filter(Boolean);
+      if (!state.activeTrays || state.activeTrays.length === 0 || !state.activeSlotTrays || Object.keys(state.activeSlotTrays).length === 0) {
+        const finishMapping = printData.mapping || printData.ams_mapping;
+        if (finishMapping && Array.isArray(finishMapping)) {
+          const validTrays = finishMapping.map(m => decodeTrayId(m, activeExtruder)).filter(Boolean);
+          if (validTrays.length > 0) {
+            state.activeTrays = validTrays;
+            if (!state.activeSlotTrays) state.activeSlotTrays = {};
+            validTrays.forEach((tId, idx) => {
+              state.activeSlotTrays[idx] = tId;
+            });
+          }
         } else if (printData.vt_tray && printData.vt_tray.id !== 255) {
           state.activeTrays = [`0-${printData.vt_tray.id}`];
+          if (!state.activeSlotTrays) state.activeSlotTrays = {};
+          state.activeSlotTrays[0] = state.activeTrays[0];
         } else {
           state.activeTrays = [];
         }
@@ -690,20 +750,40 @@ const handlePrintStatus = async (printer, printData) => {
 
         const totalPredictedWeight = (archivedState.predictedWeights.reduce((a, b) => a + b, 0) || 0) * percentCompleted;
 
-        // Check if live layer-by-layer deductions occurred
-        const deductedSpoolEntries = Object.entries(archivedState.spoolDeductedGrams || {});
-        if (deductedSpoolEntries.length > 0) {
-          console.log(`[MQTT ${pid}] Using live layer-deducted weights for archive:`, archivedState.spoolDeductedGrams);
-          // If FINISH, reconcile any fractional rounding delta between slicer total and sum of layers
-          if (newStatus === 'FINISH' && totalPredictedWeight > 0) {
-            const currentTotalDeducted = deductedSpoolEntries.reduce((sum, [, w]) => sum + w, 0);
-            const delta = totalPredictedWeight - currentTotalDeducted;
-            if (Math.abs(delta) > 0.001 && Math.abs(delta) < 1.0) {
-              const lastSpoolId = parseInt(deductedSpoolEntries[deductedSpoolEntries.length - 1][0], 10);
-              archivedState.spoolDeductedGrams[lastSpoolId] = (archivedState.spoolDeductedGrams[lastSpoolId] || 0) + delta;
-              db.run('UPDATE spools SET used_weight = used_weight + ? WHERE id = ?', [delta, lastSpoolId]);
+        if (!archivedState.spoolDeductedGrams) archivedState.spoolDeductedGrams = {};
+        if (!archivedState.slotDeductedGrams) archivedState.slotDeductedGrams = {};
+
+        // If we have slicer predicted weights per slot, reconcile each slot against its assigned spool
+        if (archivedState.predictedWeights && archivedState.predictedWeights.length > 0) {
+          archivedState.predictedWeights.forEach((predWeight, slotIdx) => {
+            const expectedWeight = (predWeight || 0) * percentCompleted;
+            const alreadyDeducted = archivedState.slotDeductedGrams[slotIdx] || 0;
+            const delta = expectedWeight - alreadyDeducted;
+            const targetTray = archivedState.activeSlotTrays?.[slotIdx] || archivedState.activeTrays?.[slotIdx] || (slotIdx === 0 ? archivedState.currentTrayId : null);
+            const spoolId = targetTray ? assignMap[targetTray] : null;
+
+            if (spoolId) {
+              if (delta > 0.001) {
+                console.log(`[MQTT ${pid}] Reconciling slot ${slotIdx} (tray ${targetTray}, spool ${spoolId}): deducting remaining ${delta.toFixed(2)}g (expected ${expectedWeight.toFixed(2)}g, live was ${alreadyDeducted.toFixed(2)}g)`);
+                archivedState.spoolDeductedGrams[spoolId] = (archivedState.spoolDeductedGrams[spoolId] || 0) + delta;
+                archivedState.slotDeductedGrams[slotIdx] = alreadyDeducted + delta;
+                const isRunout = archivedState.runoutSpools && archivedState.runoutSpools[targetTray] === spoolId;
+                if (isRunout) {
+                  db.run('UPDATE spools SET used_weight = total_weight, last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
+                    [archivedState.name, spoolId]);
+                } else {
+                  db.run('UPDATE spools SET used_weight = used_weight + ?, last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
+                    [delta, archivedState.name, spoolId]);
+                }
+              } else if (delta < -0.001 && newStatus === 'FINISH' && Math.abs(delta) < 2.0) {
+                console.log(`[MQTT ${pid}] Adjusting slot ${slotIdx} rounding delta ${delta.toFixed(2)}g on spool ${spoolId}`);
+                archivedState.spoolDeductedGrams[spoolId] = Math.max(0, (archivedState.spoolDeductedGrams[spoolId] || 0) + delta);
+                db.run('UPDATE spools SET used_weight = used_weight + ? WHERE id = ?', [delta, spoolId]);
+              }
+            } else if (expectedWeight > 0) {
+              console.log(`[MQTT ${pid}] Warning: No spool assigned to tray ${targetTray} for slot ${slotIdx} (${expectedWeight.toFixed(2)}g expected)`);
             }
-          }
+          });
 
           for (const [sIdStr, weight] of Object.entries(archivedState.spoolDeductedGrams)) {
             const spoolId = parseInt(sIdStr, 10);
@@ -714,7 +794,7 @@ const handlePrintStatus = async (printer, printData) => {
             }
           }
         } else {
-          // Fallback if live layer tracking wasn't active
+          // Fallback if predictedWeights were never available (e.g. FTP failed)
           const trayProgress = archivedState.trayProgress || {};
           const totalTrackedProg = Object.values(trayProgress).reduce((a, b) => a + b, 0);
           const allTraysUsed = Array.from(new Set([...archivedState.activeTrays, ...Object.keys(trayProgress)]));

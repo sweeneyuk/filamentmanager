@@ -256,73 +256,125 @@ const extractThumbnailFrom3mf = async (printer, gcodeFile, prefix, subtaskName =
   }
 };
 
-const extractWeightsFrom3mf = async (client, remoteFile) => {
-  const localTemp = path.join(mediaDir, 'temp_print.3mf');
+const extractWeightsFrom3mf = async (client, remoteFile, subtaskName = null, gcodeFile = null) => {
+  const localTemp = path.join(mediaDir, `temp_${Date.now()}_print.3mf`);
   try {
     await client.downloadTo(localTemp, remoteFile);
     const zip = new AdmZip(localTemp);
     const zipEntries = zip.getEntries();
-    const detailsEntry = zipEntries.find(e => e.entryName === 'Metadata/project_details.json' || e.entryName === 'Metadata/slice_info.config');
-    
+
+    // Detect plate number: first from subtask_name, then from gcode_file path
+    const plateSource = subtaskName || gcodeFile || '';
+    const plateMatch = plateSource.match(/(?:plate[_ ]?)(\d+)/i);
+    const plateNumber = plateMatch ? parseInt(plateMatch[1], 10) : 1;
+
+    // Prioritize slice_info.config which contains plate configs, filament lists, and layer mappings
+    const sliceEntry = zipEntries.find(e => e.entryName === 'Metadata/slice_info.config');
+    if (sliceEntry) {
+      const contentStr = sliceEntry.getData().toString('utf8');
+      // Extract plate blocks
+      const plateRegex = /<plate>([\s\S]*?)<\/plate>/gi;
+      let pMatch;
+      const plateBlocks = [];
+      while ((pMatch = plateRegex.exec(contentStr)) !== null) {
+        const block = pMatch[1];
+        const idxMatch = block.match(/<metadata\s+key="index"\s+value="(\d+)"/i);
+        const idx = idxMatch ? parseInt(idxMatch[1], 10) : 1;
+        plateBlocks.push({ index: idx, content: block });
+      }
+
+      const selectedPlate = (plateBlocks.length > 0)
+        ? (plateBlocks.find(p => p.index === plateNumber) || plateBlocks[0])
+        : { content: contentStr };
+
+      const filaments = [];
+      const weights = [];
+      const filamentRegex = /<filament\s+([^>]+)\/>/gi;
+      let fMatch;
+      while ((fMatch = filamentRegex.exec(selectedPlate.content)) !== null) {
+        const attrs = fMatch[1];
+        const id = (attrs.match(/id="([^"]+)"/) || [])[1];
+        const used_g = parseFloat((attrs.match(/used_g="([^"]+)"/) || [])[1] || '0');
+        const color = (attrs.match(/color="([^"]+)"/) || [])[1];
+        const type = (attrs.match(/type="([^"]+)"/) || [])[1];
+        filaments.push({ id, used_g, color, type });
+        weights.push(used_g);
+      }
+
+      const lflRegex = /<layer_filament_list\s+filament_list="([^"]+)"\s+layer_ranges="([^"]+)"/gi;
+      let lMatch;
+      const rawLists = [];
+      while ((lMatch = lflRegex.exec(selectedPlate.content)) !== null) {
+        const fList = lMatch[1].trim().split(/\s+/).map(x => parseInt(x, 10)).filter(x => !isNaN(x));
+        const ranges = lMatch[2].trim().split(/\s+/).map(x => parseInt(x, 10)).filter(x => !isNaN(x));
+        rawLists.push({ fList, ranges });
+      }
+
+      let allFIndices = [];
+      rawLists.forEach(r => allFIndices.push(...r.fList));
+      const minIdx = allFIndices.length > 0 ? Math.min(...allFIndices) : 0;
+      const maxIdx = allFIndices.length > 0 ? Math.max(...allFIndices) : 0;
+      const is1Based = minIdx >= 1 && maxIdx === weights.length && !allFIndices.includes(0);
+
+      const layerMap = {};
+      const layerCounts = {};
+      rawLists.forEach(({ fList, ranges }) => {
+        const normalizedFList = is1Based ? fList.map(x => x - 1) : fList;
+        for (let i = 0; i < ranges.length; i += 2) {
+          const start = ranges[i];
+          const end = ranges[i + 1] !== undefined ? ranges[i + 1] : start;
+          for (let l = start; l <= end; l++) {
+            layerMap[l] = normalizedFList;
+            normalizedFList.forEach(fIdx => {
+              layerCounts[fIdx] = (layerCounts[fIdx] || 0) + 1;
+            });
+          }
+        }
+      });
+
+      if (fs.existsSync(localTemp)) fs.unlinkSync(localTemp);
+
+      if (weights.length > 0) {
+        return { weights, filaments, layerMap, layerCounts };
+      }
+
+      // Fallback to total weight metadata within plate
+      const weightMatch = selectedPlate.content.match(/<metadata\s+key="weight"\s+value="([\d\.\,\s]+)"/i);
+      if (weightMatch && weightMatch[1]) {
+        return { weights: [parseFloat(weightMatch[1])], filaments: null, layerMap: null, layerCounts: null };
+      }
+    }
+
+    // Secondary fallback: project_details.json
+    const detailsEntry = zipEntries.find(e => e.entryName === 'Metadata/project_details.json');
     if (detailsEntry) {
       const contentStr = detailsEntry.getData().toString('utf8');
-      fs.unlinkSync(localTemp); // Cleanup
-      
+      if (fs.existsSync(localTemp)) fs.unlinkSync(localTemp);
       try {
         const data = JSON.parse(contentStr);
+        if (data.plate_summary && data.plate_summary.length > 0) {
+          const plateObj = data.plate_summary.find(p => p.index === plateNumber) || data.plate_summary[0];
+          const w = plateObj?.filament_weight || [];
+          if (w.length > 0) return { weights: Array.isArray(w) ? w : [w], filaments: null, layerMap: null, layerCounts: null };
+        }
         if (data.filament_weight) {
           const w = Array.isArray(data.filament_weight) ? data.filament_weight : [data.filament_weight];
           return { weights: w, filaments: null, layerMap: null, layerCounts: null };
         }
-        if (data.plate_summary && data.plate_summary.length > 0) {
-          const w = data.plate_summary[0].filament_weight || [];
+      } catch (_) {}
+    }
+
+    // Tertiary fallback: plate JSON file (e.g. Metadata/plate_1.json)
+    const plateJsonEntry = zipEntries.find(e => e.entryName === `Metadata/plate_${plateNumber}.json` || e.entryName === 'Metadata/plate_1.json');
+    if (plateJsonEntry) {
+      try {
+        const pData = JSON.parse(plateJsonEntry.getData().toString('utf8'));
+        if (pData.filament_weight) {
+          const w = Array.isArray(pData.filament_weight) ? pData.filament_weight : [pData.filament_weight];
+          if (fs.existsSync(localTemp)) fs.unlinkSync(localTemp);
           return { weights: w, filaments: null, layerMap: null, layerCounts: null };
         }
-      } catch (jsonErr) {
-        // It's XML (slice_info.config)
-        const filamentRegex = /<filament\s+([^>]+)\/>/gi;
-        const filaments = [];
-        const weights = [];
-        let fMatch;
-        while ((fMatch = filamentRegex.exec(contentStr)) !== null) {
-          const attrs = fMatch[1];
-          const id = (attrs.match(/id="([^"]+)"/) || [])[1];
-          const used_g = parseFloat((attrs.match(/used_g="([^"]+)"/) || [])[1] || '0');
-          const color = (attrs.match(/color="([^"]+)"/) || [])[1];
-          const type = (attrs.match(/type="([^"]+)"/) || [])[1];
-          filaments.push({ id, used_g, color, type });
-          weights.push(used_g);
-        }
-
-        const layerMap = {};
-        const layerCounts = {};
-        const lflRegex = /<layer_filament_list\s+filament_list="([^"]+)"\s+layer_ranges="([^"]+)"/gi;
-        let lMatch;
-        while ((lMatch = lflRegex.exec(contentStr)) !== null) {
-          const fList = lMatch[1].trim().split(/\s+/).map(x => parseInt(x, 10));
-          const ranges = lMatch[2].trim().split(/\s+/).map(x => parseInt(x, 10));
-          for (let i = 0; i < ranges.length; i += 2) {
-            const start = ranges[i];
-            const end = ranges[i + 1] !== undefined ? ranges[i + 1] : start;
-            for (let l = start; l <= end; l++) {
-              layerMap[l] = fList;
-              fList.forEach(fIdx => {
-                layerCounts[fIdx] = (layerCounts[fIdx] || 0) + 1;
-              });
-            }
-          }
-        }
-
-        if (weights.length > 0) {
-          return { weights, filaments, layerMap, layerCounts };
-        }
-
-        // Fallback to total weight metadata
-        const weightMatch = contentStr.match(/<metadata\s+key="weight"\s+value="([\d\.\,\s]+)"/i);
-        if (weightMatch && weightMatch[1]) {
-           return { weights: [parseFloat(weightMatch[1])], filaments: null, layerMap: null, layerCounts: null };
-        }
-      }
+      } catch (_) {}
     }
   } catch (err) {
     console.error(`Failed to extract weights from 3mf at ${remoteFile}:`, err.message);
@@ -364,9 +416,9 @@ const getPredictedWeights = async (printer, gcodeFile, subtaskName) => {
     }
 
     const isGcode = remotePath.toLowerCase().endsWith('.gcode');
-    const extractFn = isGcode ? extractWeightsFromGcode : extractWeightsFrom3mf;
-    
-    const parsed = await extractFn(client, remotePath);
+    const parsed = isGcode
+      ? await extractWeightsFromGcode(client, remotePath)
+      : await extractWeightsFrom3mf(client, remotePath, subtaskName, gcodeFile);
     const weights = parsed?.weights || (Array.isArray(parsed) ? parsed : null);
     const filaments = parsed?.filaments || null;
     const layerMap = parsed?.layerMap || null;
