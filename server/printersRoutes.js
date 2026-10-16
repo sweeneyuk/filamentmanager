@@ -27,7 +27,7 @@ router.post('/', async (req, res) => {
     );
     
     // Trigger MQTT to connect to the new printer
-    mqtt.connectPrinter(result.lastID, { name, ip, serial, access_code });
+    mqtt.connectPrinter({ id: result.lastID, name, ip, serial, access_code });
     
     res.json({ success: true, id: result.lastID });
   } catch (err) {
@@ -37,7 +37,7 @@ router.post('/', async (req, res) => {
 
 // Update a printer
 router.put('/:id', async (req, res) => {
-  const { id } = req.params;
+  const id = parseInt(req.params.id, 10);
   const { name, ip, serial, access_code } = req.body;
   
   try {
@@ -57,7 +57,7 @@ router.put('/:id', async (req, res) => {
 
 // Delete a printer
 router.delete('/:id', async (req, res) => {
-  const { id } = req.params;
+  const id = parseInt(req.params.id, 10);
   try {
     await runQuery('DELETE FROM printers WHERE id = ?', [id]);
     

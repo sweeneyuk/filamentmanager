@@ -39,19 +39,27 @@ function Analytics() {
 
   const spoolFailureMap = {};
   const spoolSuccessMap = {};
+  const seenPrintIds = new Set();
   
   data.forEach(print => {
-    totalCost += (print.total_cost || 0);
-    totalEnergy += (print.energy_cost || 0);
-    totalFilamentCost += (print.filament_cost || 0);
-    totalWeightG += (print.filament_used_g || 0);
+    const isFirstRowForPrint = !seenPrintIds.has(print.id);
+    if (isFirstRowForPrint) {
+      seenPrintIds.add(print.id);
+      totalCost += (print.total_cost || 0);
+      totalEnergy += (print.energy_cost || 0);
+      totalFilamentCost += (print.filament_cost || 0);
+      totalWeightG += (print.filament_used_g || 0);
+    }
 
-    // Material Pie Chart
+    // Material Pie Chart (use per-spool weight when available so multi-material prints split accurately)
     if (print.material) {
       if (!materialDataMap[print.material]) {
         materialDataMap[print.material] = { name: print.material, value: 0, color: print.color || '#8884d8' };
       }
-      materialDataMap[print.material].value += (print.filament_used_g || 0);
+      const rowWeight = (print.spool_weight_used_g !== undefined && print.spool_weight_used_g !== null)
+        ? print.spool_weight_used_g
+        : (isFirstRowForPrint ? (print.filament_used_g || 0) : 0);
+      materialDataMap[print.material].value += rowWeight;
     }
 
     // AI Analysis Data
@@ -62,19 +70,21 @@ function Analytics() {
           const spoolKey = print.brand && print.material ? `${print.brand} ${print.material}::${print.color || ''}` : null;
           
           if (ai.status === 'SUCCESS') {
-            aiSuccessMap.SUCCESS.value += 1;
+            if (isFirstRowForPrint) aiSuccessMap.SUCCESS.value += 1;
             if (spoolKey) {
               if (!spoolSuccessMap[spoolKey]) spoolSuccessMap[spoolKey] = 0;
               spoolSuccessMap[spoolKey] += 1;
             }
           } else {
-            aiSuccessMap.FAILURE.value += 1;
-            
-            // Record specific failure type
-            if (!aiFailureTypeMap[ai.status]) {
-              aiFailureTypeMap[ai.status] = { name: ai.status.replace('_', ' '), value: 0, color: failureColors[ai.status] || '#9ca3af' };
+            if (isFirstRowForPrint) {
+              aiSuccessMap.FAILURE.value += 1;
+              
+              // Record specific failure type
+              if (!aiFailureTypeMap[ai.status]) {
+                aiFailureTypeMap[ai.status] = { name: ai.status.replace('_', ' '), value: 0, color: failureColors[ai.status] || '#9ca3af' };
+              }
+              aiFailureTypeMap[ai.status].value += 1;
             }
-            aiFailureTypeMap[ai.status].value += 1;
 
             // Record spool-specific failure
             if (spoolKey) {
@@ -90,7 +100,7 @@ function Analytics() {
   });
 
   const totalWeightKg = (totalWeightG / 1000).toFixed(2);
-  const totalPrints = data.length;
+  const totalPrints = seenPrintIds.size;
   const materialData = Object.values(materialDataMap).sort((a, b) => b.value - a.value);
   const aiSuccessData = Object.values(aiSuccessMap).filter(d => d.value > 0);
   const aiFailureTypeData = Object.values(aiFailureTypeMap).sort((a, b) => b.value - a.value);

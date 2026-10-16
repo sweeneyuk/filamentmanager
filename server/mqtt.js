@@ -22,7 +22,10 @@ const IDLE_STATE = () => ({
   slicerFilaments: [],
   layerFilamentMap: null,
   layerCounts: null,
+  rawMappingTrays: [],
+  validMappingTrays: [],
   activeSlotTrays: {},
+  initialAssignments: {},
   takeoverMap: {},
   runoutSpools: {},
   spoolDeductedGrams: {},
@@ -132,127 +135,219 @@ const connectMqtt = async () => {
 };
 
 /**
- * Deduct a given weight (grams) from the spool assigned to trayId.
- * If the spool runs out (or is already depleted), any overflow is routed to the takeover tray.
+ * Synchronize state.activeSlotTrays so each slicer filament slot (0..N-1) is accurately mapped
+ * to its physical AMS tray ID, handling non-contiguous project filament IDs and dual-nozzle setups.
  */
-const deductFilamentForTray = (pid, state, trayId, grams, slotIdx = 0) => {
-  if (!grams || grams <= 0 || !trayId) return;
+const syncSlotTrays = (pid, state) => {
+  if (!state.activeSlotTrays) state.activeSlotTrays = {};
+  const numSlots = Math.max(
+    state.slicerFilaments?.length || 0,
+    state.predictedWeights?.length || 0,
+    state.validMappingTrays?.length || 0
+  );
+  if (numSlots === 0) return;
 
-  db.get(
-    'SELECT aa.spool_id, s.total_weight, s.used_weight FROM ams_assignments aa LEFT JOIN spools s ON aa.spool_id = s.id WHERE aa.printer_id = ? AND aa.tray_id = ?',
-    [pid, trayId],
-    (err, row) => {
-      if (!err && row && row.spool_id) {
-        const spoolId = row.spool_id;
-        const totalWeight = row.total_weight || 0;
-        const currentUsed = row.used_weight || 0;
-        const remaining = Math.max(0, totalWeight - currentUsed);
+  const rawTrays = state.rawMappingTrays || [];
+  const validTrays = state.validMappingTrays || [];
+  const amsList = amsDataMap[pid] || [];
 
-        // If this spool was marked as run out or has 0g remaining, route to takeover tray if available
-        if (state.runoutSpools?.[trayId] === spoolId || remaining <= 0.001) {
-          const takeoverTray = Object.keys(state.takeoverMap || {}).find(t => state.takeoverMap[t] === trayId);
-          if (takeoverTray && takeoverTray !== trayId) {
-            console.log(`[MQTT ${pid}] Spool ${spoolId} in ${trayId} depleted; routing ${grams.toFixed(2)}g to takeover tray ${takeoverTray}`);
-            return deductFilamentForTray(pid, state, takeoverTray, grams, slotIdx);
-          }
-        }
+  for (let slotIdx = 0; slotIdx < numSlots; slotIdx++) {
+    // Do not overwrite if this slot was already redirected by a confirmed auto-refill takeover
+    const currentMapped = state.activeSlotTrays[slotIdx];
+    if (currentMapped && state.takeoverMap && state.takeoverMap[currentMapped]) {
+      continue;
+    }
 
-        // Cap deduction if spool runs out on this layer
-        let actualDeduct = grams;
-        let overflow = 0;
-        if (remaining > 0 && grams > remaining) {
-          actualDeduct = remaining;
-          overflow = grams - remaining;
-          if (!state.runoutSpools) state.runoutSpools = {};
-          state.runoutSpools[trayId] = spoolId;
-          console.log(`[MQTT ${pid}] Spool ${spoolId} in ${trayId} reached 0g during layer; overflow of ${overflow.toFixed(2)}g will route to takeover roll`);
-        }
+    const fil = state.slicerFilaments?.[slotIdx];
+    const projIdx = (fil && fil.id !== undefined) ? parseInt(fil.id, 10) - 1 : -1;
 
-        db.run(
-          'UPDATE spools SET used_weight = used_weight + ?, last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
-          [actualDeduct, state.name, spoolId],
-          (updateErr) => {
-            if (!updateErr) {
-              if (!state.spoolDeductedGrams) state.spoolDeductedGrams = {};
-              state.spoolDeductedGrams[spoolId] = (state.spoolDeductedGrams[spoolId] || 0) + actualDeduct;
-              state.totalGramsDeducted = (state.totalGramsDeducted || 0) + actualDeduct;
-              if (slotIdx !== undefined && slotIdx !== null) {
-                if (!state.slotDeductedGrams) state.slotDeductedGrams = {};
-                state.slotDeductedGrams[slotIdx] = (state.slotDeductedGrams[slotIdx] || 0) + actualDeduct;
-              }
+    let resolvedTray = null;
 
-              // Emit updated spool to all connected clients
-              db.get('SELECT * FROM spools WHERE id = ?', [spoolId], (e, updatedSpool) => {
-                if (!e && updatedSpool && ioInstance) {
-                  ioInstance.emit('spool_updated', updatedSpool);
-                }
-              });
+    // 1. If rawMappingTrays is indexed by project filament ID and has more slots than the plate's used filaments
+    if (projIdx >= 0 && rawTrays.length > (state.slicerFilaments?.length || 0) && rawTrays[projIdx]) {
+      resolvedTray = rawTrays[projIdx];
+    }
+    // 2. Otherwise if validTrays has a direct 1-to-1 positional entry
+    else if (validTrays[slotIdx]) {
+      resolvedTray = validTrays[slotIdx];
+    }
+    // 3. Fallback to rawTrays[projIdx] if present
+    else if (projIdx >= 0 && rawTrays[projIdx]) {
+      resolvedTray = rawTrays[projIdx];
+    }
+    // 4. Fallback: match by slicer filament material type & hex colour against loaded AMS trays
+    else if (fil && (fil.type || fil.color) && Array.isArray(amsList)) {
+      const targetType = (fil.type || '').toUpperCase().trim();
+      const targetHex = (fil.color || '').replace('#', '').substring(0, 6).toUpperCase();
+      const usedTrays = new Set(Object.values(state.activeSlotTrays));
+
+      let bestTray = null;
+      for (const unit of amsList) {
+        if (!Array.isArray(unit.tray)) continue;
+        for (const t of unit.tray) {
+          if (!t.tray_type) continue;
+          const tId = `${unit.id}-${t.id}`;
+          const tType = (t.tray_type || '').toUpperCase().trim();
+          const tHex = (t.tray_color || '').replace('#', '').substring(0, 6).toUpperCase();
+          if (targetType && tType === targetType && targetHex && tHex === targetHex) {
+            if (!usedTrays.has(tId)) {
+              bestTray = tId;
+              break;
+            } else if (!bestTray) {
+              bestTray = tId;
             }
           }
-        );
-
-        // Route any overflow to the takeover roll
-        if (overflow > 0) {
-          const takeoverTray = Object.keys(state.takeoverMap || {}).find(t => state.takeoverMap[t] === trayId);
-          if (takeoverTray && takeoverTray !== trayId) {
-            deductFilamentForTray(pid, state, takeoverTray, overflow, slotIdx);
-          }
         }
+        if (bestTray && !usedTrays.has(bestTray)) break;
       }
+      if (bestTray) resolvedTray = bestTray;
     }
-  );
-};
 
-/**
- * Deduct filament layer-by-layer from fromLayer to toLayer.
- */
-const processLayerDeductions = (pid, state, fromLayer, toLayer) => {
-  if (!state.predictedWeights || state.predictedWeights.length === 0) return;
-  for (let l = fromLayer; l <= toLayer; l++) {
-    if (state.layerFilamentMap && state.layerFilamentMap[l]) {
-      const activeFilaments = state.layerFilamentMap[l];
-      for (const fIdx of activeFilaments) {
-        const filamentWeight = state.predictedWeights[fIdx] || 0;
-        const count = (state.layerCounts && state.layerCounts[fIdx]) || 1;
-        const layerGrams = count > 0 ? (filamentWeight / count) : 0;
-        if (layerGrams > 0) {
-          const targetTray = state.activeSlotTrays?.[fIdx] || state.activeTrays?.[fIdx] || state.currentTrayId;
-          if (targetTray) {
-            deductFilamentForTray(pid, state, targetTray, layerGrams, fIdx);
-          }
-        }
-      }
-    } else if (state.predictedWeights.length === 1) {
-      // Single filament print fallback: distribute total print weight evenly across total layers
-      const totalWeight = state.predictedWeights[0];
-      const totalLayers = Math.max(1, state.totalLayerNum || 100);
-      const layerGrams = totalWeight / totalLayers;
-      if (layerGrams > 0) {
-        const targetTray = state.activeSlotTrays?.[0] || state.activeTrays?.[0] || state.currentTrayId;
-        if (targetTray) {
-          deductFilamentForTray(pid, state, targetTray, layerGrams, 0);
-        }
-      }
-    } else {
-      // Multi-colour print without layer map:
-      // Attribute layer consumption to the tray currently printing (state.currentTrayId)
-      const targetTray = state.currentTrayId || state.activeTrays?.[0];
-      let fIdx = 0;
-      if (state.activeSlotTrays) {
-        const foundSlot = Object.keys(state.activeSlotTrays).find(slot => state.activeSlotTrays[slot] === targetTray);
-        if (foundSlot !== undefined) fIdx = parseInt(foundSlot, 10);
-      } else if (state.activeTrays) {
-        const idx = state.activeTrays.indexOf(targetTray);
-        if (idx !== -1) fIdx = idx;
-      }
-      const filamentWeight = state.predictedWeights[fIdx] || (state.predictedWeights[0] || 0);
-      const totalLayers = Math.max(1, state.totalLayerNum || 100);
-      const layerGrams = totalLayers > 0 ? (filamentWeight / totalLayers) : 0;
-      if (layerGrams > 0 && targetTray) {
-        deductFilamentForTray(pid, state, targetTray, layerGrams, fIdx);
+    if (resolvedTray) {
+      state.activeSlotTrays[slotIdx] = resolvedTray;
+      if (state.activeTrays && !state.activeTrays.includes(resolvedTray)) {
+        state.activeTrays.push(resolvedTray);
       }
     }
   }
+};
+
+/**
+ * Deduct a given weight (grams) from the spool assigned to trayId.
+ * If the spool runs out (or is already depleted), any overflow is routed to the takeover tray.
+ */
+const deductFilamentForTray = async (pid, state, trayId, grams, slotIdx = 0) => {
+  if (!grams || grams <= 0 || !trayId) return;
+
+  try {
+    let row = await getQuery(
+      'SELECT aa.spool_id, s.total_weight, s.used_weight FROM ams_assignments aa LEFT JOIN spools s ON aa.spool_id = s.id WHERE aa.printer_id = ? AND aa.tray_id = ?',
+      [pid, trayId]
+    );
+
+    // Fallback to initialAssignments / runoutSpools if the tray was unassigned mid-print
+    if ((!row || !row.spool_id) && (state.initialAssignments?.[trayId] || state.runoutSpools?.[trayId])) {
+      const fallbackSpoolId = state.initialAssignments?.[trayId] || state.runoutSpools?.[trayId];
+      const sRow = await getQuery('SELECT id as spool_id, total_weight, used_weight FROM spools WHERE id = ?', [fallbackSpoolId]);
+      if (sRow) row = sRow;
+    }
+
+    if (row && row.spool_id) {
+      const spoolId = row.spool_id;
+      if (!state.initialAssignments) state.initialAssignments = {};
+      state.initialAssignments[trayId] = spoolId;
+
+      const totalWeight = row.total_weight || 0;
+      const currentUsed = row.used_weight || 0;
+      const remaining = Math.max(0, totalWeight - currentUsed);
+
+      // If this spool was marked as run out or has 0g remaining, route to takeover tray if available
+      if (state.runoutSpools?.[trayId] === spoolId || remaining <= 0.001) {
+        const takeoverTray = Object.keys(state.takeoverMap || {}).find(t => state.takeoverMap[t] === trayId);
+        if (takeoverTray && takeoverTray !== trayId) {
+          console.log(`[MQTT ${pid}] Spool ${spoolId} in ${trayId} depleted; routing ${grams.toFixed(2)}g to takeover tray ${takeoverTray}`);
+          return await deductFilamentForTray(pid, state, takeoverTray, grams, slotIdx);
+        }
+      }
+
+      // Cap deduction if spool runs out on this layer
+      let actualDeduct = grams;
+      let overflow = 0;
+      if (remaining > 0 && grams > remaining) {
+        actualDeduct = remaining;
+        overflow = grams - remaining;
+        if (!state.runoutSpools) state.runoutSpools = {};
+        state.runoutSpools[trayId] = spoolId;
+        console.log(`[MQTT ${pid}] Spool ${spoolId} in ${trayId} reached 0g during layer; overflow of ${overflow.toFixed(2)}g will route to takeover roll`);
+      }
+
+      await runQuery(
+        'UPDATE spools SET used_weight = used_weight + ?, last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
+        [actualDeduct, state.name, spoolId]
+      );
+
+      if (!state.spoolDeductedGrams) state.spoolDeductedGrams = {};
+      state.spoolDeductedGrams[spoolId] = (state.spoolDeductedGrams[spoolId] || 0) + actualDeduct;
+      state.totalGramsDeducted = (state.totalGramsDeducted || 0) + actualDeduct;
+      if (slotIdx !== undefined && slotIdx !== null) {
+        if (!state.slotDeductedGrams) state.slotDeductedGrams = {};
+        state.slotDeductedGrams[slotIdx] = (state.slotDeductedGrams[slotIdx] || 0) + actualDeduct;
+      }
+
+      const updatedSpool = await getQuery('SELECT * FROM spools WHERE id = ?', [spoolId]);
+      if (updatedSpool && ioInstance) {
+        ioInstance.emit('spool_updated', updatedSpool);
+      }
+
+      // Route any overflow to the takeover roll
+      if (overflow > 0) {
+        const takeoverTray = Object.keys(state.takeoverMap || {}).find(t => state.takeoverMap[t] === trayId);
+        if (takeoverTray && takeoverTray !== trayId) {
+          await deductFilamentForTray(pid, state, takeoverTray, overflow, slotIdx);
+        }
+      }
+    }
+  } catch (err) {
+    console.error(`[MQTT ${pid}] Error deducting filament for tray ${trayId}:`, err.message);
+  }
+};
+
+/**
+ * Deduct filament layer-by-layer from fromLayer to toLayer, serialized per printer state.
+ */
+const processLayerDeductions = (pid, state, fromLayer, toLayer) => {
+  if (!state.predictedWeights || state.predictedWeights.length === 0) return Promise.resolve();
+  const runBatch = async () => {
+    for (let l = fromLayer; l <= toLayer; l++) {
+      if (state.layerFilamentMap && state.layerFilamentMap[l]) {
+        const activeFilaments = state.layerFilamentMap[l];
+        for (const fIdx of activeFilaments) {
+          const filamentWeight = state.predictedWeights[fIdx] || 0;
+          const count = (state.layerCounts && state.layerCounts[fIdx]) || 1;
+          const layerGrams = count > 0 ? (filamentWeight / count) : 0;
+          if (layerGrams > 0) {
+            const targetTray = state.activeSlotTrays?.[fIdx] || state.activeTrays?.[fIdx] || state.currentTrayId;
+            if (targetTray) {
+              await deductFilamentForTray(pid, state, targetTray, layerGrams, fIdx);
+            }
+          }
+        }
+      } else if (state.predictedWeights.length === 1) {
+        // Single filament print fallback: distribute total print weight evenly across total layers
+        const totalWeight = state.predictedWeights[0];
+        const totalLayers = Math.max(1, state.totalLayerNum || 100);
+        const layerGrams = totalWeight / totalLayers;
+        if (layerGrams > 0) {
+          const targetTray = state.activeSlotTrays?.[0] || state.activeTrays?.[0] || state.currentTrayId;
+          if (targetTray) {
+            await deductFilamentForTray(pid, state, targetTray, layerGrams, 0);
+          }
+        }
+      } else {
+        // Multi-colour print without layer map:
+        // Attribute layer consumption to the tray currently printing (state.currentTrayId)
+        const targetTray = state.currentTrayId || state.activeTrays?.[0];
+        let fIdx = 0;
+        if (state.activeSlotTrays) {
+          const foundSlot = Object.keys(state.activeSlotTrays).find(slot => state.activeSlotTrays[slot] === targetTray);
+          if (foundSlot !== undefined) fIdx = parseInt(foundSlot, 10);
+        } else if (state.activeTrays) {
+          const idx = state.activeTrays.indexOf(targetTray);
+          if (idx !== -1) fIdx = idx;
+        }
+        const filamentWeight = state.predictedWeights[fIdx] || (state.predictedWeights[0] || 0);
+        const totalLayers = Math.max(1, state.totalLayerNum || 100);
+        const layerGrams = totalLayers > 0 ? (filamentWeight / totalLayers) : 0;
+        if (layerGrams > 0 && targetTray) {
+          await deductFilamentForTray(pid, state, targetTray, layerGrams, fIdx);
+        }
+      }
+    }
+  };
+  state._deductionChain = (state._deductionChain || Promise.resolve()).then(runBatch).catch(err => {
+    console.error(`[MQTT ${pid}] Layer deduction chain error:`, err.message);
+  });
+  return state._deductionChain;
 };
 
 const handlePrintStatus = async (printer, printData) => {
@@ -326,11 +421,37 @@ const handlePrintStatus = async (printer, printData) => {
   const subTaskName = printData.subtask_name;
   
   if (newStatus && state.isFirstPayload) {
-    state.status = newStatus;
     state.isFirstPayload = false;
+    if (newStatus === 'RUNNING') {
+      // Allow the RUNNING transition block below to initialize weights/mappings and recover any In Progress archive
+      state.recoveredMidPrint = true;
+    } else {
+      state.status = newStatus;
+    }
   }
 
-  state.raw = printData;
+  // Deep-merge raw telemetry so delta MQTT packets do not wipe out device.extruder.info or fan speeds
+  if (!state.raw) {
+    state.raw = { ...printData };
+  } else {
+    const mergedDevice = state.raw.device || printData.device ? {
+      ...(state.raw.device || {}),
+      ...(printData.device || {}),
+      extruder: (state.raw.device?.extruder || printData.device?.extruder) ? {
+        ...(state.raw.device?.extruder || {}),
+        ...(printData.device?.extruder || {})
+      } : undefined,
+      ctc: (state.raw.device?.ctc || printData.device?.ctc) ? {
+        ...(state.raw.device?.ctc || {}),
+        ...(printData.device?.ctc || {})
+      } : undefined
+    } : undefined;
+    state.raw = {
+      ...state.raw,
+      ...printData,
+      ...(mergedDevice ? { device: mergedDevice } : {})
+    };
+  }
 
   // Live Telemetry
   if (printData.mc_percent !== undefined) state.progress = printData.mc_percent;
@@ -396,15 +517,13 @@ const handlePrintStatus = async (printer, printData) => {
 
   const mappingArray = printData.mapping || printData.ams_mapping;
   if (mappingArray && Array.isArray(mappingArray)) {
-    const validTrays = mappingArray.map(m => decodeTrayId(m, activeExtruder)).filter(Boolean);
+    const rawDecoded = mappingArray.map(m => decodeTrayId(m, activeExtruder));
+    const validTrays = rawDecoded.filter(Boolean);
+    state.rawMappingTrays = rawDecoded;
     if (validTrays.length > 0) {
-      state.activeTrays = validTrays;
-      if (!state.activeSlotTrays) state.activeSlotTrays = {};
-      validTrays.forEach((tId, idx) => {
-        if (!state.activeSlotTrays[idx]) {
-          state.activeSlotTrays[idx] = tId;
-        }
-      });
+      state.validMappingTrays = validTrays;
+      state.activeTrays = Array.from(new Set([...(state.activeTrays || []), ...validTrays]));
+      syncSlotTrays(pid, state);
     }
   } else if (printData.vt_tray && printData.vt_tray.id !== 255) {
     const vtId = `0-${printData.vt_tray.id}`;
@@ -435,6 +554,25 @@ const handlePrintStatus = async (printer, printData) => {
   
   if (state.currentTrayId && state.activeTrays && !state.activeTrays.includes(state.currentTrayId)) {
     state.activeTrays.push(state.currentTrayId);
+  }
+
+  // Dynamic dual-nozzle / unmapped slot learning:
+  // If a slicer slot on the current layer has no tray mapped yet (e.g. X2D second nozzle reported 65279 in ams_mapping)
+  // and currentTrayId is not yet mapped to any slot on this layer, bind the unmapped slot to currentTrayId!
+  if (state.status === 'RUNNING' && state.currentTrayId && !state.currentTrayId.includes('255') && state.layerFilamentMap && state.layerNum !== undefined) {
+    const layerSlots = state.layerFilamentMap[state.layerNum];
+    if (Array.isArray(layerSlots) && layerSlots.length > 0) {
+      if (!state.activeSlotTrays) state.activeSlotTrays = {};
+      const alreadyMappedOnLayer = layerSlots.some(sIdx => state.activeSlotTrays[sIdx] === state.currentTrayId);
+      if (!alreadyMappedOnLayer) {
+        const unmappedSlots = layerSlots.filter(sIdx => !state.activeSlotTrays[sIdx]);
+        if (unmappedSlots.length === 1) {
+          const targetSlot = unmappedSlots[0];
+          state.activeSlotTrays[targetSlot] = state.currentTrayId;
+          console.log(`[MQTT ${pid}] Dynamically mapped slicer slot ${targetSlot} to active tray ${state.currentTrayId} on layer ${state.layerNum}`);
+        }
+      }
+    }
   }
 
   // --- Real-time Extrusion & Progress Tracking per Tray ---
@@ -487,15 +625,16 @@ const handlePrintStatus = async (printer, printData) => {
 
         if (spoolDepleted) {
           state.sawRunoutStage = false;
-          if (!err && row && row.spool_id) {
+          const knownSpoolId = (row && row.spool_id) || state.initialAssignments?.[previousTrayId];
+          if (knownSpoolId) {
             if (!state.runoutSpools) state.runoutSpools = {};
-            state.runoutSpools[previousTrayId] = row.spool_id;
-            console.log(`[MQTT ${pid}] Spool ${row.spool_id} in tray ${previousTrayId} ran out during print (remaining tracked: ${spoolRemaining !== null ? spoolRemaining.toFixed(1) + 'g' : 'unknown'}).`);
+            state.runoutSpools[previousTrayId] = knownSpoolId;
+            console.log(`[MQTT ${pid}] Spool ${knownSpoolId} in tray ${previousTrayId} ran out during print (remaining tracked: ${spoolRemaining !== null ? spoolRemaining.toFixed(1) + 'g' : 'unknown'}).`);
             if (ioInstance) {
               ioInstance.emit('spool_runout', {
                 printer_id: pid,
                 tray_id: previousTrayId,
-                spool_id: row.spool_id,
+                spool_id: knownSpoolId,
                 progress: state.progress
               });
             }
@@ -541,14 +680,15 @@ const handlePrintStatus = async (printer, printData) => {
     if (state.currentTrayId) {
       console.log(`[MQTT ${pid}] Stage 6: Filament Runout detected on tray ${state.currentTrayId} at ${state.progress}%`);
       db.get('SELECT aa.spool_id, s.total_weight, s.used_weight FROM ams_assignments aa LEFT JOIN spools s ON aa.spool_id = s.id WHERE aa.printer_id = ? AND aa.tray_id = ?', [pid, state.currentTrayId], (err, row) => {
-        if (!err && row && row.spool_id) {
+        const knownSpoolId = (row && row.spool_id) || state.initialAssignments?.[state.currentTrayId];
+        if (knownSpoolId) {
           if (!state.runoutSpools) state.runoutSpools = {};
-          state.runoutSpools[state.currentTrayId] = row.spool_id;
+          state.runoutSpools[state.currentTrayId] = knownSpoolId;
           if (ioInstance) {
             ioInstance.emit('spool_runout', {
               printer_id: pid,
               tray_id: state.currentTrayId,
-              spool_id: row.spool_id,
+              spool_id: knownSpoolId,
               progress: state.progress
             });
           }
@@ -565,8 +705,9 @@ const handlePrintStatus = async (printer, printData) => {
     if (state.predictedWeights && state.predictedWeights.length > 0) {
       const targetCompletedLayer = state.layerNum - 1;
       if (targetCompletedLayer >= state.lastDeductedLayer) {
-        processLayerDeductions(pid, state, state.lastDeductedLayer, targetCompletedLayer);
+        const fromL = state.lastDeductedLayer;
         state.lastDeductedLayer = targetCompletedLayer + 1;
+        processLayerDeductions(pid, state, fromL, targetCompletedLayer);
       }
     }
   }
@@ -575,6 +716,8 @@ const handlePrintStatus = async (printer, printData) => {
     console.log(`[MQTT ${pid}] Print status changed from ${state.status} to ${newStatus}`);
     
     if (newStatus === 'RUNNING' && state.status !== 'RUNNING' && state.status !== 'PAUSE') {
+      const isMidPrintRecovery = !!state.recoveredMidPrint;
+      state.recoveredMidPrint = false;
       state.status = 'RUNNING';
       state.name = subTaskName || 'Unknown Print';
       state.startTime = new Date();
@@ -591,94 +734,149 @@ const handlePrintStatus = async (printer, printData) => {
       state.slicerFilaments = [];
       state.layerFilamentMap = null;
       state.layerCounts = null;
+      state.rawMappingTrays = [];
+      state.validMappingTrays = [];
       state.activeSlotTrays = {};
+      state.initialAssignments = {};
       state.takeoverMap = {};
       state.runoutSpools = {};
       state.spoolDeductedGrams = {};
       state.slotDeductedGrams = {};
       state.totalGramsDeducted = 0;
       state.lastDeductedLayer = 0;
+      state._deductionChain = Promise.resolve();
       state.activeTrays = [];
       state.trayProgress = {};
       state.lastTrackedProgress = 0;
       state.takeovers = [];
       state.sawRunoutStage = false;
 
+      // Snapshot current tray -> spool assignments at print start so they are never lost if a spool runs out
+      try {
+        const initRows = await allQuery('SELECT tray_id, spool_id FROM ams_assignments WHERE printer_id = ?', [pid]);
+        if (initRows) {
+          initRows.forEach(r => {
+            if (r.tray_id && r.spool_id) state.initialAssignments[r.tray_id] = r.spool_id;
+          });
+        }
+      } catch (_) {}
+
       const runMapping = printData.mapping || printData.ams_mapping;
       if (runMapping && Array.isArray(runMapping)) {
-        const validTrays = runMapping.map(m => decodeTrayId(m, activeExtruder)).filter(Boolean);
+        const rawDecoded = runMapping.map(m => decodeTrayId(m, activeExtruder));
+        const validTrays = rawDecoded.filter(Boolean);
+        state.rawMappingTrays = rawDecoded;
         if (validTrays.length > 0) {
-          state.activeTrays = validTrays;
-          validTrays.forEach((tId, idx) => {
-            state.activeSlotTrays[idx] = tId;
-          });
+          state.validMappingTrays = validTrays;
+          state.activeTrays = [...validTrays];
+          syncSlotTrays(pid, state);
         }
       } else if (printData.vt_tray && printData.vt_tray.id !== 255) {
         state.activeTrays = [`0-${printData.vt_tray.id}`];
         state.activeSlotTrays[0] = state.activeTrays[0];
       }
 
-      db.run(`
-        INSERT INTO archives (printer_id, print_name, status, created_at)
-        VALUES (?, ?, 'In Progress', CURRENT_TIMESTAMP)
-      `, [pid, state.name], function(err) {
-        if (!err) {
-          state.archiveId = this.lastID;
-          console.log(`[MQTT ${pid}] Created in-progress archive record with ID ${state.archiveId}`);
+      const startFtpExtraction = () => {
+        if (!printData.gcode_file) return;
+        state.lastFetchedGcode = printData.gcode_file;
+        const { getPredictedWeights, extractThumbnailFrom3mf } = require('./ftp');
+        
+        getPredictedWeights(printer, printData.gcode_file, printData.subtask_name).then(async (res) => {
+          if (res && res.weights && Array.isArray(res.weights)) {
+            state.predictedWeights = res.weights;
+            state.slicerFilaments = res.filaments || [];
+            state.layerFilamentMap = res.layerMap || null;
+            state.layerCounts = res.layerCounts || null;
+            if (res.path) state.activeGcodeFile = res.path;
+            syncSlotTrays(pid, state);
+            console.log(`[MQTT ${pid}] Successfully extracted predicted weights:`, res.weights, 'Slot trays:', state.activeSlotTrays);
 
-          if (printData.gcode_file) {
-            state.lastFetchedGcode = printData.gcode_file;
-            const { getPredictedWeights, extractThumbnailFrom3mf } = require('./ftp');
-            
-            getPredictedWeights(printer, printData.gcode_file, printData.subtask_name).then(res => {
-              if (res && res.weights && Array.isArray(res.weights)) {
-                state.predictedWeights = res.weights;
-                state.slicerFilaments = res.filaments || [];
-                state.layerFilamentMap = res.layerMap || null;
-                state.layerCounts = res.layerCounts || null;
-                if (res.path) state.activeGcodeFile = res.path;
-                console.log(`[MQTT ${pid}] Successfully extracted predicted weights:`, res.weights);
-
-                // If print has already progressed past layer 0, immediately deduct completed layers
-                if (state.layerNum > 0 && state.lastDeductedLayer === 0) {
-                  const targetCompleted = state.layerNum - 1;
-                  if (targetCompleted >= 0) {
-                    console.log(`[MQTT ${pid}] Catching up initial layer deductions 0 to ${targetCompleted}`);
-                    processLayerDeductions(pid, state, 0, targetCompleted);
-                    state.lastDeductedLayer = targetCompleted + 1;
+            if (isMidPrintRecovery && state.layerNum > 0 && state.lastDeductedLayer === 0) {
+              // On server restart mid-print, pre-populate slotDeductedGrams and spoolDeductedGrams for already-completed layers
+              // without re-deducting from SQLite spools (which were already deducted prior to restart).
+              const completedLayer = state.layerNum - 1;
+              state.lastDeductedLayer = completedLayer + 1;
+              for (let l = 0; l <= completedLayer; l++) {
+                const activeFils = (state.layerFilamentMap && state.layerFilamentMap[l]) ? state.layerFilamentMap[l] : [0];
+                for (const fIdx of activeFils) {
+                  const fw = state.predictedWeights[fIdx] || 0;
+                  const cnt = (state.layerCounts && state.layerCounts[fIdx]) || Math.max(1, state.totalLayerNum || 100);
+                  const lg = cnt > 0 ? (fw / cnt) : 0;
+                  if (lg > 0) {
+                    state.slotDeductedGrams[fIdx] = (state.slotDeductedGrams[fIdx] || 0) + lg;
+                    state.totalGramsDeducted = (state.totalGramsDeducted || 0) + lg;
+                    const tId = state.activeSlotTrays?.[fIdx] || state.activeTrays?.[fIdx] || state.currentTrayId;
+                    const spId = tId ? state.initialAssignments?.[tId] : null;
+                    if (spId) {
+                      state.spoolDeductedGrams[spId] = (state.spoolDeductedGrams[spId] || 0) + lg;
+                    }
                   }
                 }
               }
-            }).catch(err => console.log(`[MQTT ${pid}] Failed to fetch weights via FTP:`, err.message));
-            
-            // Attempt thumbnail extraction. The 3MF may not be on the printer's FTP
-            // immediately when RUNNING fires (BambuStudio is still uploading), so
-            // we try once right away and, if that fails, retry after a 15-second delay.
-            const attemptThumbnail = (attempt) => {
-              const thumbPrefix = `${Date.now()}`;
-              extractThumbnailFrom3mf(printer, printData.gcode_file, thumbPrefix, printData.subtask_name).then(thumbPath => {
-                if (thumbPath) {
-                  state.thumbnailPath = thumbPath;
-                  if (state.archiveId) {
-                    db.run('UPDATE archives SET thumbnail_path = ? WHERE id = ?', [thumbPath, state.archiveId]);
-                  }
-                  console.log(`[MQTT ${pid}] Thumbnail stored (attempt ${attempt}): ${thumbPath}`);
-                } else if (attempt < 3) {
-                  const delay = attempt * 15000; // 15s, 30s
-                  console.log(`[MQTT ${pid}] Thumbnail attempt ${attempt} failed, retrying in ${delay / 1000}s...`);
-                  setTimeout(() => attemptThumbnail(attempt + 1), delay);
-                } else {
-                  console.log(`[MQTT ${pid}] Could not extract thumbnail after ${attempt} attempts.`);
-                }
-              }).catch(err => {
-                console.log(`[MQTT ${pid}] Thumbnail fetch error (attempt ${attempt}):`, err.message);
-                if (attempt < 3) setTimeout(() => attemptThumbnail(attempt + 1), attempt * 15000);
-              });
-            };
-            attemptThumbnail(1);
+              console.log(`[MQTT ${pid}] Mid-print recovery: restored tracking up to layer ${completedLayer} (${state.totalGramsDeducted.toFixed(1)}g)`);
+            } else if (state.layerNum > 0 && state.lastDeductedLayer === 0) {
+              // Fresh print that progressed a few layers while FTP was downloading
+              const targetCompleted = state.layerNum - 1;
+              if (targetCompleted >= 0) {
+                console.log(`[MQTT ${pid}] Catching up initial layer deductions 0 to ${targetCompleted}`);
+                state.lastDeductedLayer = targetCompleted + 1;
+                processLayerDeductions(pid, state, 0, targetCompleted);
+              }
+            }
           }
-        }
-      });
+        }).catch(err => console.log(`[MQTT ${pid}] Failed to fetch weights via FTP:`, err.message));
+        
+        const attemptThumbnail = (attempt) => {
+          const thumbPrefix = `${Date.now()}`;
+          extractThumbnailFrom3mf(printer, printData.gcode_file, thumbPrefix, printData.subtask_name).then(thumbPath => {
+            if (thumbPath) {
+              state.thumbnailPath = thumbPath;
+              if (state.archiveId) {
+                db.run('UPDATE archives SET thumbnail_path = ? WHERE id = ?', [thumbPath, state.archiveId]);
+              }
+              console.log(`[MQTT ${pid}] Thumbnail stored (attempt ${attempt}): ${thumbPath}`);
+            } else if (attempt < 3) {
+              const delay = attempt * 15000;
+              console.log(`[MQTT ${pid}] Thumbnail attempt ${attempt} failed, retrying in ${delay / 1000}s...`);
+              setTimeout(() => attemptThumbnail(attempt + 1), delay);
+            } else {
+              console.log(`[MQTT ${pid}] Could not extract thumbnail after ${attempt} attempts.`);
+            }
+          }).catch(err => {
+            console.log(`[MQTT ${pid}] Thumbnail fetch error (attempt ${attempt}):`, err.message);
+            if (attempt < 3) setTimeout(() => attemptThumbnail(attempt + 1), attempt * 15000);
+          });
+        };
+        attemptThumbnail(1);
+      };
+
+      if (isMidPrintRecovery) {
+        db.get('SELECT id, created_at, thumbnail_path FROM archives WHERE printer_id = ? AND status = "In Progress" ORDER BY id DESC LIMIT 1', [pid], (err, existingArch) => {
+          if (!err && existingArch && existingArch.id) {
+            state.archiveId = existingArch.id;
+            if (existingArch.created_at) state.startTime = new Date(existingArch.created_at);
+            if (existingArch.thumbnail_path) state.thumbnailPath = existingArch.thumbnail_path;
+            console.log(`[MQTT ${pid}] Recovered in-progress archive record ID ${state.archiveId}`);
+            startFtpExtraction();
+          } else {
+            db.run(`INSERT INTO archives (printer_id, print_name, status, created_at) VALUES (?, ?, 'In Progress', CURRENT_TIMESTAMP)`, [pid, state.name], function(insErr) {
+              if (!insErr) state.archiveId = this.lastID;
+              startFtpExtraction();
+            });
+          }
+        });
+      } else {
+        db.run(`
+          INSERT INTO archives (printer_id, print_name, status, created_at)
+          VALUES (?, ?, 'In Progress', CURRENT_TIMESTAMP)
+        `, [pid, state.name], function(err) {
+          if (!err) {
+            state.archiveId = this.lastID;
+            console.log(`[MQTT ${pid}] Created in-progress archive record with ID ${state.archiveId}`);
+            startFtpExtraction();
+          }
+        });
+      }
 
     } else if ((newStatus === 'FINISH' || newStatus === 'FAILED') && state.status !== 'FINISH' && state.status !== 'FAILED') {
       state.status = newStatus;
@@ -690,13 +888,13 @@ const handlePrintStatus = async (printer, printData) => {
       if (!state.activeTrays || state.activeTrays.length === 0 || !state.activeSlotTrays || Object.keys(state.activeSlotTrays).length === 0) {
         const finishMapping = printData.mapping || printData.ams_mapping;
         if (finishMapping && Array.isArray(finishMapping)) {
-          const validTrays = finishMapping.map(m => decodeTrayId(m, activeExtruder)).filter(Boolean);
+          const rawDecoded = finishMapping.map(m => decodeTrayId(m, activeExtruder));
+          const validTrays = rawDecoded.filter(Boolean);
+          state.rawMappingTrays = rawDecoded;
           if (validTrays.length > 0) {
+            state.validMappingTrays = validTrays;
             state.activeTrays = validTrays;
-            if (!state.activeSlotTrays) state.activeSlotTrays = {};
-            validTrays.forEach((tId, idx) => {
-              state.activeSlotTrays[idx] = tId;
-            });
+            syncSlotTrays(pid, state);
           }
         } else if (printData.vt_tray && printData.vt_tray.id !== 255) {
           state.activeTrays = [`0-${printData.vt_tray.id}`];
@@ -713,15 +911,22 @@ const handlePrintStatus = async (printer, printData) => {
           const res = await getPredictedWeights(printer, printData.gcode_file, printData.subtask_name);
           if (res && res.weights && Array.isArray(res.weights)) {
             state.predictedWeights = res.weights;
+            state.slicerFilaments = res.filaments || [];
+            state.layerFilamentMap = res.layerMap || null;
+            state.layerCounts = res.layerCounts || null;
             if (res.path) state.activeGcodeFile = res.path;
+            syncSlotTrays(pid, state);
           }
         } catch (err) {}
       }
 
-      // If finished, complete any remaining layers up to totalLayerNum
+      // If finished, complete any remaining layers up to totalLayerNum and AWAIT completion
       if (newStatus === 'FINISH' && state.totalLayerNum > 0 && state.lastDeductedLayer < state.totalLayerNum) {
-        processLayerDeductions(pid, state, state.lastDeductedLayer, state.totalLayerNum - 1);
+        const fromL = state.lastDeductedLayer;
         state.lastDeductedLayer = state.totalLayerNum;
+        await processLayerDeductions(pid, state, fromL, state.totalLayerNum - 1);
+      } else if (state._deductionChain) {
+        await state._deductionChain;
       }
 
       const endTime = new Date();
@@ -739,205 +944,230 @@ const handlePrintStatus = async (printer, printData) => {
 
       let filamentUsed = 0;
       let filamentCost = 0;
-      const archivedState = { ...state };
+      // Deep-clone tracking structures so a subsequent IDLE reset cannot mutate archivedState
+      const archivedState = {
+        ...state,
+        predictedWeights: [...(state.predictedWeights || [])],
+        slicerFilaments: [...(state.slicerFilaments || [])],
+        activeTrays: [...(state.activeTrays || [])],
+        activeSlotTrays: { ...(state.activeSlotTrays || {}) },
+        initialAssignments: { ...(state.initialAssignments || {}) },
+        takeoverMap: { ...(state.takeoverMap || {}) },
+        runoutSpools: { ...(state.runoutSpools || {}) },
+        spoolDeductedGrams: { ...(state.spoolDeductedGrams || {}) },
+        slotDeductedGrams: { ...(state.slotDeductedGrams || {}) },
+        trayProgress: { ...(state.trayProgress || {}) },
+        takeovers: [...(state.takeovers || [])]
+      };
       const spoolDeductions = [];
       
-      // Select mappings specifically for this printer
-      db.all('SELECT aa.tray_id, aa.spool_id, s.cost, s.total_weight FROM ams_assignments aa LEFT JOIN spools s ON aa.spool_id = s.id WHERE aa.printer_id = ?', [pid], (err, assignments) => {
-        const assignMap = {};
+      // Select mappings and all spool costs so even spools that were unassigned mid-print have accurate cost data
+      db.all('SELECT id, cost, total_weight FROM spools', [], (spErr, allSpools) => {
         const costMap = {};
-        if (!err && assignments) {
-          assignments.forEach(a => {
-            assignMap[a.tray_id] = a.spool_id;
-            costMap[a.spool_id] = (a.cost > 0 && a.total_weight > 0) ? (a.cost / a.total_weight) : 0;
+        if (!spErr && allSpools) {
+          allSpools.forEach(s => {
+            costMap[s.id] = (s.cost > 0 && s.total_weight > 0) ? (s.cost / s.total_weight) : 0;
           });
         }
 
-        // Include any spools that ran out during this print
-        if (archivedState.runoutSpools) {
-          for (const [tId, sId] of Object.entries(archivedState.runoutSpools)) {
-            if (!assignMap[tId]) assignMap[tId] = sId;
+        db.all('SELECT tray_id, spool_id FROM ams_assignments WHERE printer_id = ?', [pid], (err, assignments) => {
+          const assignMap = { ...(archivedState.initialAssignments || {}) };
+          if (!err && assignments) {
+            assignments.forEach(a => {
+              if (a.tray_id && a.spool_id) assignMap[a.tray_id] = a.spool_id;
+            });
           }
-        }
 
-        const totalPredictedWeight = (archivedState.predictedWeights.reduce((a, b) => a + b, 0) || 0) * percentCompleted;
-
-        if (!archivedState.spoolDeductedGrams) archivedState.spoolDeductedGrams = {};
-        if (!archivedState.slotDeductedGrams) archivedState.slotDeductedGrams = {};
-
-        // If we have slicer predicted weights per slot, reconcile each slot against its assigned spool
-        if (archivedState.predictedWeights && archivedState.predictedWeights.length > 0) {
-          archivedState.predictedWeights.forEach((predWeight, slotIdx) => {
-            const expectedWeight = (predWeight || 0) * percentCompleted;
-            const alreadyDeducted = archivedState.slotDeductedGrams[slotIdx] || 0;
-            const delta = expectedWeight - alreadyDeducted;
-            const targetTray = archivedState.activeSlotTrays?.[slotIdx] || archivedState.activeTrays?.[slotIdx] || (slotIdx === 0 ? archivedState.currentTrayId : null);
-            const spoolId = targetTray ? assignMap[targetTray] : null;
-
-            if (spoolId) {
-              if (delta > 0.001) {
-                console.log(`[MQTT ${pid}] Reconciling slot ${slotIdx} (tray ${targetTray}, spool ${spoolId}): deducting remaining ${delta.toFixed(2)}g (expected ${expectedWeight.toFixed(2)}g, live was ${alreadyDeducted.toFixed(2)}g)`);
-                archivedState.spoolDeductedGrams[spoolId] = (archivedState.spoolDeductedGrams[spoolId] || 0) + delta;
-                archivedState.slotDeductedGrams[slotIdx] = alreadyDeducted + delta;
-                db.run('UPDATE spools SET used_weight = MIN(total_weight, used_weight + ?), last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
-                  [delta, archivedState.name, spoolId]);
-              } else if (delta < -0.001 && newStatus === 'FINISH' && Math.abs(delta) < 2.0) {
-                console.log(`[MQTT ${pid}] Adjusting slot ${slotIdx} rounding delta ${delta.toFixed(2)}g on spool ${spoolId}`);
-                archivedState.spoolDeductedGrams[spoolId] = Math.max(0, (archivedState.spoolDeductedGrams[spoolId] || 0) + delta);
-                db.run('UPDATE spools SET used_weight = MAX(0, used_weight + ?) WHERE id = ?', [delta, spoolId]);
-              }
-            } else if (expectedWeight > 0) {
-              console.log(`[MQTT ${pid}] Warning: No spool assigned to tray ${targetTray} for slot ${slotIdx} (${expectedWeight.toFixed(2)}g expected)`);
-            }
-          });
-
-          for (const [sIdStr, weight] of Object.entries(archivedState.spoolDeductedGrams)) {
-            const spoolId = parseInt(sIdStr, 10);
-            if (weight > 0) {
-              filamentUsed += weight;
-              filamentCost += weight * (costMap[spoolId] || 0);
-              spoolDeductions.push({ spoolId, predicted: weight });
+          // Include any spools that ran out during this print
+          if (archivedState.runoutSpools) {
+            for (const [tId, sId] of Object.entries(archivedState.runoutSpools)) {
+              if (!assignMap[tId]) assignMap[tId] = sId;
             }
           }
-        } else {
-          // Fallback if predictedWeights were never available (e.g. FTP failed)
-          const trayProgress = archivedState.trayProgress || {};
-          const totalTrackedProg = Object.values(trayProgress).reduce((a, b) => a + b, 0);
-          const allTraysUsed = Array.from(new Set([...archivedState.activeTrays, ...Object.keys(trayProgress)]));
-          const hasTakeover = (archivedState.takeovers && archivedState.takeovers.length > 0) || (allTraysUsed.length > 1 && totalTrackedProg > 0);
 
-          if (hasTakeover && totalTrackedProg > 0 && totalPredictedWeight > 0) {
-            console.log(`[MQTT ${pid}] Distributing ${totalPredictedWeight.toFixed(1)}g proportionately across takeover trays:`, trayProgress);
-            allTraysUsed.forEach(trayId => {
-              const prog = trayProgress[trayId] || 0;
-              if (prog > 0) {
-                const trayRatio = prog / totalTrackedProg;
-                const weightUsed = totalPredictedWeight * trayRatio;
-                filamentUsed += weightUsed;
-                const spoolId = assignMap[trayId];
-                if (spoolId) {
+          const totalPredictedWeight = (archivedState.predictedWeights.reduce((a, b) => a + b, 0) || 0) * percentCompleted;
+
+          if (!archivedState.spoolDeductedGrams) archivedState.spoolDeductedGrams = {};
+          if (!archivedState.slotDeductedGrams) archivedState.slotDeductedGrams = {};
+
+          // If we have slicer predicted weights per slot, reconcile each slot against its assigned spool
+          if (archivedState.predictedWeights && archivedState.predictedWeights.length > 0) {
+            archivedState.predictedWeights.forEach((predWeight, slotIdx) => {
+              const expectedWeight = (predWeight || 0) * percentCompleted;
+              const alreadyDeducted = archivedState.slotDeductedGrams[slotIdx] || 0;
+              const delta = expectedWeight - alreadyDeducted;
+              const targetTray = archivedState.activeSlotTrays?.[slotIdx] || archivedState.activeTrays?.[slotIdx] || (slotIdx === 0 ? archivedState.currentTrayId : null);
+              const spoolId = targetTray ? assignMap[targetTray] : null;
+
+              if (spoolId) {
+                if (delta > 0.001) {
+                  console.log(`[MQTT ${pid}] Reconciling slot ${slotIdx} (tray ${targetTray}, spool ${spoolId}): deducting remaining ${delta.toFixed(2)}g (expected ${expectedWeight.toFixed(2)}g, live was ${alreadyDeducted.toFixed(2)}g)`);
+                  archivedState.spoolDeductedGrams[spoolId] = (archivedState.spoolDeductedGrams[spoolId] || 0) + delta;
+                  archivedState.slotDeductedGrams[slotIdx] = alreadyDeducted + delta;
                   db.run('UPDATE spools SET used_weight = MIN(total_weight, used_weight + ?), last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
-                    [weightUsed, archivedState.name, spoolId]);
-                  spoolDeductions.push({ spoolId, predicted: weightUsed });
-                  filamentCost += weightUsed * (costMap[spoolId] || 0);
+                    [delta, archivedState.name, spoolId]);
+                } else if (delta < -0.001 && newStatus === 'FINISH' && Math.abs(delta) < 2.0) {
+                  console.log(`[MQTT ${pid}] Adjusting slot ${slotIdx} rounding delta ${delta.toFixed(2)}g on spool ${spoolId}`);
+                  archivedState.spoolDeductedGrams[spoolId] = Math.max(0, (archivedState.spoolDeductedGrams[spoolId] || 0) + delta);
+                  db.run('UPDATE spools SET used_weight = MAX(0, used_weight + ?) WHERE id = ?', [delta, spoolId]);
                 }
+              } else if (expectedWeight > 0) {
+                console.log(`[MQTT ${pid}] Warning: No spool assigned to tray ${targetTray} for slot ${slotIdx} (${expectedWeight.toFixed(2)}g expected)`);
               }
             });
+
+            for (const [sIdStr, weight] of Object.entries(archivedState.spoolDeductedGrams)) {
+              const spoolId = parseInt(sIdStr, 10);
+              if (weight > 0) {
+                filamentUsed += weight;
+                filamentCost += weight * (costMap[spoolId] || 0);
+                spoolDeductions.push({ spoolId, predicted: weight });
+              }
+            }
           } else {
-            archivedState.activeTrays.forEach((trayId, idx) => {
-              const predicted = (archivedState.predictedWeights[idx] || 0) * percentCompleted;
-              if (predicted > 0) {
-                filamentUsed += predicted;
-                const spoolId = assignMap[trayId];
-                if (spoolId) {
-                  db.run('UPDATE spools SET used_weight = MIN(total_weight, used_weight + ?), last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
-                    [predicted, archivedState.name, spoolId]);
-                  spoolDeductions.push({ spoolId, predicted });
-                  filamentCost += predicted * (costMap[spoolId] || 0);
+            // Fallback if predictedWeights were never available (e.g. FTP failed)
+            const trayProgress = archivedState.trayProgress || {};
+            const totalTrackedProg = Object.values(trayProgress).reduce((a, b) => a + b, 0);
+            const allTraysUsed = Array.from(new Set([...archivedState.activeTrays, ...Object.keys(trayProgress)]));
+            const hasTakeover = (archivedState.takeovers && archivedState.takeovers.length > 0) || (allTraysUsed.length > 1 && totalTrackedProg > 0);
+
+            if (hasTakeover && totalTrackedProg > 0 && totalPredictedWeight > 0) {
+              console.log(`[MQTT ${pid}] Distributing ${totalPredictedWeight.toFixed(1)}g proportionately across takeover trays:`, trayProgress);
+              allTraysUsed.forEach(trayId => {
+                const prog = trayProgress[trayId] || 0;
+                if (prog > 0) {
+                  const trayRatio = prog / totalTrackedProg;
+                  const weightUsed = totalPredictedWeight * trayRatio;
+                  filamentUsed += weightUsed;
+                  const spoolId = assignMap[trayId];
+                  if (spoolId) {
+                    db.run('UPDATE spools SET used_weight = MIN(total_weight, used_weight + ?), last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
+                      [weightUsed, archivedState.name, spoolId]);
+                    spoolDeductions.push({ spoolId, predicted: weightUsed });
+                    filamentCost += weightUsed * (costMap[spoolId] || 0);
+                  }
+                }
+              });
+            } else {
+              archivedState.activeTrays.forEach((trayId, idx) => {
+                const predicted = (archivedState.predictedWeights[idx] || 0) * percentCompleted;
+                if (predicted > 0) {
+                  filamentUsed += predicted;
+                  const spoolId = assignMap[trayId];
+                  if (spoolId) {
+                    db.run('UPDATE spools SET used_weight = MIN(total_weight, used_weight + ?), last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
+                      [predicted, archivedState.name, spoolId]);
+                    spoolDeductions.push({ spoolId, predicted });
+                    filamentCost += predicted * (costMap[spoolId] || 0);
+                  }
+                }
+              });
+            }
+          }
+
+          if (filamentUsed === 0 && archivedState.predictedWeights.length > 0) {
+            filamentUsed = totalPredictedWeight;
+          }
+
+          const totalCost = energyCost + filamentCost;
+
+          const handleArchiveSave = async (err, rowId) => {
+            if (err) return;
+            const archiveId = rowId;
+            console.log(`[MQTT ${pid}] Print ${archivedState.name} archived with ID ${archiveId}.`);
+
+            spoolDeductions.forEach(({ spoolId, predicted }) => {
+              db.run('INSERT INTO archive_spools (archive_id, spool_id, weight_used_g) VALUES (?, ?, ?)',
+                [archiveId, spoolId, predicted]);
+            });
+
+            let rtspSuccessPath = null;
+            try {
+              const { captureCameraSnapshot } = require('./camera');
+              rtspSuccessPath = await captureCameraSnapshot(printer, archiveId);
+              if (rtspSuccessPath) {
+                db.run('UPDATE archives SET photo_path = ? WHERE id = ?', [rtspSuccessPath, archiveId]);
+                const path = require('path');
+                const absolutePhotoPath = path.join(__dirname, 'data', rtspSuccessPath.replace(/^\//, ''));
+                const absoluteThumbPath = archivedState.thumbnailPath ? path.join(__dirname, 'data', archivedState.thumbnailPath.replace(/^\//, '')) : null;
+                const { analyzePrint } = require('./ai');
+                const aiResult = await analyzePrint(absolutePhotoPath, absoluteThumbPath, archivedState.name, durationSeconds);
+                if (aiResult) {
+                  db.run('UPDATE archives SET ai_analysis = ? WHERE id = ?', [JSON.stringify(aiResult), archiveId]);
                 }
               }
-            });
-          }
-        }
+            } catch (camErr) {}
 
-        if (filamentUsed === 0 && archivedState.predictedWeights.length > 0) {
-          filamentUsed = totalPredictedWeight;
-        }
-
-        const totalCost = energyCost + filamentCost;
-
-        const handleArchiveSave = async (err, rowId) => {
-          if (err) return;
-          const archiveId = rowId;
-          console.log(`[MQTT ${pid}] Print ${archivedState.name} archived with ID ${archiveId}.`);
-
-          spoolDeductions.forEach(({ spoolId, predicted }) => {
-            db.run('INSERT INTO archive_spools (archive_id, spool_id, weight_used_g) VALUES (?, ?, ?)',
-              [archiveId, spoolId, predicted]);
-          });
-
-          let rtspSuccessPath = null;
-          try {
-            const { captureCameraSnapshot } = require('./camera');
-            rtspSuccessPath = await captureCameraSnapshot(printer, archiveId);
-            if (rtspSuccessPath) {
-              db.run('UPDATE archives SET photo_path = ? WHERE id = ?', [rtspSuccessPath, archiveId]);
-              const path = require('path');
-              const absolutePhotoPath = path.join(__dirname, 'data', rtspSuccessPath.replace(/^\//, ''));
-              const absoluteThumbPath = archivedState.thumbnailPath ? path.join(__dirname, 'data', archivedState.thumbnailPath.replace(/^\//, '')) : null;
-              const { analyzePrint } = require('./ai');
-              const aiResult = await analyzePrint(absolutePhotoPath, absoluteThumbPath, archivedState.name, durationSeconds);
-              if (aiResult) {
-                db.run('UPDATE archives SET ai_analysis = ? WHERE id = ?', [JSON.stringify(aiResult), archiveId]);
-              }
-            }
-          } catch (camErr) {}
-
-          setTimeout(async () => {
-            try {
-              const { downloadLatestTimelapse } = require('./ftp');
-              const paths = await downloadLatestTimelapse(printer, archivedState.name, archiveId);
-              
-              if (paths.timelapsePath) {
-                db.run('UPDATE archives SET timelapse_path = ? WHERE id = ?', [paths.timelapsePath, archiveId]);
+            setTimeout(async () => {
+              try {
+                const { downloadLatestTimelapse } = require('./ftp');
+                const paths = await downloadLatestTimelapse(printer, archivedState.name, archiveId);
                 
-                if (!rtspSuccessPath && paths.localPath) {
-                  const { extractFrameFromMp4 } = require('./camera');
-                  const path = require('path');
-                  const fallbackPhotoPath = path.join(__dirname, 'data', 'media', `${archiveId}_photo.jpg`);
-                  const mp4Extracted = await extractFrameFromMp4(paths.localPath, fallbackPhotoPath);
+                if (paths.timelapsePath) {
+                  db.run('UPDATE archives SET timelapse_path = ? WHERE id = ?', [paths.timelapsePath, archiveId]);
                   
-                  if (mp4Extracted) {
-                    const relativePhotoPath = `/media/${archiveId}_photo.jpg`;
-                    db.run('UPDATE archives SET photo_path = ? WHERE id = ?', [relativePhotoPath, archiveId]);
+                  if (!rtspSuccessPath && paths.localPath) {
+                    const { extractFrameFromMp4 } = require('./camera');
+                    const path = require('path');
+                    const fallbackPhotoPath = path.join(__dirname, 'data', 'media', `${archiveId}_photo.jpg`);
+                    const mp4Extracted = await extractFrameFromMp4(paths.localPath, fallbackPhotoPath);
                     
-                    const absoluteThumbPath = archivedState.thumbnailPath ? path.join(__dirname, 'data', archivedState.thumbnailPath.replace(/^\//, '')) : null;
-                    const { analyzePrint } = require('./ai');
-                    const aiResult = await analyzePrint(mp4Extracted, absoluteThumbPath, archivedState.name, durationSeconds);
-                    if (aiResult) {
-                      db.run('UPDATE archives SET ai_analysis = ? WHERE id = ?', [JSON.stringify(aiResult), archiveId]);
+                    if (mp4Extracted) {
+                      const relativePhotoPath = `/media/${archiveId}_photo.jpg`;
+                      db.run('UPDATE archives SET photo_path = ? WHERE id = ?', [relativePhotoPath, archiveId]);
+                      
+                      const absoluteThumbPath = archivedState.thumbnailPath ? path.join(__dirname, 'data', archivedState.thumbnailPath.replace(/^\//, '')) : null;
+                      const { analyzePrint } = require('./ai');
+                      const aiResult = await analyzePrint(mp4Extracted, absoluteThumbPath, archivedState.name, durationSeconds);
+                      if (aiResult) {
+                        db.run('UPDATE archives SET ai_analysis = ? WHERE id = ?', [JSON.stringify(aiResult), archiveId]);
+                      }
                     }
                   }
                 }
-              }
-            } catch (e) {}
-          }, 60000);
-        };
+              } catch (e) {}
+            }, 60000);
+          };
 
-        if (state.archiveId) {
-          db.run(`
-            UPDATE archives SET status = ?, duration_seconds = ?, energy_kwh = ?, energy_cost = ?, filament_used_g = ?, filament_cost = ?, total_cost = ?, thumbnail_path = COALESCE(?, thumbnail_path)
-            WHERE id = ?
-          `, [newStatus, durationSeconds, energyUsed, energyCost, filamentUsed, filamentCost, totalCost, archivedState.thumbnailPath || null, state.archiveId], function(err) {
-            handleArchiveSave(err, state.archiveId);
-            state.archiveId = null;
-          });
-        } else {
-          // If state.archiveId is null, the container might have restarted mid-print. Look for an orphaned "In Progress" record.
-          db.get('SELECT id FROM archives WHERE printer_id = ? AND status = "In Progress" ORDER BY id DESC LIMIT 1', [pid], (err, row) => {
-            if (row && row.id) {
-              db.run(`
-                UPDATE archives SET status = ?, duration_seconds = ?, energy_kwh = ?, energy_cost = ?, filament_used_g = ?, filament_cost = ?, total_cost = ?, thumbnail_path = COALESCE(?, thumbnail_path)
-                WHERE id = ?
-              `, [newStatus, durationSeconds, energyUsed, energyCost, filamentUsed, filamentCost, totalCost, archivedState.thumbnailPath || null, row.id], function(err) {
-                handleArchiveSave(err, row.id);
-              });
-            } else {
-              db.run(`
-                INSERT INTO archives (printer_id, print_name, status, duration_seconds, energy_kwh, energy_cost, filament_used_g, filament_cost, total_cost, thumbnail_path)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-              `, [pid, archivedState.name, newStatus, durationSeconds, energyUsed, energyCost, filamentUsed, filamentCost, totalCost, archivedState.thumbnailPath || null], function(err) {
-                handleArchiveSave(err, this.lastID);
-              });
-            }
-          });
-        }
+          const targetArchiveId = archivedState.archiveId;
+          state.archiveId = null;
+
+          if (targetArchiveId) {
+            db.run(`
+              UPDATE archives SET status = ?, duration_seconds = ?, energy_kwh = ?, energy_cost = ?, filament_used_g = ?, filament_cost = ?, total_cost = ?, thumbnail_path = COALESCE(?, thumbnail_path)
+              WHERE id = ?
+            `, [newStatus, durationSeconds, energyUsed, energyCost, filamentUsed, filamentCost, totalCost, archivedState.thumbnailPath || null, targetArchiveId], function(err) {
+              handleArchiveSave(err, targetArchiveId);
+            });
+          } else {
+            // If archiveId is null, the container might have restarted mid-print. Look for an orphaned "In Progress" record.
+            db.get('SELECT id FROM archives WHERE printer_id = ? AND status = "In Progress" ORDER BY id DESC LIMIT 1', [pid], (err, row) => {
+              if (row && row.id) {
+                db.run(`
+                  UPDATE archives SET status = ?, duration_seconds = ?, energy_kwh = ?, energy_cost = ?, filament_used_g = ?, filament_cost = ?, total_cost = ?, thumbnail_path = COALESCE(?, thumbnail_path)
+                  WHERE id = ?
+                `, [newStatus, durationSeconds, energyUsed, energyCost, filamentUsed, filamentCost, totalCost, archivedState.thumbnailPath || null, row.id], function(err) {
+                  handleArchiveSave(err, row.id);
+                });
+              } else {
+                db.run(`
+                  INSERT INTO archives (printer_id, print_name, status, duration_seconds, energy_kwh, energy_cost, filament_used_g, filament_cost, total_cost, thumbnail_path)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `, [pid, archivedState.name, newStatus, durationSeconds, energyUsed, energyCost, filamentUsed, filamentCost, totalCost, archivedState.thumbnailPath || null], function(err) {
+                  handleArchiveSave(err, this.lastID);
+                });
+              }
+            });
+          }
+        });
       });
     } else {
       if (newStatus === 'IDLE' && state.status !== 'IDLE') {
         const firstPayload = state.isFirstPayload;
+        const preservedRaw = state.raw;
         Object.assign(state, IDLE_STATE());
         state.isFirstPayload = firstPayload;
+        state.raw = preservedRaw;
       } else {
         state.status = newStatus;
       }
@@ -959,6 +1189,8 @@ async function syncAmsSpools(pid, amsDataArray) {
   if (!Array.isArray(amsDataArray)) return;
   
   let didChangeAssignments = false;
+  const currentPrintStatus = printStates[pid]?.status;
+  const isPrinting = currentPrintStatus === 'RUNNING' || currentPrintStatus === 'PAUSE';
 
   for (const amsUnit of amsDataArray) {
     if (!amsUnit.tray || !Array.isArray(amsUnit.tray)) continue;
@@ -973,11 +1205,15 @@ async function syncAmsSpools(pid, amsDataArray) {
       
       const isEmpty = !tray.tray_type || tray.tray_type === '';
       if (isEmpty) {
-        const existingAssign = await getQuery('SELECT spool_id FROM ams_assignments WHERE printer_id = ? AND tray_id = ?', [pid, trayId]);
-        if (existingAssign) {
-          await runQuery('DELETE FROM ams_assignments WHERE printer_id = ? AND tray_id = ?', [pid, trayId]);
-          didChangeAssignments = true;
-          console.log(`[MQTT] Unassigned spool from empty tray ${trayId}`);
+        // Do not auto-unassign spools while a print is actively running or paused,
+        // so transient empty reports or mid-print runouts do not lose the spool assignment before print finish.
+        if (!isPrinting) {
+          const existingAssign = await getQuery('SELECT spool_id FROM ams_assignments WHERE printer_id = ? AND tray_id = ?', [pid, trayId]);
+          if (existingAssign) {
+            await runQuery('DELETE FROM ams_assignments WHERE printer_id = ? AND tray_id = ?', [pid, trayId]);
+            didChangeAssignments = true;
+            console.log(`[MQTT] Unassigned spool from empty tray ${trayId}`);
+          }
         }
         continue;
       }

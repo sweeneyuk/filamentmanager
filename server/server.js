@@ -511,11 +511,11 @@ app.get('/api/archives', (req, res) => {
   const query = `
     SELECT 
       a.*,
-      GROUP_CONCAT(sp.color, '|') as spool_colors,
-      GROUP_CONCAT(sp.color_name, '|') as spool_color_names,
-      GROUP_CONCAT(m.name, '|') as spool_materials,
-      GROUP_CONCAT(b.name, '|') as spool_brands,
-      GROUP_CONCAT(aps.weight_used_g, '|') as spool_weights
+      GROUP_CONCAT(CASE WHEN aps.id IS NOT NULL THEN COALESCE(sp.color, '') END, '|') as spool_colors,
+      GROUP_CONCAT(CASE WHEN aps.id IS NOT NULL THEN COALESCE(sp.color_name, '') END, '|') as spool_color_names,
+      GROUP_CONCAT(CASE WHEN aps.id IS NOT NULL THEN COALESCE(m.name, 'Unknown') END, '|') as spool_materials,
+      GROUP_CONCAT(CASE WHEN aps.id IS NOT NULL THEN COALESCE(b.name, 'Unknown') END, '|') as spool_brands,
+      GROUP_CONCAT(CASE WHEN aps.id IS NOT NULL THEN COALESCE(aps.weight_used_g, 0) END, '|') as spool_weights
     FROM archives a
     LEFT JOIN archive_spools aps ON aps.archive_id = a.id
     LEFT JOIN spools sp ON aps.spool_id = sp.id
@@ -531,8 +531,8 @@ app.get('/api/archives', (req, res) => {
       spools_used: r.spool_brands ? r.spool_brands.split('|').map((brand, i) => ({
         brand,
         material: r.spool_materials ? r.spool_materials.split('|')[i] : '',
-        color: r.spool_colors ? r.spool_colors.split('|')[i] : null,
-        color_name: r.spool_color_names ? r.spool_color_names.split('|')[i] : null,
+        color: r.spool_colors ? (r.spool_colors.split('|')[i] || null) : null,
+        color_name: r.spool_color_names ? (r.spool_color_names.split('|')[i] || null) : null,
         weight_used_g: r.spool_weights ? parseFloat(r.spool_weights.split('|')[i]) : null,
       })) : []
     }));
@@ -602,57 +602,66 @@ app.post('/api/archives/:id/regenerate-image', async (req, res) => {
     const { analyzePrint } = require('./ai');
     const path = require('path');
     
-    db.get('SELECT print_name, duration_seconds, thumbnail_path, timelapse_path FROM archives WHERE id = ?', [id], async (err, archive) => {
+    db.get('SELECT printer_id, print_name, duration_seconds, thumbnail_path, timelapse_path FROM archives WHERE id = ?', [id], async (err, archive) => {
       if (err || !archive) {
         return res.status(404).json({ error: 'Archive not found' });
       }
 
-      const absoluteThumbPath = archive.thumbnail_path ? path.join(__dirname, 'data', archive.thumbnail_path.replace(/^\//, '')) : null;
+      db.get(
+        archive.printer_id ? 'SELECT * FROM printers WHERE id = ?' : 'SELECT * FROM printers ORDER BY id ASC LIMIT 1',
+        archive.printer_id ? [archive.printer_id] : [],
+        async (pErr, printer) => {
+          const absoluteThumbPath = archive.thumbnail_path ? path.join(__dirname, 'data', archive.thumbnail_path.replace(/^\//, '')) : null;
 
-      const triggerAiAndRespond = async (photoPath, relativePath) => {
-        db.run('UPDATE archives SET photo_path = ? WHERE id = ?', [relativePath, id]);
-        
-        // Fix: Always use the relative path to resolve against the data directory for AI analysis
-        const absolutePhotoPath = path.join(__dirname, 'data', relativePath.replace(/^\//, ''));
-        const aiResult = await analyzePrint(absolutePhotoPath, absoluteThumbPath, archive.print_name, archive.duration_seconds || 0);
-        
-        if (aiResult) {
-          db.run('UPDATE archives SET ai_analysis = ? WHERE id = ?', [JSON.stringify(aiResult), id]);
-        }
-        return res.json({ success: true, photo_path: relativePath, ai_analysis: aiResult });
-      };
+          const triggerAiAndRespond = async (photoPath, relativePath) => {
+            db.run('UPDATE archives SET photo_path = ? WHERE id = ?', [relativePath, id]);
+            
+            // Fix: Always use the relative path to resolve against the data directory for AI analysis
+            const absolutePhotoPath = path.join(__dirname, 'data', relativePath.replace(/^\//, ''));
+            const aiResult = await analyzePrint(absolutePhotoPath, absoluteThumbPath, archive.print_name, archive.duration_seconds || 0);
+            
+            if (aiResult) {
+              db.run('UPDATE archives SET ai_analysis = ? WHERE id = ?', [JSON.stringify(aiResult), id]);
+            }
+            return res.json({ success: true, photo_path: relativePath, ai_analysis: aiResult });
+          };
 
-      if (source === 'live') {
-        // 1. Try RTSP Snapshot First
-        const rtspPhotoPath = await captureCameraSnapshot(id);
-        if (rtspPhotoPath) {
-          return await triggerAiAndRespond(rtspPhotoPath, rtspPhotoPath);
-        }
-        return res.status(500).json({ error: 'Failed to capture RTSP live snapshot.' });
-      } else {
-        // 2. Fallback: Try to extract from an existing timelapse
-        if (archive.timelapse_path) {
-          const absoluteMp4Path = path.join(__dirname, 'data', archive.timelapse_path.replace(/^\//, ''));
-          const fallbackPhotoPath = path.join(__dirname, 'data', 'media', `${id}_photo.jpg`);
-          const extracted = await extractFrameFromMp4(absoluteMp4Path, fallbackPhotoPath);
-          if (extracted) {
-            return await triggerAiAndRespond(extracted, `/media/${id}_photo.jpg`);
+          if (source === 'live') {
+            if (!printer) return res.status(400).json({ error: 'No printer configured for live snapshot.' });
+            // 1. Try RTSP Snapshot First
+            const rtspPhotoPath = await captureCameraSnapshot(printer, id);
+            if (rtspPhotoPath) {
+              return await triggerAiAndRespond(rtspPhotoPath, rtspPhotoPath);
+            }
+            return res.status(500).json({ error: 'Failed to capture RTSP live snapshot.' });
+          } else {
+            // 2. Fallback: Try to extract from an existing timelapse
+            if (archive.timelapse_path) {
+              const absoluteMp4Path = path.join(__dirname, 'data', archive.timelapse_path.replace(/^\//, ''));
+              const fallbackPhotoPath = path.join(__dirname, 'data', 'media', `${id}_photo.jpg`);
+              const extracted = await extractFrameFromMp4(absoluteMp4Path, fallbackPhotoPath);
+              if (extracted) {
+                return await triggerAiAndRespond(extracted, `/media/${id}_photo.jpg`);
+              }
+            }
+
+            // 3. Fallback: Attempt to download latest MP4 and extract
+            if (printer) {
+              const { downloadLatestTimelapse } = require('./ftp');
+              const paths = await downloadLatestTimelapse(printer, archive.print_name, id);
+              if (paths.localPath) {
+                const fallbackPhotoPath = path.join(__dirname, 'data', 'media', `${id}_photo.jpg`);
+                const extracted = await extractFrameFromMp4(paths.localPath, fallbackPhotoPath);
+                if (extracted) {
+                  db.run('UPDATE archives SET timelapse_path = ? WHERE id = ?', [paths.timelapsePath, id]);
+                  return await triggerAiAndRespond(extracted, `/media/${id}_photo.jpg`);
+                }
+              }
+            }
+            return res.status(500).json({ error: 'Failed to extract frame from timelapse.' });
           }
         }
-
-        // 3. Fallback: Attempt to download latest MP4 and extract
-        const { downloadLatestTimelapse } = require('./ftp');
-        const paths = await downloadLatestTimelapse(archive.print_name, id);
-        if (paths.localPath) {
-          const fallbackPhotoPath = path.join(__dirname, 'data', 'media', `${id}_photo.jpg`);
-          const extracted = await extractFrameFromMp4(paths.localPath, fallbackPhotoPath);
-          if (extracted) {
-            db.run('UPDATE archives SET timelapse_path = ? WHERE id = ?', [paths.timelapsePath, id]);
-            return await triggerAiAndRespond(extracted, `/media/${id}_photo.jpg`);
-          }
-        }
-        return res.status(500).json({ error: 'Failed to extract frame from timelapse.' });
-      }
+      );
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -748,6 +757,7 @@ app.get('/api/analytics', (req, res) => {
       a.energy_cost,
       a.filament_cost,
       a.filament_used_g,
+      aps.weight_used_g as spool_weight_used_g,
       a.ai_analysis,
       m.name as material,
       b.name as brand,
@@ -801,6 +811,13 @@ app.post('/api/ams/assignments', (req, res) => {
       res.json({ success: true });
     });
   } else {
+    // Update active print initialAssignments if a print is in progress on this printer
+    const states = getPrintState();
+    const pState = states?.[printer_id];
+    if (pState && pState.initialAssignments) {
+      pState.initialAssignments[tray_id] = spool_id;
+    }
+
     // If this tray currently has a Bambu RFID tag_uid, link it to this spool!
     try {
       const amsStates = getAmsStatus();

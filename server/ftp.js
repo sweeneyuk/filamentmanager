@@ -316,10 +316,26 @@ const extractWeightsFrom3mf = async (client, remoteFile, subtaskName = null, gco
       const maxIdx = allFIndices.length > 0 ? Math.max(...allFIndices) : 0;
       const is1Based = minIdx >= 1 && maxIdx === weights.length && !allFIndices.includes(0);
 
+      // Map a raw filament_list value from slice_info.config to the 0-based index in `filaments`/`weights`.
+      // In Bambu Studio, <filament id="X"> has 1-based project filament IDs, while <layer_filament_list filament_list="Y">
+      // uses 0-based project filament IDs (X - 1). When a plate uses a subset of project filaments (e.g. id="1" and id="3"),
+      // filament_list contains "0" and "2", which must map to index 0 and index 1 in `filaments`.
+      const resolveFilamentSlotIdx = (rawVal) => {
+        const byZeroBasedId = filaments.findIndex(f => f.id !== undefined && parseInt(f.id, 10) - 1 === rawVal);
+        if (byZeroBasedId !== -1) return byZeroBasedId;
+        if (is1Based) {
+          const byOneBasedId = filaments.findIndex(f => f.id !== undefined && parseInt(f.id, 10) === rawVal);
+          if (byOneBasedId !== -1) return byOneBasedId;
+          if (rawVal - 1 >= 0 && rawVal - 1 < weights.length) return rawVal - 1;
+        }
+        if (rawVal >= 0 && rawVal < weights.length) return rawVal;
+        return 0;
+      };
+
       const layerMap = {};
       const layerCounts = {};
       rawLists.forEach(({ fList, ranges }) => {
-        const normalizedFList = is1Based ? fList.map(x => x - 1) : fList;
+        const normalizedFList = fList.map(resolveFilamentSlotIdx);
         for (let i = 0; i < ranges.length; i += 2) {
           const start = ranges[i];
           const end = ranges[i + 1] !== undefined ? ranges[i + 1] : start;

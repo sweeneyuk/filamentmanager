@@ -58,6 +58,10 @@ function FilamentManager() {
       }
     });
 
+    socket.on('spool_added', () => {
+      fetchData();
+    });
+
     return () => socket.disconnect();
   }, []);
 
@@ -75,7 +79,12 @@ function FilamentManager() {
       setMaterials(materialsRes.data);
       setBrandKnowledge(knowledgeRes.data);
       
-      const totalWeightG = analyticsRes.data.reduce((acc, print) => acc + (print.filament_used_g || 0), 0);
+      const seenPrintIds = new Set();
+      const totalWeightG = analyticsRes.data.reduce((acc, print) => {
+        if (seenPrintIds.has(print.id)) return acc;
+        seenPrintIds.add(print.id);
+        return acc + (print.filament_used_g || 0);
+      }, 0);
       setTotalConsumedWeight(totalWeightG);
     } catch (err) {
       console.error(err);
@@ -238,14 +247,13 @@ function FilamentManager() {
           const parts = trayId.split('-');
           if (parts.length === 2) {
             const amsId = parts[0];
-            const slotNum = parseInt(parts[1]) + 1;
-            const customName = settings[`ams_name_${amsId}`];
+            const slotNum = parseInt(parts[1], 10) + 1;
+            const customName = settings[`ams_name_${printerId}_${amsId}`] || settings[`ams_name_${amsId}`];
             if (customName) return `${printerName} - ${customName} - Slot ${slotNum}`;
             
-            if (amsId === "128" || amsId === "255") return `${printerName} - External Spool`;
+            if (amsId === "128" || amsId === "254" || amsId === "255") return `${printerName} - External Spool`;
             
-            // Fallback logic
-            const amsNum = parseInt(amsId) === 0 ? 1 : Math.floor(parseInt(amsId) / 4) + 1;
+            const amsNum = parseInt(amsId, 10) + 1;
             return `${printerName} - AMS ${amsNum} Slot ${slotNum}`;
           }
           return `${printerName} - ${trayId}`;
