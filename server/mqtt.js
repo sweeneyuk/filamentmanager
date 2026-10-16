@@ -34,6 +34,9 @@ const IDLE_STATE = () => ({
   lastTrackedProgress: 0,
   takeovers: [],
   currentTrayId: null,
+  activeExtruder: 0,
+  extruderInfo: null,
+  sawRunoutStage: false,
   nozzleTemp: 0,
   nozzleTarget: 0,
   bedTemp: 0,
@@ -352,9 +355,17 @@ const handlePrintStatus = async (printer, printData) => {
     state.chamberTemp = printData.device.ctc.info.temp;
   }
 
-  let activeExtruder = 0;
   if (printData.device?.extruder?.state !== undefined) {
-    activeExtruder = (printData.device.extruder.state >> 8) & 1;
+    state.activeExtruder = (printData.device.extruder.state >> 8) & 1;
+  }
+  if (printData.device?.extruder?.info && Array.isArray(printData.device.extruder.info)) {
+    state.extruderInfo = printData.device.extruder.info;
+  }
+  const activeExtruder = state.activeExtruder || 0;
+  const extruderInfo = state.extruderInfo;
+
+  if (printData.stg_cur === 6 || printData.stg_cur === "6") {
+    state.sawRunoutStage = true;
   }
 
   const decodeTrayId = (m, activeExt = 0) => {
@@ -362,7 +373,7 @@ const handlePrintStatus = async (printer, printData) => {
     
     if (m === 254 || m === -1) {
       // 254 (or -1 from slicer mapping) is generic external spool.
-      if (activeExt === 0 && printData.device?.extruder?.info?.length > 1) {
+      if (activeExt === 0 && extruderInfo?.length > 1) {
         return '255-0';
       }
       return '254-0';
@@ -390,7 +401,9 @@ const handlePrintStatus = async (printer, printData) => {
       state.activeTrays = validTrays;
       if (!state.activeSlotTrays) state.activeSlotTrays = {};
       validTrays.forEach((tId, idx) => {
-        state.activeSlotTrays[idx] = tId;
+        if (!state.activeSlotTrays[idx]) {
+          state.activeSlotTrays[idx] = tId;
+        }
       });
     }
   } else if (printData.vt_tray && printData.vt_tray.id !== 255) {
@@ -404,20 +417,19 @@ const handlePrintStatus = async (printer, printData) => {
 
   const previousTrayId = state.currentTrayId;
 
-  if (printData.ams && printData.ams.tray_now !== undefined) {
-    let m = parseInt(printData.ams.tray_now, 10);
-    
-    // H2D dual-nozzle only reports the slot number (0-3) in tray_now.
-    // Use the snow field from device.extruder.info for the true global ID.
-    if (printData.device?.extruder?.info && Array.isArray(printData.device.extruder.info)) {
-      if (printData.device.extruder.info.length > 1) {
-        const snowTray = printData.device.extruder.info[activeExtruder]?.snow;
-        if (snowTray !== undefined && snowTray !== null && snowTray !== 255 && snowTray !== 65535 && snowTray !== 65279 && (snowTray & 0xFF) !== 255) {
-          m = snowTray;
-        }
-      }
+  // On dual-nozzle printers (X2D/H2D), extruderInfo[activeExtruder].snow is the authoritative global tray ID.
+  // Do NOT allow delta packets with only printData.ams.tray_now (which only reports the 4-slot AMS selector)
+  // to overwrite an active snow tray (such as 128-0 on the other nozzle).
+  if (extruderInfo && extruderInfo.length > 1) {
+    const snowTray = extruderInfo[activeExtruder]?.snow;
+    if (snowTray !== undefined && snowTray !== null && snowTray !== 255 && snowTray !== 65535 && snowTray !== 65279 && (snowTray & 0xFF) !== 255) {
+      state.currentTrayId = decodeTrayId(snowTray, activeExtruder);
+    } else if (snowTray === 255 || snowTray === 65535 || snowTray === 65279 || (snowTray & 0xFF) === 255) {
+      // Active extruder has no filament loaded
+      state.currentTrayId = null;
     }
-    
+  } else if (printData.ams && printData.ams.tray_now !== undefined) {
+    let m = parseInt(printData.ams.tray_now, 10);
     state.currentTrayId = !isNaN(m) ? decodeTrayId(m, activeExtruder) : null;
   }
   
@@ -445,82 +457,83 @@ const handlePrintStatus = async (printer, printData) => {
   if (state.status === 'RUNNING' && isValidTray(previousTrayId) && isValidTray(state.currentTrayId) && previousTrayId !== state.currentTrayId) {
     console.log(`[MQTT ${pid}] Spool Switch detected: from tray ${previousTrayId} to ${state.currentTrayId} at ${state.progress}%`);
 
-    // Check if the print has actually started extruding or is in a filament-changing/runout stage
-    const isActivelyPrinting = (state.progress || 0) > 0 || (state.layerNum || 0) > 0 || state.stage === 'Printing' || printData.stg_cur === 4 || printData.stg_cur === 6;
+    const isActivelyPrinting = (state.progress || 0) > 0 || (state.layerNum || 0) > 0;
 
-    // Check if the previous tray ran out (became empty in amsDataMap or paused on runout)
+    // If the new tray is already assigned to one of the print's slicer slots, this is a normal multi-colour/multi-tool swap
+    const mappedSlotTrays = Object.values(state.activeSlotTrays || {});
+    const isNormalSlotSwap = mappedSlotTrays.includes(state.currentTrayId) && mappedSlotTrays.includes(previousTrayId);
+
+    // Check if the previous tray physically became empty in amsDataMap (do NOT check t.remain === 0 as non-RFID spools always report 0)
     const amsList = amsDataMap[pid] || [];
-    let isPrevEmpty = false;
+    let isPrevPhysicallyEmpty = false;
     for (const unit of amsList) {
       if (unit.tray) {
         for (const t of unit.tray) {
-          if (`${unit.id}-${t.id}` === previousTrayId && (!t.tray_type || t.tray_type === '' || t.id === 255 || t.remain === 0)) {
-            isPrevEmpty = true;
+          if (`${unit.id}-${t.id}` === previousTrayId && (!t.tray_type || t.tray_type === '' || t.id === 255)) {
+            isPrevPhysicallyEmpty = true;
             break;
           }
         }
       }
     }
-    if (printData.stg_cur === 6 || printData.stg_cur === "6") {
-      isPrevEmpty = true;
-    }
 
-    db.get('SELECT aa.spool_id, s.total_weight, s.used_weight FROM ams_assignments aa LEFT JOIN spools s ON aa.spool_id = s.id WHERE aa.printer_id = ? AND aa.tray_id = ?', [pid, previousTrayId], (err, row) => {
-      const spoolRemaining = (row && row.total_weight && row.used_weight !== undefined) ? Math.max(0, row.total_weight - row.used_weight) : null;
-      const spoolDepleted = isPrevEmpty || (spoolRemaining !== null && spoolRemaining <= 0.05);
+    const hadRunoutPause = state.sawRunoutStage || printData.stg_cur === 6 || printData.stg_cur === "6";
 
-      if (!err && row && row.spool_id) {
-        if (!state.runoutSpools) state.runoutSpools = {};
-        state.runoutSpools[previousTrayId] = row.spool_id;
+    if (!isNormalSlotSwap && isActivelyPrinting) {
+      db.get('SELECT aa.spool_id, s.total_weight, s.used_weight FROM ams_assignments aa LEFT JOIN spools s ON aa.spool_id = s.id WHERE aa.printer_id = ? AND aa.tray_id = ?', [pid, previousTrayId], (err, row) => {
+        const spoolRemaining = (row && row.total_weight && row.used_weight !== undefined) ? Math.max(0, row.total_weight - row.used_weight) : null;
+        // Confirm depletion only if Stage 6 runout occurred, or tray physically went empty while spool was low, or tracked weight reached 0g
+        const spoolDepleted = hadRunoutPause || (isPrevPhysicallyEmpty && (spoolRemaining === null || spoolRemaining <= 100)) || (spoolRemaining !== null && spoolRemaining <= 0.5);
 
-        if (spoolDepleted && isActivelyPrinting) {
-          console.log(`[MQTT ${pid}] Spool ${row.spool_id} in tray ${previousTrayId} ran out! Marking as depleted.`);
-          db.run('UPDATE spools SET used_weight = total_weight, last_used_at = CURRENT_TIMESTAMP WHERE id = ?', [row.spool_id]);
+        if (spoolDepleted) {
+          state.sawRunoutStage = false;
+          if (!err && row && row.spool_id) {
+            if (!state.runoutSpools) state.runoutSpools = {};
+            state.runoutSpools[previousTrayId] = row.spool_id;
+            console.log(`[MQTT ${pid}] Spool ${row.spool_id} in tray ${previousTrayId} ran out during print (remaining tracked: ${spoolRemaining !== null ? spoolRemaining.toFixed(1) + 'g' : 'unknown'}).`);
+            if (ioInstance) {
+              ioInstance.emit('spool_runout', {
+                printer_id: pid,
+                tray_id: previousTrayId,
+                spool_id: row.spool_id,
+                progress: state.progress
+              });
+            }
+          }
+
+          console.log(`[MQTT ${pid}] Auto-refill takeover confirmed: from tray ${previousTrayId} to ${state.currentTrayId} at ${state.progress}%`);
+          if (!state.takeovers) state.takeovers = [];
+          state.takeovers.push({
+            fromTray: previousTrayId,
+            toTray: state.currentTrayId,
+            progress: state.progress || 0,
+            timestamp: new Date().toISOString()
+          });
+
+          if (!state.takeoverMap) state.takeoverMap = {};
+          state.takeoverMap[state.currentTrayId] = previousTrayId;
+
+          // Update activeSlotTrays for any slot that was using the previous tray
+          if (state.activeSlotTrays) {
+            for (const [slot, tId] of Object.entries(state.activeSlotTrays)) {
+              if (tId === previousTrayId) {
+                state.activeSlotTrays[slot] = state.currentTrayId;
+                console.log(`[MQTT ${pid}] Auto-refill takeover: slot ${slot} (${previousTrayId}) taken over by ${state.currentTrayId}`);
+              }
+            }
+          }
+
           if (ioInstance) {
-            ioInstance.emit('spool_runout', {
+            ioInstance.emit('spool_takeover', {
               printer_id: pid,
-              tray_id: previousTrayId,
-              spool_id: row.spool_id,
+              from_tray: previousTrayId,
+              to_tray: state.currentTrayId,
               progress: state.progress
             });
           }
         }
-      }
-
-      // ONLY record and announce an Auto-Refill Takeover if the previous tray was depleted mid-print!
-      if (spoolDepleted && isActivelyPrinting) {
-        console.log(`[MQTT ${pid}] Auto-refill takeover confirmed: from tray ${previousTrayId} to ${state.currentTrayId} at ${state.progress}%`);
-        if (!state.takeovers) state.takeovers = [];
-        state.takeovers.push({
-          fromTray: previousTrayId,
-          toTray: state.currentTrayId,
-          progress: state.progress || 0,
-          timestamp: new Date().toISOString()
-        });
-
-        if (!state.takeoverMap) state.takeoverMap = {};
-        state.takeoverMap[state.currentTrayId] = previousTrayId;
-
-        // Update activeSlotTrays for any slot that was using the previous tray
-        if (state.activeSlotTrays) {
-          for (const [slot, tId] of Object.entries(state.activeSlotTrays)) {
-            if (tId === previousTrayId) {
-              state.activeSlotTrays[slot] = state.currentTrayId;
-              console.log(`[MQTT ${pid}] Auto-refill takeover: slot ${slot} (${previousTrayId}) taken over by ${state.currentTrayId}`);
-            }
-          }
-        }
-
-        if (ioInstance) {
-          ioInstance.emit('spool_takeover', {
-            printer_id: pid,
-            from_tray: previousTrayId,
-            to_tray: state.currentTrayId,
-            progress: state.progress
-          });
-        }
-      }
-    });
+      });
+    }
   }
 
   // --- Stage 6: Filament Runout Pause Detection ---
@@ -531,7 +544,6 @@ const handlePrintStatus = async (printer, printData) => {
         if (!err && row && row.spool_id) {
           if (!state.runoutSpools) state.runoutSpools = {};
           state.runoutSpools[state.currentTrayId] = row.spool_id;
-          db.run('UPDATE spools SET used_weight = total_weight, last_used_at = CURRENT_TIMESTAMP WHERE id = ?', [row.spool_id]);
           if (ioInstance) {
             ioInstance.emit('spool_runout', {
               printer_id: pid,
@@ -590,7 +602,7 @@ const handlePrintStatus = async (printer, printData) => {
       state.trayProgress = {};
       state.lastTrackedProgress = 0;
       state.takeovers = [];
-      state.currentTrayId = null;
+      state.sawRunoutStage = false;
 
       const runMapping = printData.mapping || printData.ams_mapping;
       if (runMapping && Array.isArray(runMapping)) {
@@ -767,18 +779,12 @@ const handlePrintStatus = async (printer, printData) => {
                 console.log(`[MQTT ${pid}] Reconciling slot ${slotIdx} (tray ${targetTray}, spool ${spoolId}): deducting remaining ${delta.toFixed(2)}g (expected ${expectedWeight.toFixed(2)}g, live was ${alreadyDeducted.toFixed(2)}g)`);
                 archivedState.spoolDeductedGrams[spoolId] = (archivedState.spoolDeductedGrams[spoolId] || 0) + delta;
                 archivedState.slotDeductedGrams[slotIdx] = alreadyDeducted + delta;
-                const isRunout = archivedState.runoutSpools && archivedState.runoutSpools[targetTray] === spoolId;
-                if (isRunout) {
-                  db.run('UPDATE spools SET used_weight = total_weight, last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
-                    [archivedState.name, spoolId]);
-                } else {
-                  db.run('UPDATE spools SET used_weight = used_weight + ?, last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
-                    [delta, archivedState.name, spoolId]);
-                }
+                db.run('UPDATE spools SET used_weight = MIN(total_weight, used_weight + ?), last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
+                  [delta, archivedState.name, spoolId]);
               } else if (delta < -0.001 && newStatus === 'FINISH' && Math.abs(delta) < 2.0) {
                 console.log(`[MQTT ${pid}] Adjusting slot ${slotIdx} rounding delta ${delta.toFixed(2)}g on spool ${spoolId}`);
                 archivedState.spoolDeductedGrams[spoolId] = Math.max(0, (archivedState.spoolDeductedGrams[spoolId] || 0) + delta);
-                db.run('UPDATE spools SET used_weight = used_weight + ? WHERE id = ?', [delta, spoolId]);
+                db.run('UPDATE spools SET used_weight = MAX(0, used_weight + ?) WHERE id = ?', [delta, spoolId]);
               }
             } else if (expectedWeight > 0) {
               console.log(`[MQTT ${pid}] Warning: No spool assigned to tray ${targetTray} for slot ${slotIdx} (${expectedWeight.toFixed(2)}g expected)`);
@@ -810,14 +816,8 @@ const handlePrintStatus = async (printer, printData) => {
                 filamentUsed += weightUsed;
                 const spoolId = assignMap[trayId];
                 if (spoolId) {
-                  const isRunout = archivedState.runoutSpools && archivedState.runoutSpools[trayId] === spoolId;
-                  if (isRunout) {
-                    db.run('UPDATE spools SET used_weight = total_weight, last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
-                      [archivedState.name, spoolId]);
-                  } else {
-                    db.run('UPDATE spools SET used_weight = used_weight + ?, last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
-                      [weightUsed, archivedState.name, spoolId]);
-                  }
+                  db.run('UPDATE spools SET used_weight = MIN(total_weight, used_weight + ?), last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
+                    [weightUsed, archivedState.name, spoolId]);
                   spoolDeductions.push({ spoolId, predicted: weightUsed });
                   filamentCost += weightUsed * (costMap[spoolId] || 0);
                 }
@@ -830,14 +830,8 @@ const handlePrintStatus = async (printer, printData) => {
                 filamentUsed += predicted;
                 const spoolId = assignMap[trayId];
                 if (spoolId) {
-                  const isRunout = archivedState.runoutSpools && archivedState.runoutSpools[trayId] === spoolId;
-                  if (isRunout) {
-                    db.run('UPDATE spools SET used_weight = total_weight, last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
-                      [archivedState.name, spoolId]);
-                  } else {
-                    db.run('UPDATE spools SET used_weight = used_weight + ?, last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
-                      [predicted, archivedState.name, spoolId]);
-                  }
+                  db.run('UPDATE spools SET used_weight = MIN(total_weight, used_weight + ?), last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
+                    [predicted, archivedState.name, spoolId]);
                   spoolDeductions.push({ spoolId, predicted });
                   filamentCost += predicted * (costMap[spoolId] || 0);
                 }
