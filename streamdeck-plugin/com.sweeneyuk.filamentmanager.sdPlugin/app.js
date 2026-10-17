@@ -34,8 +34,8 @@ let sdRegisterEvent = null;
 let sdInfo = null;
 let sdActionInfo = null;
 
-let isConnecting = false;
-let wakeDebounceTimer = null;
+let hasReceivedGlobalSettings = false;
+let loginAbortController = null;
 
 function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info, actionInfo) {
   sdPort = port;
@@ -88,14 +88,12 @@ function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info, actionIn
           if (payload.username) apiUsername = payload.username;
           if (payload.password) apiPassword = payload.password;
         }
+        hasReceivedGlobalSettings = true;
         connectSocketIO("didReceiveGlobalSettings");
       } else if (event === "willAppear") {
         const settings = jsonObj.payload.settings;
         activeContexts[context] = { action, context, settings };
         updateAllKeys();
-        if (!ioClient || !ioClient.connected) {
-          connectSocketIO("willAppear");
-        }
       } else if (event === "willDisappear") {
         delete activeContexts[context];
       } else if (event === "didReceiveSettings") {
@@ -113,9 +111,18 @@ function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info, actionIn
 }
 
 async function connectSocketIO(reason = "manual") {
-  if (isConnecting) return;
-  isConnecting = true;
-  console.log(`[Socket.IO] Connecting (trigger: ${reason})...`);
+  if (!hasReceivedGlobalSettings && reason !== "didReceiveGlobalSettings") {
+    console.log(`[Socket.IO] Skipping connect (${reason}): waiting for global settings`);
+    return;
+  }
+
+  console.log(`[Socket.IO] Connecting to ${serverUrl} (trigger: ${reason})...`);
+
+  // Cancel any in-flight login request
+  if (loginAbortController) {
+    try { loginAbortController.abort(); } catch (e) {}
+    loginAbortController = null;
+  }
 
   try {
     if (ioClient) {
@@ -135,15 +142,13 @@ async function connectSocketIO(reason = "manual") {
     // Try to login if username and password are provided
     if (apiUsername && apiPassword) {
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        loginAbortController = new AbortController();
         const response = await fetch(serverUrl + '/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username: apiUsername, password: apiPassword }),
-          signal: controller.signal
+          signal: loginAbortController.signal
         });
-        clearTimeout(timeoutId);
         const data = await response.json();
         if (data.success && data.token) {
           token = data.token;
@@ -151,7 +156,11 @@ async function connectSocketIO(reason = "manual") {
           console.error("[Socket.IO] Login failed:", data.error);
         }
       } catch (e) {
-        console.error("[Socket.IO] Login fetch error:", e.message || e);
+        if (e.name !== 'AbortError') {
+          console.error("[Socket.IO] Login fetch error:", e.message || e);
+        }
+      } finally {
+        loginAbortController = null;
       }
     }
 
@@ -194,8 +203,6 @@ async function connectSocketIO(reason = "manual") {
     });
   } catch (err) {
     console.error("[Socket.IO] Error during connect:", err);
-  } finally {
-    isConnecting = false;
   }
 }
 
@@ -213,8 +220,6 @@ function handleWakeUp(trigger) {
     } catch (e) {}
   }
 
-  // Windows network adapter might take 2-4 seconds after wake to re-establish Wi-Fi/Ethernet.
-  // Trigger a fresh connection attempt, letting Socket.IO's native retry handle any brief network negotiation.
   connectSocketIO(`wake-${trigger}`);
 }
 
@@ -231,12 +236,10 @@ setInterval(() => {
   if (diff > 6000) {
     console.log(`[Watchdog] Time gap of ${diff}ms detected, PC woke from sleep`);
     handleWakeUp("sleep-timer-gap");
-  } else if (!ioClient || !ioClient.connected) {
+  } else if (hasReceivedGlobalSettings && (!ioClient || !ioClient.connected)) {
     if (disconnectedSince === 0) {
       disconnectedSince = now;
-    } else if (now - disconnectedSince > 10000 && !isConnecting) {
-      // Only force re-connect if disconnected for more than 10 seconds,
-      // giving Socket.IO's native fast reconnection time to complete without interruption.
+    } else if (now - disconnectedSince > 10000) {
       console.log("[Watchdog] Connection down for >10s, triggering reconnect");
       disconnectedSince = now;
       connectSocketIO("watchdog-timeout");
@@ -261,12 +264,32 @@ document.addEventListener("visibilitychange", () => {
 
 function getActivePrinterState() {
   const ids = Object.keys(printStates);
-  if (ids.length === 0) return null;
-  // Prefer RUNNING printer
-  for (let id of ids) {
-    if (printStates[id].status === "RUNNING") return printStates[id];
+  if (ids.length > 0) {
+    // Prefer RUNNING printer
+    for (let id of ids) {
+      if (printStates[id].status === "RUNNING") return printStates[id];
+    }
+    return printStates[ids[0]];
   }
-  return printStates[ids[0]];
+
+  // Fallback initial state so buttons immediately draw their cards rather than staying blank
+  return {
+    status: (ioClient && ioClient.connected) ? "IDLE" : "CONNECTING...",
+    name: "None",
+    progress: 0,
+    remainingTime: 0,
+    layerNum: 0,
+    totalLayerNum: 0,
+    stage: (ioClient && ioClient.connected) ? "Idle" : "Connecting...",
+    nozzleTemp: 0,
+    nozzleTarget: 0,
+    bedTemp: 0,
+    bedTarget: 0,
+    chamberTemp: 0,
+    currentEnergy: 0,
+    currentEnergyCost: 0,
+    totalGramsDeducted: 0
+  };
 }
 
 function getActiveAms() {
