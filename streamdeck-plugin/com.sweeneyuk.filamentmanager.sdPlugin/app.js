@@ -312,17 +312,18 @@ function drawKey(context, action, settings, state) {
 
     if (state.extruderInfo && Array.isArray(state.extruderInfo) && state.extruderInfo.length > 1) {
       isDual = true;
-      const left = state.extruderInfo.find(e => e.id === 0);
-      const right = state.extruderInfo.find(e => e.id === 1);
+      // In Bambu dual-nozzle (X2D/H2D): Extruder id 1 is Left, id 0 is Right
+      const left = state.extruderInfo.find(e => e.id === 1) || state.extruderInfo[1];
+      const right = state.extruderInfo.find(e => e.id === 0) || state.extruderInfo[0];
       if (left && left.temp !== undefined) {
         leftTemp = left.temp > 1000 ? ((left.temp >> 16) & 0xFFFF) : left.temp;
         const tgt = left.temp & 0xFFFF;
-        leftTarget = (tgt <= 350 && left.temp > 1000) ? tgt : (state.activeExtruder === 0 ? state.nozzleTarget : 0);
+        leftTarget = (tgt <= 350 && left.temp > 1000) ? tgt : (state.activeExtruder === 1 ? state.nozzleTarget : 0);
       }
       if (right && right.temp !== undefined) {
         rightTemp = right.temp > 1000 ? ((right.temp >> 16) & 0xFFFF) : right.temp;
         const tgt = right.temp & 0xFFFF;
-        rightTarget = (tgt <= 350 && right.temp > 1000) ? tgt : (state.activeExtruder === 1 ? state.nozzleTarget : 0);
+        rightTarget = (tgt <= 350 && right.temp > 1000) ? tgt : (state.activeExtruder === 0 ? state.nozzleTarget : 0);
       }
     } else if (leftTemp !== undefined && rightTemp !== undefined) {
       isDual = true;
@@ -339,17 +340,21 @@ function drawKey(context, action, settings, state) {
       ctx.lineTo(72, 134);
       ctx.stroke();
 
-      const activeExt = state.activeExtruder || 0;
+      const activeExt = state.activeExtruder !== undefined ? state.activeExtruder : 0;
+      // In Bambu dual-nozzle, 0 = Right, 1 = Left. Also prioritize hotend target heating state.
+      const isRightActive = (rightTarget > 0 && (!leftTarget || leftTarget === 0)) ||
+                            (activeExt === 0 && !(leftTarget > 0 && (!rightTarget || rightTarget === 0)));
+      const isLeftActive = !isRightActive;
 
       // Left nozzle column (center x=36)
-      const leftCol = activeExt === 0 ? "#00c853" : "#888888";
+      const leftCol = isLeftActive ? "#00c853" : "#888888";
       drawScaledText(ctx, "Left", 45, 15, leftCol, 60, true, 36);
       drawScaledText(ctx, `${leftTemp || 0}°C`, 78, 22, "#ececec", 60, true, 36);
       const leftTgtStr = (leftTarget !== undefined && leftTarget > 0) ? `Tgt: ${leftTarget}°` : "Off";
       drawScaledText(ctx, leftTgtStr, 114, 14, "#888888", 62, false, 36);
 
       // Right nozzle column (center x=108)
-      const rightCol = activeExt === 1 ? "#00c853" : "#888888";
+      const rightCol = isRightActive ? "#00c853" : "#888888";
       drawScaledText(ctx, "Right", 45, 15, rightCol, 60, true, 108);
       drawScaledText(ctx, `${rightTemp || 0}°C`, 78, 22, "#ececec", 60, true, 108);
       const rightTgtStr = (rightTarget !== undefined && rightTarget > 0) ? `Tgt: ${rightTarget}°` : "Off";
