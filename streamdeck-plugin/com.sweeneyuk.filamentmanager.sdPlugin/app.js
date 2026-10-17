@@ -160,8 +160,7 @@ async function connectSocketIO(reason = "manual") {
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      timeout: 10000,
-      transports: ['websocket', 'polling']
+      timeout: 10000
     };
     if (token) {
       ioOptions.auth = { token: token };
@@ -171,6 +170,7 @@ async function connectSocketIO(reason = "manual") {
 
     ioClient.on("connect", () => {
       console.log("[Socket.IO] Connected to Filament Manager backend");
+      disconnectedSince = 0;
       updateAllKeys();
     });
 
@@ -180,6 +180,7 @@ async function connectSocketIO(reason = "manual") {
 
     ioClient.on("disconnect", (reason) => {
       console.log("[Socket.IO] Disconnected:", reason);
+      if (disconnectedSince === 0) disconnectedSince = Date.now();
     });
 
     ioClient.on("print_state_update", (data) => {
@@ -200,7 +201,7 @@ async function connectSocketIO(reason = "manual") {
 
 function handleWakeUp(trigger) {
   console.log(`[Lifecycle] Wake detected via: ${trigger}`);
-  if (wakeDebounceTimer) clearTimeout(wakeDebounceTimer);
+  disconnectedSince = 0;
 
   // Request fresh global settings from Stream Deck if websocket is open
   if (websocket && websocket.readyState === WebSocket.OPEN && pluginUUID) {
@@ -212,31 +213,15 @@ function handleWakeUp(trigger) {
     } catch (e) {}
   }
 
-  // Windows network adapter might take 2-6 seconds after wake to re-establish Wi-Fi/Ethernet.
-  // We trigger immediate connect, plus scheduled retries after 3s, 7s, and 12s.
-  connectSocketIO(`wake-${trigger}-immediate`);
-
-  wakeDebounceTimer = setTimeout(() => {
-    if (!ioClient || !ioClient.connected) {
-      connectSocketIO(`wake-${trigger}-retry-3s`);
-    }
-  }, 3000);
-
-  setTimeout(() => {
-    if (!ioClient || !ioClient.connected) {
-      connectSocketIO(`wake-${trigger}-retry-7s`);
-    }
-  }, 7000);
-
-  setTimeout(() => {
-    if (!ioClient || !ioClient.connected) {
-      connectSocketIO(`wake-${trigger}-retry-12s`);
-    }
-  }, 12000);
+  // Windows network adapter might take 2-4 seconds after wake to re-establish Wi-Fi/Ethernet.
+  // Trigger a fresh connection attempt, letting Socket.IO's native retry handle any brief network negotiation.
+  connectSocketIO(`wake-${trigger}`);
 }
 
 // Watchdog: detect system sleep via heartbeat gap & monitor connection health
 let lastHeartbeat = Date.now();
+let disconnectedSince = 0;
+
 setInterval(() => {
   const now = Date.now();
   const diff = now - lastHeartbeat;
@@ -247,10 +232,17 @@ setInterval(() => {
     console.log(`[Watchdog] Time gap of ${diff}ms detected, PC woke from sleep`);
     handleWakeUp("sleep-timer-gap");
   } else if (!ioClient || !ioClient.connected) {
-    // Auto-reconnect if dropped and not currently attempting
-    if (!isConnecting) {
-      connectSocketIO("watchdog-disconnected");
+    if (disconnectedSince === 0) {
+      disconnectedSince = now;
+    } else if (now - disconnectedSince > 10000 && !isConnecting) {
+      // Only force re-connect if disconnected for more than 10 seconds,
+      // giving Socket.IO's native fast reconnection time to complete without interruption.
+      console.log("[Watchdog] Connection down for >10s, triggering reconnect");
+      disconnectedSince = now;
+      connectSocketIO("watchdog-timeout");
     }
+  } else {
+    disconnectedSince = 0;
   }
 }, 2000);
 
