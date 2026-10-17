@@ -28,8 +28,22 @@ canvas.width = 144;
 canvas.height = 144;
 const ctx = canvas.getContext("2d");
 
+// Stream Deck connection parameters for reconnects
+let sdPort = null;
+let sdRegisterEvent = null;
+let sdInfo = null;
+let sdActionInfo = null;
+
+let isConnecting = false;
+let wakeDebounceTimer = null;
+
 function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info, actionInfo) {
+  sdPort = port;
   pluginUUID = uuid;
+  sdRegisterEvent = registerEvent;
+  sdInfo = info;
+  sdActionInfo = actionInfo;
+
   websocket = new WebSocket("ws://127.0.0.1:" + port);
 
   websocket.onopen = function() {
@@ -44,88 +58,214 @@ function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info, actionIn
     }));
   };
 
-  websocket.onmessage = function(evt) {
-    const jsonObj = JSON.parse(evt.data);
-    const event = jsonObj.event;
-    const action = jsonObj.action;
-    const context = jsonObj.context;
+  websocket.onclose = function(e) {
+    console.log("[StreamDeck WS] Closed:", e);
+    setTimeout(() => {
+      if (sdPort && (!websocket || websocket.readyState === WebSocket.CLOSED)) {
+        connectElgatoStreamDeckSocket(sdPort, pluginUUID, sdRegisterEvent, sdInfo, sdActionInfo);
+      }
+    }, 3000);
+  };
 
-    if (event === "didReceiveGlobalSettings") {
-      const payload = jsonObj.payload.settings;
-      if (payload) {
-        if (payload.serverUrl) serverUrl = payload.serverUrl;
-        if (payload.username) apiUsername = payload.username;
-        if (payload.password) apiPassword = payload.password;
-      }
-      connectSocketIO();
-    } else if (event === "willAppear") {
-      const settings = jsonObj.payload.settings;
-      activeContexts[context] = { action, context, settings };
-      updateAllKeys();
-    } else if (event === "willDisappear") {
-      delete activeContexts[context];
-    } else if (event === "didReceiveSettings") {
-      if (activeContexts[context]) {
-        activeContexts[context].settings = jsonObj.payload.settings;
+  websocket.onerror = function(e) {
+    console.error("[StreamDeck WS] Error:", e);
+  };
+
+  websocket.onmessage = function(evt) {
+    try {
+      const jsonObj = JSON.parse(evt.data);
+      const event = jsonObj.event;
+      const action = jsonObj.action;
+      const context = jsonObj.context;
+
+      if (event === "systemDidWakeUp") {
+        console.log("[Lifecycle] systemDidWakeUp received from Stream Deck");
+        handleWakeUp("systemDidWakeUp");
+      } else if (event === "didReceiveGlobalSettings") {
+        const payload = jsonObj.payload.settings;
+        if (payload) {
+          if (payload.serverUrl) serverUrl = payload.serverUrl;
+          if (payload.username) apiUsername = payload.username;
+          if (payload.password) apiPassword = payload.password;
+        }
+        connectSocketIO("didReceiveGlobalSettings");
+      } else if (event === "willAppear") {
+        const settings = jsonObj.payload.settings;
+        activeContexts[context] = { action, context, settings };
         updateAllKeys();
+        if (!ioClient || !ioClient.connected) {
+          connectSocketIO("willAppear");
+        }
+      } else if (event === "willDisappear") {
+        delete activeContexts[context];
+      } else if (event === "didReceiveSettings") {
+        if (activeContexts[context]) {
+          activeContexts[context].settings = jsonObj.payload.settings;
+          updateAllKeys();
+        }
+      } else if (event === "keyUp") {
+        // No interactive actions currently
       }
-    } else if (event === "keyUp") {
-      // No interactive actions currently
+    } catch (err) {
+      console.error("[StreamDeck WS] onmessage error:", err);
     }
   };
 }
 
-async function connectSocketIO() {
-  if (ioClient) {
-    ioClient.disconnect();
-  }
-  
-  if (!serverUrl.startsWith("http")) {
-    serverUrl = "http://" + serverUrl;
-  }
-  
-  let token = null;
+async function connectSocketIO(reason = "manual") {
+  if (isConnecting) return;
+  isConnecting = true;
+  console.log(`[Socket.IO] Connecting (trigger: ${reason})...`);
 
-  // Try to login if username and password are provided
-  if (apiUsername && apiPassword) {
-    try {
-      const response = await fetch(serverUrl + '/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: apiUsername, password: apiPassword })
-      });
-      const data = await response.json();
-      if (data.success && data.token) {
-        token = data.token;
-      } else {
-        console.error("Login failed:", data.error);
+  try {
+    if (ioClient) {
+      try {
+        ioClient.removeAllListeners();
+        ioClient.disconnect();
+      } catch (e) {}
+      ioClient = null;
+    }
+    
+    if (!serverUrl.startsWith("http://") && !serverUrl.startsWith("https://")) {
+      serverUrl = "http://" + serverUrl;
+    }
+    
+    let token = null;
+
+    // Try to login if username and password are provided
+    if (apiUsername && apiPassword) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const response = await fetch(serverUrl + '/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: apiUsername, password: apiPassword }),
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        const data = await response.json();
+        if (data.success && data.token) {
+          token = data.token;
+        } else {
+          console.error("[Socket.IO] Login failed:", data.error);
+        }
+      } catch (e) {
+        console.error("[Socket.IO] Login fetch error:", e.message || e);
       }
-    } catch (e) {
-      console.error("Login fetch error:", e);
+    }
+
+    const ioOptions = {
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 10000,
+      transports: ['websocket', 'polling']
+    };
+    if (token) {
+      ioOptions.auth = { token: token };
+    }
+
+    ioClient = io(serverUrl, ioOptions);
+
+    ioClient.on("connect", () => {
+      console.log("[Socket.IO] Connected to Filament Manager backend");
+      updateAllKeys();
+    });
+
+    ioClient.on("connect_error", (err) => {
+      console.error("[Socket.IO] Connection error:", err.message);
+    });
+
+    ioClient.on("disconnect", (reason) => {
+      console.log("[Socket.IO] Disconnected:", reason);
+    });
+
+    ioClient.on("print_state_update", (data) => {
+      printStates[data.printer_id] = data.state;
+      updateAllKeys();
+    });
+
+    ioClient.on("ams_update", (data) => {
+      amsData[data.printer_id] = data.ams;
+      updateAllKeys();
+    });
+  } catch (err) {
+    console.error("[Socket.IO] Error during connect:", err);
+  } finally {
+    isConnecting = false;
+  }
+}
+
+function handleWakeUp(trigger) {
+  console.log(`[Lifecycle] Wake detected via: ${trigger}`);
+  if (wakeDebounceTimer) clearTimeout(wakeDebounceTimer);
+
+  // Request fresh global settings from Stream Deck if websocket is open
+  if (websocket && websocket.readyState === WebSocket.OPEN && pluginUUID) {
+    try {
+      websocket.send(JSON.stringify({
+        event: "getGlobalSettings",
+        context: pluginUUID
+      }));
+    } catch (e) {}
+  }
+
+  // Windows network adapter might take 2-6 seconds after wake to re-establish Wi-Fi/Ethernet.
+  // We trigger immediate connect, plus scheduled retries after 3s, 7s, and 12s.
+  connectSocketIO(`wake-${trigger}-immediate`);
+
+  wakeDebounceTimer = setTimeout(() => {
+    if (!ioClient || !ioClient.connected) {
+      connectSocketIO(`wake-${trigger}-retry-3s`);
+    }
+  }, 3000);
+
+  setTimeout(() => {
+    if (!ioClient || !ioClient.connected) {
+      connectSocketIO(`wake-${trigger}-retry-7s`);
+    }
+  }, 7000);
+
+  setTimeout(() => {
+    if (!ioClient || !ioClient.connected) {
+      connectSocketIO(`wake-${trigger}-retry-12s`);
+    }
+  }, 12000);
+}
+
+// Watchdog: detect system sleep via heartbeat gap & monitor connection health
+let lastHeartbeat = Date.now();
+setInterval(() => {
+  const now = Date.now();
+  const diff = now - lastHeartbeat;
+  lastHeartbeat = now;
+
+  // If >6 seconds elapsed during a 2-second interval, computer was sleeping/suspended
+  if (diff > 6000) {
+    console.log(`[Watchdog] Time gap of ${diff}ms detected, PC woke from sleep`);
+    handleWakeUp("sleep-timer-gap");
+  } else if (!ioClient || !ioClient.connected) {
+    // Auto-reconnect if dropped and not currently attempting
+    if (!isConnecting) {
+      connectSocketIO("watchdog-disconnected");
     }
   }
+}, 2000);
 
-  const ioOptions = {};
-  if (token) {
-    ioOptions.auth = { token: token };
+window.addEventListener("online", () => {
+  console.log("[Network] Browser went online");
+  handleWakeUp("network-online");
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    if (!ioClient || !ioClient.connected) {
+      handleWakeUp("visibilitychange");
+    }
   }
-
-  ioClient = io(serverUrl, ioOptions);
-
-  ioClient.on("connect", () => {
-    console.log("Connected to Filament Manager Socket.IO");
-  });
-
-  ioClient.on("print_state_update", (data) => {
-    printStates[data.printer_id] = data.state;
-    updateAllKeys();
-  });
-
-  ioClient.on("ams_update", (data) => {
-    amsData[data.printer_id] = data.ams;
-    updateAllKeys();
-  });
-}
+});
 
 function getActivePrinterState() {
   const ids = Object.keys(printStates);
@@ -154,28 +294,36 @@ function updateAllKeys() {
 }
 
 function sendImageToContext(context, dataUrl) {
-  if (websocket) {
-    websocket.send(JSON.stringify({
-      event: "setImage",
-      context: context,
-      payload: {
-        image: dataUrl,
-        target: 0
-      }
-    }));
+  if (websocket && websocket.readyState === WebSocket.OPEN) {
+    try {
+      websocket.send(JSON.stringify({
+        event: "setImage",
+        context: context,
+        payload: {
+          image: dataUrl,
+          target: 0
+        }
+      }));
+    } catch (e) {
+      console.error("[StreamDeck WS] sendImage error:", e);
+    }
   }
 }
 
 function sendTitleToContext(context, title) {
-  if (websocket) {
-    websocket.send(JSON.stringify({
-      event: "setTitle",
-      context: context,
-      payload: {
-        title: title,
-        target: 0
-      }
-    }));
+  if (websocket && websocket.readyState === WebSocket.OPEN) {
+    try {
+      websocket.send(JSON.stringify({
+        event: "setTitle",
+        context: context,
+        payload: {
+          title: title,
+          target: 0
+        }
+      }));
+    } catch (e) {
+      console.error("[StreamDeck WS] sendTitle error:", e);
+    }
   }
 }
 
