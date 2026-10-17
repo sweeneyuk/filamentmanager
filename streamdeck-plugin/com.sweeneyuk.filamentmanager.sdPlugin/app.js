@@ -179,15 +179,15 @@ function sendTitleToContext(context, title) {
   }
 }
 
-function drawScaledText(ctx, text, y, maxFontSize, color, maxWidth = 130, isBold = true) {
+function drawScaledText(ctx, text, y, maxFontSize, color, maxWidth = 130, isBold = true, customX = 72) {
   let fontSize = maxFontSize;
   ctx.fillStyle = color;
   ctx.font = `${isBold ? 'bold ' : ''}${fontSize}px Inter, sans-serif`;
-  while (ctx.measureText(text).width > maxWidth && fontSize > 14) {
+  while (ctx.measureText(text).width > maxWidth && fontSize > 10) {
     fontSize -= 2;
     ctx.font = `${isBold ? 'bold ' : ''}${fontSize}px Inter, sans-serif`;
   }
-  ctx.fillText(text, 72, y);
+  ctx.fillText(text, customX, y);
 }
 
 function drawKey(context, action, settings, state) {
@@ -304,9 +304,61 @@ function drawKey(context, action, settings, state) {
     }
   }
   else if (action === "com.sweeneyuk.filamentmanager.tempnozzle") {
-    drawScaledText(ctx, "Nozzle", 30, 28, "#00c853");
-    drawScaledText(ctx, `${state.nozzleTemp || 0}°C`, 75, 32, "#ececec");
-    drawScaledText(ctx, `Tgt: ${state.nozzleTarget || 0}°C`, 115, 18, "#888888", 130, false);
+    let isDual = false;
+    let leftTemp = state.nozzleLeftTemp;
+    let rightTemp = state.nozzleRightTemp;
+    let leftTarget = state.nozzleLeftTarget;
+    let rightTarget = state.nozzleRightTarget;
+
+    if (state.extruderInfo && Array.isArray(state.extruderInfo) && state.extruderInfo.length > 1) {
+      isDual = true;
+      const left = state.extruderInfo.find(e => e.id === 0);
+      const right = state.extruderInfo.find(e => e.id === 1);
+      if (left && left.temp !== undefined) {
+        leftTemp = left.temp > 1000 ? ((left.temp >> 16) & 0xFFFF) : left.temp;
+        const tgt = left.temp & 0xFFFF;
+        leftTarget = (tgt <= 350 && left.temp > 1000) ? tgt : (state.activeExtruder === 0 ? state.nozzleTarget : 0);
+      }
+      if (right && right.temp !== undefined) {
+        rightTemp = right.temp > 1000 ? ((right.temp >> 16) & 0xFFFF) : right.temp;
+        const tgt = right.temp & 0xFFFF;
+        rightTarget = (tgt <= 350 && right.temp > 1000) ? tgt : (state.activeExtruder === 1 ? state.nozzleTarget : 0);
+      }
+    } else if (leftTemp !== undefined && rightTemp !== undefined) {
+      isDual = true;
+    }
+
+    if (isDual) {
+      drawScaledText(ctx, "Nozzles", 20, 20, "#00c853");
+
+      // Divider line down the middle
+      ctx.strokeStyle = "#38383f";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(72, 34);
+      ctx.lineTo(72, 134);
+      ctx.stroke();
+
+      const activeExt = state.activeExtruder || 0;
+
+      // Left nozzle column (center x=36)
+      const leftCol = activeExt === 0 ? "#00c853" : "#888888";
+      drawScaledText(ctx, "Left", 45, 15, leftCol, 60, true, 36);
+      drawScaledText(ctx, `${leftTemp || 0}°C`, 78, 22, "#ececec", 60, true, 36);
+      const leftTgtStr = (leftTarget !== undefined && leftTarget > 0) ? `Tgt: ${leftTarget}°` : "Off";
+      drawScaledText(ctx, leftTgtStr, 114, 14, "#888888", 62, false, 36);
+
+      // Right nozzle column (center x=108)
+      const rightCol = activeExt === 1 ? "#00c853" : "#888888";
+      drawScaledText(ctx, "Right", 45, 15, rightCol, 60, true, 108);
+      drawScaledText(ctx, `${rightTemp || 0}°C`, 78, 22, "#ececec", 60, true, 108);
+      const rightTgtStr = (rightTarget !== undefined && rightTarget > 0) ? `Tgt: ${rightTarget}°` : "Off";
+      drawScaledText(ctx, rightTgtStr, 114, 14, "#888888", 62, false, 108);
+    } else {
+      drawScaledText(ctx, "Nozzle", 30, 28, "#00c853");
+      drawScaledText(ctx, `${state.nozzleTemp || 0}°C`, 75, 32, "#ececec");
+      drawScaledText(ctx, `Tgt: ${state.nozzleTarget || 0}°C`, 115, 18, "#888888", 130, false);
+    }
   }
   else if (action === "com.sweeneyuk.filamentmanager.tempbed") {
     drawScaledText(ctx, "Bed", 30, 28, "#00c853");

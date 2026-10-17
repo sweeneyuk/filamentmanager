@@ -42,6 +42,10 @@ const IDLE_STATE = () => ({
   sawRunoutStage: false,
   nozzleTemp: 0,
   nozzleTarget: 0,
+  nozzleLeftTemp: undefined,
+  nozzleRightTemp: undefined,
+  nozzleLeftTarget: undefined,
+  nozzleRightTarget: undefined,
   bedTemp: 0,
   bedTarget: 0,
   chamberTemp: 0,
@@ -484,6 +488,21 @@ const handlePrintStatus = async (printer, printData) => {
   }
   const activeExtruder = state.activeExtruder || 0;
   const extruderInfo = state.extruderInfo;
+
+  if (extruderInfo && Array.isArray(extruderInfo) && extruderInfo.length > 1) {
+    const leftExt = extruderInfo.find(e => e.id === 0);
+    const rightExt = extruderInfo.find(e => e.id === 1);
+    if (leftExt && leftExt.temp !== undefined) {
+      state.nozzleLeftTemp = leftExt.temp > 1000 ? ((leftExt.temp >> 16) & 0xFFFF) : leftExt.temp;
+      const tgt = leftExt.temp & 0xFFFF;
+      state.nozzleLeftTarget = (tgt <= 350 && leftExt.temp > 1000) ? tgt : (activeExtruder === 0 ? state.nozzleTarget : 0);
+    }
+    if (rightExt && rightExt.temp !== undefined) {
+      state.nozzleRightTemp = rightExt.temp > 1000 ? ((rightExt.temp >> 16) & 0xFFFF) : rightExt.temp;
+      const tgt = rightExt.temp & 0xFFFF;
+      state.nozzleRightTarget = (tgt <= 350 && rightExt.temp > 1000) ? tgt : (activeExtruder === 1 ? state.nozzleTarget : 0);
+    }
+  }
 
   if (printData.stg_cur === 6 || printData.stg_cur === "6") {
     state.sawRunoutStage = true;
