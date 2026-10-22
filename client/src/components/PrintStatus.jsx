@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import namer from 'color-namer';
-import { io } from 'socket.io-client';
+import { useSocket } from '../contexts/SocketContext';
 import { useAlert } from '../contexts/AlertContext';
 import { Thermometer, Box, Lightbulb, Fan, Layers, Droplets, Edit2, Scale } from 'lucide-react';
 
 function PrintStatus() {
+  const socket = useSocket();
   const { showAlert, showPrompt } = useAlert();
   const [printers, setPrinters] = useState([]);
   const [amsDataMap, setAmsDataMap] = useState({});
@@ -19,31 +20,77 @@ function PrintStatus() {
 
   useEffect(() => {
     fetchData();
-    const token = localStorage.getItem('token');
-    const socket = io({ auth: { token } });
-
-    socket.on('print_state_update', (data) => {
-      setPrintStates(prev => ({ ...prev, [data.printer_id]: data.state }));
-    });
-
-    socket.on('ams_update', (data) => {
-      setAmsDataMap(prev => ({ ...prev, [data.printer_id]: data.ams }));
-    });
-
-    socket.on('ams_assignments_update', (data) => {
-      setAmsAssignments(data);
-    });
-
-    socket.on('spool_takeover', (data) => {
-      showAlert('Spool Takeover', `Auto-Refill: Switched from slot ${data.from_tray} to slot ${data.to_tray} at ${data.progress}% progress!`);
-    });
-
-    socket.on('spool_runout', (data) => {
-      showAlert('Filament Runout', `Spool in slot ${data.tray_id} ran out of filament at ${data.progress}%!`, true);
-    });
-
-    return () => socket.disconnect();
   }, []);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handlePrintStateUpdate = (data) => {
+      setPrintStates(prev => ({ ...prev, [data.printer_id]: data.state }));
+    };
+
+    const handleAmsUpdate = (data) => {
+      setAmsDataMap(prev => ({ ...prev, [data.printer_id]: data.ams }));
+    };
+
+    const handleAmsAssignmentsUpdate = (data) => {
+      setAmsAssignments(data);
+    };
+
+    const handleSpoolTakeover = (data) => {
+      showAlert('Spool Takeover', `Auto-Refill: Switched from slot ${data.from_tray} to slot ${data.to_tray} at ${data.progress}% progress!`);
+    };
+
+    const handleSpoolRunout = (data) => {
+      showAlert('Filament Runout', `Spool in slot ${data.tray_id} ran out of filament at ${data.progress}%!`, true);
+    };
+
+    const handleSpoolUpdated = (updatedSpool) => {
+      if (updatedSpool && updatedSpool.id) {
+        setSpools(prev => {
+          if (updatedSpool.archived) {
+            return prev.filter(s => s.id !== updatedSpool.id);
+          }
+          const exists = prev.some(s => s.id === updatedSpool.id);
+          if (exists) {
+            return prev.map(s => s.id === updatedSpool.id ? { ...s, ...updatedSpool } : s);
+          } else {
+            return [updatedSpool, ...prev];
+          }
+        });
+      }
+    };
+
+    const handleSpoolAdded = (newSpool) => {
+      if (newSpool && newSpool.id && !newSpool.archived) {
+        setSpools(prev => prev.some(s => s.id === newSpool.id) ? prev : [newSpool, ...prev]);
+      }
+    };
+
+    const handleSpoolDeleted = ({ id }) => {
+      setSpools(prev => prev.filter(s => s.id !== id));
+    };
+
+    socket.on('print_state_update', handlePrintStateUpdate);
+    socket.on('ams_update', handleAmsUpdate);
+    socket.on('ams_assignments_update', handleAmsAssignmentsUpdate);
+    socket.on('spool_takeover', handleSpoolTakeover);
+    socket.on('spool_runout', handleSpoolRunout);
+    socket.on('spool_updated', handleSpoolUpdated);
+    socket.on('spool_added', handleSpoolAdded);
+    socket.on('spool_deleted', handleSpoolDeleted);
+
+    return () => {
+      socket.off('print_state_update', handlePrintStateUpdate);
+      socket.off('ams_update', handleAmsUpdate);
+      socket.off('ams_assignments_update', handleAmsAssignmentsUpdate);
+      socket.off('spool_takeover', handleSpoolTakeover);
+      socket.off('spool_runout', handleSpoolRunout);
+      socket.off('spool_updated', handleSpoolUpdated);
+      socket.off('spool_added', handleSpoolAdded);
+      socket.off('spool_deleted', handleSpoolDeleted);
+    };
+  }, [socket]);
 
   const fetchData = async () => {
     try {

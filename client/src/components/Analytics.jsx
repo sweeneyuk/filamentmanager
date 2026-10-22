@@ -1,18 +1,36 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useSocket } from '../contexts/SocketContext';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { PartyPopper, AlertTriangle } from 'lucide-react';
 
 function Analytics() {
+  const socket = useSocket();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchAnalytics = () => {
     axios.get('/api/analytics').then(res => {
       setData(res.data);
       setLoading(false);
     }).catch(console.error);
+  };
+
+  useEffect(() => {
+    fetchAnalytics();
   }, []);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.on('archive_updated', fetchAnalytics);
+    socket.on('archive_deleted', fetchAnalytics);
+
+    return () => {
+      socket.off('archive_updated', fetchAnalytics);
+      socket.off('archive_deleted', fetchAnalytics);
+    };
+  }, [socket]);
 
   if (loading) return <div>Loading Analytics...</div>;
 

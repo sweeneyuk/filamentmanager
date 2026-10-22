@@ -6,6 +6,7 @@ const fs = require('fs');
 const AdmZip = require('adm-zip');
 const { db, initDb, populateDefaults } = require('./database');
 const { connectMqtt, getAmsStatus, getPrintState, setIo } = require('./mqtt');
+const { setBroadcastIo, broadcastSpoolUpdated, broadcastSpoolAdded, broadcastSpoolDeleted, broadcastArchiveUpdated, broadcastArchiveDeleted } = require('./broadcast');
 const { getBambuVariantId } = require('./bambuCatalog');
 const { resolveVariantId } = require('./geminiVariant');
 const http = require('http');
@@ -57,6 +58,7 @@ io.use(async (socket, next) => {
 });
 
 setIo(io);
+setBroadcastIo(io);
 
 io.on('connection', (socket) => {
   const { getPrintState, getAmsStatus } = require('./mqtt');
@@ -426,6 +428,7 @@ app.post('/api/spools', (req, res) => {
       if (rfid) {
         db.run('INSERT OR IGNORE INTO spool_rfids (spool_id, rfid) VALUES (?, ?)', [spoolId, rfid]);
       }
+      broadcastSpoolAdded(spoolId);
       res.json({ id: spoolId });
     });
   });
@@ -450,6 +453,7 @@ app.put('/api/spools/:id', (req, res) => {
       if (rfid) {
         db.run('INSERT OR IGNORE INTO spool_rfids (spool_id, rfid) VALUES (?, ?)', [req.params.id, rfid]);
       }
+      broadcastSpoolUpdated(req.params.id);
       res.json({ success: true });
     });
   });
@@ -464,7 +468,10 @@ app.post('/api/spools/:id/deduct', (req, res) => {
 
   db.run(`UPDATE spools SET used_weight = used_weight + ? WHERE id = ?`, [amount, req.params.id], function(err) {
     if (err) res.status(500).json({ error: err.message });
-    else res.json({ success: true, deducted: amount });
+    else {
+      broadcastSpoolUpdated(req.params.id);
+      res.json({ success: true, deducted: amount });
+    }
   });
 });
 
@@ -473,6 +480,7 @@ app.put('/api/spools/:id/archive', (req, res) => {
   const { archived } = req.body;
   db.run('UPDATE spools SET archived = ? WHERE id = ?', [archived ? 1 : 0, req.params.id], function(err) {
     if (err) return res.status(500).json({ error: err.message });
+    broadcastSpoolUpdated(req.params.id);
     res.json({ success: true });
   });
 });
@@ -485,6 +493,7 @@ app.delete('/api/spools/:id', (req, res) => {
     db.run('DELETE FROM spool_rfids WHERE spool_id = ?', [spoolId]);
     db.run('DELETE FROM spools WHERE id = ?', [spoolId], function(err) {
       if (err) return res.status(500).json({ error: err.message });
+      broadcastSpoolDeleted(spoolId);
       broadcastAmsAssignments();
       res.json({ success: true });
     });
@@ -548,6 +557,7 @@ app.post('/api/archives', (req, res) => {
     VALUES (?, 'MANUAL', ?, ?, ?, ?, ?)
   `, [print_name, duration_seconds, energy_cost, filament_cost, total_cost, spool_id], function(err) {
     if (err) return res.status(500).json({ error: err.message });
+    broadcastArchiveUpdated(this.lastID);
     res.json({ id: this.lastID });
   });
 });
@@ -585,6 +595,7 @@ app.delete('/api/archives/:id', (req, res) => {
       if (err) return res.status(500).json({ error: err.message });
       // Also delete from archive_spools junction table
       db.run('DELETE FROM archive_spools WHERE archive_id = ?', [id], () => {
+        broadcastArchiveDeleted(id);
         res.json({ success: true });
       });
     });
@@ -623,6 +634,7 @@ app.post('/api/archives/:id/regenerate-image', async (req, res) => {
             if (aiResult) {
               db.run('UPDATE archives SET ai_analysis = ? WHERE id = ?', [JSON.stringify(aiResult), id]);
             }
+            broadcastArchiveUpdated(id);
             return res.json({ success: true, photo_path: relativePath, ai_analysis: aiResult });
           };
 
@@ -717,6 +729,7 @@ app.post('/api/archives/:id/media', uploadArchiveMedia.single('file'), (req, res
 
     db.run(`UPDATE archives SET ${columnToUpdate} = ? WHERE id = ?`, [relPath, id], function(err) {
       if (err) return res.status(500).json({ error: 'Database update failed' });
+      broadcastArchiveUpdated(id);
       res.json({ success: true, path: relPath });
     });
   });
@@ -742,6 +755,7 @@ app.delete('/api/archives/:id/media/:type', (req, res) => {
 
     db.run(`UPDATE archives SET ${columnToUpdate} = NULL WHERE id = ?`, [id], function(err) {
       if (err) return res.status(500).json({ error: 'Database update failed' });
+      broadcastArchiveUpdated(id);
       res.json({ success: true });
     });
   });

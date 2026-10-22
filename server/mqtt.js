@@ -2,6 +2,7 @@ const mqtt = require('mqtt');
 const { db, allQuery, getQuery, runQuery } = require('./database');
 const { getPrinterEnergyUsage, getEnergyRate } = require('./ha');
 const { getBambuVariantId } = require('./bambuCatalog');
+const { broadcastArchiveUpdated, broadcastSpoolUpdated } = require('./broadcast');
 
 const clients = {}; // printer_id -> mqtt client
 const amsDataMap = {}; // printer_id -> ams data
@@ -278,10 +279,7 @@ const deductFilamentForTray = async (pid, state, trayId, grams, slotIdx = 0) => 
         state.slotDeductedGrams[slotIdx] = (state.slotDeductedGrams[slotIdx] || 0) + actualDeduct;
       }
 
-      const updatedSpool = await getQuery('SELECT * FROM spools WHERE id = ?', [spoolId]);
-      if (updatedSpool && ioInstance) {
-        ioInstance.emit('spool_updated', updatedSpool);
-      }
+      broadcastSpoolUpdated(spoolId);
 
       // Route any overflow to the takeover roll
       if (overflow > 0) {
@@ -851,7 +849,9 @@ const handlePrintStatus = async (printer, printData) => {
             if (thumbPath) {
               state.thumbnailPath = thumbPath;
               if (state.archiveId) {
-                db.run('UPDATE archives SET thumbnail_path = ? WHERE id = ?', [thumbPath, state.archiveId]);
+                db.run('UPDATE archives SET thumbnail_path = ? WHERE id = ?', [thumbPath, state.archiveId], () => {
+                  broadcastArchiveUpdated(state.archiveId);
+                });
               }
               console.log(`[MQTT ${pid}] Thumbnail stored (attempt ${attempt}): ${thumbPath}`);
             } else if (attempt < 3) {
@@ -879,7 +879,10 @@ const handlePrintStatus = async (printer, printData) => {
             startFtpExtraction();
           } else {
             db.run(`INSERT INTO archives (printer_id, print_name, status, created_at) VALUES (?, ?, 'In Progress', CURRENT_TIMESTAMP)`, [pid, state.name], function(insErr) {
-              if (!insErr) state.archiveId = this.lastID;
+              if (!insErr) {
+                state.archiveId = this.lastID;
+                broadcastArchiveUpdated(state.archiveId);
+              }
               startFtpExtraction();
             });
           }
@@ -892,6 +895,7 @@ const handlePrintStatus = async (printer, printData) => {
           if (!err) {
             state.archiveId = this.lastID;
             console.log(`[MQTT ${pid}] Created in-progress archive record with ID ${state.archiveId}`);
+            broadcastArchiveUpdated(state.archiveId);
             startFtpExtraction();
           }
         });
@@ -1024,11 +1028,15 @@ const handlePrintStatus = async (printer, printData) => {
                   archivedState.spoolDeductedGrams[spoolId] = (archivedState.spoolDeductedGrams[spoolId] || 0) + delta;
                   archivedState.slotDeductedGrams[slotIdx] = alreadyDeducted + delta;
                   db.run('UPDATE spools SET used_weight = MIN(total_weight, used_weight + ?), last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
-                    [delta, archivedState.name, spoolId]);
+                    [delta, archivedState.name, spoolId], () => {
+                      broadcastSpoolUpdated(spoolId);
+                    });
                 } else if (delta < -0.001 && newStatus === 'FINISH' && Math.abs(delta) < 2.0) {
                   console.log(`[MQTT ${pid}] Adjusting slot ${slotIdx} rounding delta ${delta.toFixed(2)}g on spool ${spoolId}`);
                   archivedState.spoolDeductedGrams[spoolId] = Math.max(0, (archivedState.spoolDeductedGrams[spoolId] || 0) + delta);
-                  db.run('UPDATE spools SET used_weight = MAX(0, used_weight + ?) WHERE id = ?', [delta, spoolId]);
+                  db.run('UPDATE spools SET used_weight = MAX(0, used_weight + ?) WHERE id = ?', [delta, spoolId], () => {
+                    broadcastSpoolUpdated(spoolId);
+                  });
                 }
               } else if (expectedWeight > 0) {
                 console.log(`[MQTT ${pid}] Warning: No spool assigned to tray ${targetTray} for slot ${slotIdx} (${expectedWeight.toFixed(2)}g expected)`);
@@ -1061,7 +1069,9 @@ const handlePrintStatus = async (printer, printData) => {
                   const spoolId = assignMap[trayId];
                   if (spoolId) {
                     db.run('UPDATE spools SET used_weight = MIN(total_weight, used_weight + ?), last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
-                      [weightUsed, archivedState.name, spoolId]);
+                      [weightUsed, archivedState.name, spoolId], () => {
+                        broadcastSpoolUpdated(spoolId);
+                      });
                     spoolDeductions.push({ spoolId, predicted: weightUsed });
                     filamentCost += weightUsed * (costMap[spoolId] || 0);
                   }
@@ -1075,7 +1085,9 @@ const handlePrintStatus = async (printer, printData) => {
                   const spoolId = assignMap[trayId];
                   if (spoolId) {
                     db.run('UPDATE spools SET used_weight = MIN(total_weight, used_weight + ?), last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
-                      [predicted, archivedState.name, spoolId]);
+                      [predicted, archivedState.name, spoolId], () => {
+                        broadcastSpoolUpdated(spoolId);
+                      });
                     spoolDeductions.push({ spoolId, predicted });
                     filamentCost += predicted * (costMap[spoolId] || 0);
                   }
@@ -1100,6 +1112,8 @@ const handlePrintStatus = async (printer, printData) => {
                 [archiveId, spoolId, predicted]);
             });
 
+            broadcastArchiveUpdated(archiveId);
+
             let rtspSuccessPath = null;
             try {
               const { captureCameraSnapshot } = require('./camera');
@@ -1114,6 +1128,7 @@ const handlePrintStatus = async (printer, printData) => {
                 if (aiResult) {
                   db.run('UPDATE archives SET ai_analysis = ? WHERE id = ?', [JSON.stringify(aiResult), archiveId]);
                 }
+                broadcastArchiveUpdated(archiveId);
               }
             } catch (camErr) {}
 
@@ -1143,6 +1158,7 @@ const handlePrintStatus = async (printer, printData) => {
                       }
                     }
                   }
+                  broadcastArchiveUpdated(archiveId);
                 }
               } catch (e) {}
             }, 60000);

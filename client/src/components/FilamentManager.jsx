@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import SpoolModal from './SpoolModal';
-import { io } from 'socket.io-client';
+import { useSocket } from '../contexts/SocketContext';
 import { useAlert } from '../contexts/AlertContext';
 import { Edit2, Scissors, Archive as ArchiveIcon, ShoppingCart, Trash2, Disc, ChevronDown, ChevronUp, List, LayoutGrid } from 'lucide-react';
 
 function FilamentManager() {
+  const socket = useSocket();
   const { showAlert, showConfirm, showPrompt } = useAlert();
   const [selectedSpoolIds, setSelectedSpoolIds] = useState([]);
   const [spools, setSpools] = useState([]);
@@ -41,29 +42,48 @@ function FilamentManager() {
   useEffect(() => {
     fetchData();
     fetchAms();
-    const token = localStorage.getItem('token');
-    const socket = io({ auth: { token } });
+  }, []);
 
-    socket.on('ams_update', (data) => {
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleAmsUpdate = (data) => {
       setAmsData(data);
-    });
+    };
 
-    socket.on('ams_assignments_update', (data) => {
+    const handleAmsAssignmentsUpdate = (data) => {
       setAmsAssignments(data);
-    });
+    };
 
-    socket.on('spool_updated', (updatedSpool) => {
+    const handleSpoolUpdated = (updatedSpool) => {
       if (updatedSpool && updatedSpool.id) {
         setSpools(prev => prev.map(s => s.id === updatedSpool.id ? { ...s, ...updatedSpool } : s));
       }
-    });
+    };
 
-    socket.on('spool_added', () => {
+    const handleSpoolAdded = () => {
       fetchData();
-    });
+    };
 
-    return () => socket.disconnect();
-  }, []);
+    const handleSpoolDeleted = ({ id }) => {
+      setSpools(prev => prev.filter(s => s.id !== id));
+      setSelectedSpoolIds(prev => prev.filter(selectedId => selectedId !== id));
+    };
+
+    socket.on('ams_update', handleAmsUpdate);
+    socket.on('ams_assignments_update', handleAmsAssignmentsUpdate);
+    socket.on('spool_updated', handleSpoolUpdated);
+    socket.on('spool_added', handleSpoolAdded);
+    socket.on('spool_deleted', handleSpoolDeleted);
+
+    return () => {
+      socket.off('ams_update', handleAmsUpdate);
+      socket.off('ams_assignments_update', handleAmsAssignmentsUpdate);
+      socket.off('spool_updated', handleSpoolUpdated);
+      socket.off('spool_added', handleSpoolAdded);
+      socket.off('spool_deleted', handleSpoolDeleted);
+    };
+  }, [socket]);
 
   const fetchData = async () => {
     try {

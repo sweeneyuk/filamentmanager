@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { useSocket } from '../contexts/SocketContext';
 import { useAlert } from '../contexts/AlertContext';
 import { MoreVertical, Camera, Video, Trash2, Clock, Scale, Banknote, FileText, Sparkles, AlertTriangle, Zap, Disc, Printer, X, Download, Upload } from 'lucide-react';
 
 function Archive() {
+  const socket = useSocket();
   const [archives, setArchives] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedVideo, setSelectedVideo] = useState(null);
@@ -109,6 +111,35 @@ function Archive() {
   useEffect(() => {
     fetchArchives();
   }, []);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleArchiveUpdated = (updatedArchive) => {
+      if (!updatedArchive || !updatedArchive.id) return;
+      setArchives(prev => {
+        const exists = prev.some(a => a.id === updatedArchive.id);
+        if (exists) {
+          return prev.map(a => a.id === updatedArchive.id ? updatedArchive : a);
+        } else {
+          return [updatedArchive, ...prev];
+        }
+      });
+    };
+
+    const handleArchiveDeleted = ({ id }) => {
+      setArchives(prev => prev.filter(a => a.id !== id));
+      setSelectedArchives(prev => prev.filter(selectedId => selectedId !== id));
+    };
+
+    socket.on('archive_updated', handleArchiveUpdated);
+    socket.on('archive_deleted', handleArchiveDeleted);
+
+    return () => {
+      socket.off('archive_updated', handleArchiveUpdated);
+      socket.off('archive_deleted', handleArchiveDeleted);
+    };
+  }, [socket]);
 
   const fetchArchives = async () => {
     try {
