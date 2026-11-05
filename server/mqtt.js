@@ -50,6 +50,7 @@ const IDLE_STATE = () => ({
   bedTemp: 0,
   bedTarget: 0,
   chamberTemp: 0,
+  chamberTarget: 0,
   light: false,
   layerNum: 0,
   totalLayerNum: 0,
@@ -57,6 +58,44 @@ const IDLE_STATE = () => ({
   activeGcodeFile: null,
   raw: null
 });
+
+// Helper to decode packed or scaled temperature telemetry (e.g. CTC chamber heater, packed dual nozzle)
+const decodeTemperature = (val, explicitTarget = 0) => {
+  if (val === undefined || val === null) return { temp: undefined, target: explicitTarget || 0 };
+  val = Number(val);
+  if (isNaN(val)) return { temp: 0, target: explicitTarget || 0 };
+  if (val <= 150) return { temp: val, target: explicitTarget || 0 };
+
+  // 32-bit packed: uint16 current, uint16 target (e.g. (50 << 16) | 35 = 3276835)
+  if (val > 65535) {
+    const low16 = val & 0xFFFF;
+    const high16 = (val >> 16) & 0xFFFF;
+    if (low16 <= 150 && high16 <= 150) {
+      if (explicitTarget && explicitTarget === low16) {
+        return { temp: high16, target: low16 };
+      }
+      return { temp: low16, target: high16 };
+    }
+  }
+
+  // 16-bit packed: uint8 current, uint8 target (e.g. (50 << 8) | 35 = 12835)
+  const low8 = val & 0xFF;
+  const high8 = (val >> 8) & 0xFF;
+  if (low8 <= 150 && high8 <= 150 && (high8 > 0 || low8 > 0)) {
+    if (explicitTarget && explicitTarget === low8) {
+      return { temp: high8, target: low8 };
+    }
+    return { temp: low8, target: high8 };
+  }
+
+  // Millidegrees (e.g. 35000 -> 35)
+  if (val <= 150000 && (val / 1000) <= 150) {
+    return { temp: Math.round(val / 1000), target: explicitTarget || 0 };
+  }
+
+  // Fallback mask to lower 16 bits
+  return { temp: val & 0xFFFF, target: explicitTarget || ((val >> 16) & 0xFFFF) || 0 };
+};
 
 const PRINT_STAGES = {
   "-1": "Idle", "0": "Printing", "1": "Auto Bed Leveling", "2": "Heating Bed", "3": "Sweeping XY Mech Mode",
@@ -462,7 +501,6 @@ const handlePrintStatus = async (printer, printData) => {
   if (printData.nozzle_target_temper !== undefined) state.nozzleTarget = printData.nozzle_target_temper;
   if (printData.bed_temper !== undefined) state.bedTemp = printData.bed_temper;
   if (printData.bed_target_temper !== undefined) state.bedTarget = printData.bed_target_temper;
-  if (printData.chamber_temper !== undefined) state.chamberTemp = printData.chamber_temper;
   if (printData.lights_report && printData.lights_report.length > 0) {
     state.light = printData.lights_report[0].mode === "on";
   }
@@ -472,10 +510,28 @@ const handlePrintStatus = async (printer, printData) => {
     state.stage = PRINT_STAGES[printData.stg_cur.toString()] || `Stage ${printData.stg_cur}`;
   }
   
-  if (printData.chamber_temper !== undefined) {
-    state.chamberTemp = printData.chamber_temper;
-  } else if (printData.device?.ctc?.info?.temp !== undefined) {
-    state.chamberTemp = printData.device.ctc.info.temp;
+  // Chamber Temperature & Target (handles CTC module active heating mode & packed 32-bit values)
+  const explicitChamberTarget = printData.chamber_target_temper !== undefined
+    ? printData.chamber_target_temper
+    : (printData.device?.ctc?.info?.htar !== undefined
+      ? printData.device.ctc.info.htar
+      : (printData.device?.ctc?.htar !== undefined ? printData.device.ctc.htar : undefined));
+
+  let rawChamberTemp = undefined;
+  if (printData.device?.ctc?.info?.temp !== undefined) {
+    rawChamberTemp = printData.device.ctc.info.temp;
+  } else if (printData.chamber_temper !== undefined) {
+    rawChamberTemp = printData.chamber_temper;
+  }
+
+  if (rawChamberTemp !== undefined) {
+    const decodedChamber = decodeTemperature(rawChamberTemp, explicitChamberTarget !== undefined ? explicitChamberTarget : state.chamberTarget);
+    state.chamberTemp = decodedChamber.temp;
+    if (decodedChamber.target > 0 || explicitChamberTarget !== undefined) {
+      state.chamberTarget = explicitChamberTarget !== undefined ? explicitChamberTarget : decodedChamber.target;
+    }
+  } else if (explicitChamberTarget !== undefined) {
+    state.chamberTarget = explicitChamberTarget;
   }
 
   if (printData.device?.extruder?.state !== undefined) {

@@ -281,7 +281,31 @@ function PrintStatus() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>
                     <Box size={16} color="#a855f7" /> Chamber
                   </div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{state.chamberTemp || 0}°C</div>
+                  {(() => {
+                    let temp = state.chamberTemp || 0;
+                    let target = state.chamberTarget || 0;
+                    if (temp > 150) {
+                      if (temp > 65535) {
+                        target = target || ((temp >> 16) & 0xFFFF);
+                        temp = temp & 0xFFFF;
+                      } else if (temp > 300 && (temp & 0xFF) <= 150) {
+                        target = target || ((temp >> 8) & 0xFF);
+                        temp = temp & 0xFF;
+                      } else if (temp <= 150000) {
+                        temp = Math.round(temp / 1000);
+                      }
+                    }
+                    return (
+                      <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
+                        {temp}°C
+                        {target > 0 && (
+                          <span style={{ fontSize: '0.9rem', color: '#666', fontWeight: 'normal' }}>
+                            {' '}/ {target}°C
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="printer-stat-card">

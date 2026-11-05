@@ -371,8 +371,28 @@ function drawKey(context, action, settings, state) {
     drawScaledText(ctx, `Tgt: ${state.bedTarget || 0}°C`, 115, 18, "#888888", 130, false);
   }
   else if (action === "com.sweeneyuk.filamentmanager.tempchamber") {
-    drawScaledText(ctx, "Chamber", 35, 28, "#00c853");
-    drawScaledText(ctx, `${state.chamberTemp || 0}°C`, 95, 32, "#ececec");
+    let rawTemp = state.chamberTemp || 0;
+    let target = state.chamberTarget || 0;
+    if (rawTemp > 150) {
+      if (rawTemp > 65535) {
+        target = target || ((rawTemp >> 16) & 0xFFFF);
+        rawTemp = rawTemp & 0xFFFF;
+      } else if (rawTemp > 300 && (rawTemp & 0xFF) <= 150) {
+        target = target || ((rawTemp >> 8) & 0xFF);
+        rawTemp = rawTemp & 0xFF;
+      } else if (rawTemp <= 150000) {
+        rawTemp = Math.round(rawTemp / 1000);
+      }
+    }
+
+    if (target > 0) {
+      drawScaledText(ctx, "Chamber", 30, 28, "#00c853");
+      drawScaledText(ctx, `${rawTemp}°C`, 75, 32, "#ececec");
+      drawScaledText(ctx, `Tgt: ${target}°C`, 115, 18, "#888888", 130, false);
+    } else {
+      drawScaledText(ctx, "Chamber", 35, 28, "#00c853");
+      drawScaledText(ctx, `${rawTemp}°C`, 95, 32, "#ececec");
+    }
   }
   else if (action === "com.sweeneyuk.filamentmanager.energy") {
     drawScaledText(ctx, "Energy", 28, 24, "#00c853");
