@@ -1,4 +1,5 @@
 const express = require('express');
+const helmet = require('helmet');
 const cors = require('cors');
 const path = require('path');
 const multer = require('multer');
@@ -202,10 +203,14 @@ app.get('/api/settings', (req, res) => {
 // POST /api/settings
 app.post('/api/settings', (req, res) => {
   const settings = req.body;
+  const protectedKeys = ['jwt_secret'];
   db.serialize(() => {
     db.run('BEGIN TRANSACTION');
     const stmt = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
     for (const [key, value] of Object.entries(settings)) {
+      if (protectedKeys.includes(key)) {
+        continue; // Block modifying critical system credentials
+      }
       if (value !== '********') {
         stmt.run(key, value);
       }
@@ -693,14 +698,31 @@ const uploadArchiveMedia = multer({
   }
 });
 
+const ALLOWED_MEDIA_EXTENSIONS = {
+  photo: ['jpg', 'jpeg', 'png', 'webp'],
+  video: ['mp4', 'webm', 'mov']
+};
+
 // POST /api/archives/:id/media
 app.post('/api/archives/:id/media', uploadArchiveMedia.single('file'), (req, res) => {
-  const { id } = req.params;
+  const id = parseInt(req.params.id, 10);
   const { type } = req.body; // 'photo' or 'video'
+  if (isNaN(id)) {
+    if (req.file) fs.unlinkSync(req.file.path);
+    return res.status(400).json({ error: 'Invalid archive ID' });
+  }
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   if (type !== 'photo' && type !== 'video') {
     fs.unlinkSync(req.file.path);
     return res.status(400).json({ error: 'Invalid media type' });
+  }
+
+  // Strictly validate file extension against allowlist to prevent stored XSS (e.g. .html/.svg)
+  const rawExt = path.extname(req.file.originalname).toLowerCase().replace(/^\./, '');
+  const allowed = ALLOWED_MEDIA_EXTENSIONS[type] || [];
+  if (!allowed.includes(rawExt)) {
+    fs.unlinkSync(req.file.path);
+    return res.status(400).json({ error: `Invalid file extension. Allowed for ${type}: ${allowed.join(', ')}` });
   }
 
   db.get('SELECT photo_path, timelapse_path FROM archives WHERE id = ?', [id], (err, archive) => {
@@ -709,8 +731,7 @@ app.post('/api/archives/:id/media', uploadArchiveMedia.single('file'), (req, res
       return res.status(404).json({ error: 'Archive not found' });
     }
 
-    const ext = req.file.originalname.split('.').pop();
-    const newFileName = `${id}_custom_${type}_${Date.now()}.${ext}`;
+    const newFileName = `${id}_custom_${type}_${Date.now()}.${rawExt}`;
     const newFilePath = path.join(__dirname, 'data', 'media', newFileName);
     const relPath = `/media/${newFileName}`;
 
