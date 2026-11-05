@@ -10,17 +10,22 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
+        id: '/',
+        start_url: '/',
+        scope: '/',
         name: 'Filament Manager',
         short_name: 'Filament Manager',
         description: 'Track your 3D printing filament usage, cost, and print history.',
         theme_color: '#1a1a2e',
         background_color: '#1a1a2e',
         display: 'standalone',
+        orientation: 'portrait-primary',
         icons: [
           {
             src: '/pwa-192x192.png',
             sizes: '192x192',
-            type: 'image/png'
+            type: 'image/png',
+            purpose: 'any'
           },
           {
             src: '/pwa-512x512.png',

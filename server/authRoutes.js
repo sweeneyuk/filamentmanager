@@ -51,7 +51,7 @@ router.post('/setup', authLimiter, async (req, res) => {
     
     // Issue token
     const secret = await getJwtSecret();
-    const token = jwt.sign({ username, is_admin: 1 }, secret, { expiresIn: '7d' });
+    const token = jwt.sign({ username, is_admin: 1 }, secret, { expiresIn: '365d' });
     
     res.json({ success: true, token, user: { username, is_admin: 1 } });
   } catch (err) {
@@ -72,7 +72,7 @@ router.post('/login', authLimiter, async (req, res) => {
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
 
     const secret = await getJwtSecret();
-    const token = jwt.sign({ id: user.id, username: user.username, is_admin: user.is_admin }, secret, { expiresIn: '7d' });
+    const token = jwt.sign({ id: user.id, username: user.username, is_admin: user.is_admin }, secret, { expiresIn: '365d' });
     
     res.json({ success: true, token, user: { username: user.username, is_admin: user.is_admin } });
   } catch (err) {
@@ -146,7 +146,7 @@ router.get('/oidc/callback', async (req, res) => {
     }
 
     const secret = await getJwtSecret();
-    const token = jwt.sign({ id: user.id, username: user.username, is_admin: user.is_admin }, secret, { expiresIn: '7d' });
+    const token = jwt.sign({ id: user.id, username: user.username, is_admin: user.is_admin }, secret, { expiresIn: '365d' });
     
     // Redirect to frontend with token in hash or query
     res.redirect(`/?token=${token}`);
