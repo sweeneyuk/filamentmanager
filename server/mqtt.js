@@ -38,6 +38,7 @@ const IDLE_STATE = () => ({
   lastTrackedProgress: 0,
   takeovers: [],
   currentTrayId: null,
+  lastFeedingTrayId: null,
   activeExtruder: 0,
   extruderInfo: null,
   sawRunoutStage: false,
@@ -198,8 +199,16 @@ const syncSlotTrays = (pid, state) => {
   for (let slotIdx = 0; slotIdx < numSlots; slotIdx++) {
     // Do not overwrite if this slot was already redirected by a confirmed auto-refill takeover
     const currentMapped = state.activeSlotTrays[slotIdx];
-    if (currentMapped && state.takeoverMap && state.takeoverMap[currentMapped]) {
-      continue;
+    if (currentMapped && state.takeoverMap) {
+      if (state.takeoverMap[currentMapped]) {
+        // currentMapped is the takeover tray; keep it
+        continue;
+      }
+      const takeoverToTray = Object.keys(state.takeoverMap).find(to => state.takeoverMap[to] === currentMapped);
+      if (takeoverToTray) {
+        state.activeSlotTrays[slotIdx] = takeoverToTray;
+        continue;
+      }
     }
 
     const fil = state.slicerFilaments?.[slotIdx];
@@ -287,10 +296,17 @@ const deductFilamentForTray = async (pid, state, trayId, grams, slotIdx = 0) => 
 
       // If this spool was marked as run out or has 0g remaining, route to takeover tray if available
       if (state.runoutSpools?.[trayId] === spoolId || remaining <= 0.001) {
-        const takeoverTray = Object.keys(state.takeoverMap || {}).find(t => state.takeoverMap[t] === trayId);
+        let takeoverTray = Object.keys(state.takeoverMap || {}).find(t => state.takeoverMap[t] === trayId);
+        if (!takeoverTray && state.currentTrayId && state.currentTrayId !== trayId && !state.currentTrayId.includes('255')) {
+          takeoverTray = state.currentTrayId;
+        }
         if (takeoverTray && takeoverTray !== trayId) {
           console.log(`[MQTT ${pid}] Spool ${spoolId} in ${trayId} depleted; routing ${grams.toFixed(2)}g to takeover tray ${takeoverTray}`);
           return await deductFilamentForTray(pid, state, takeoverTray, grams, slotIdx);
+        }
+        if (remaining <= 0.001) {
+          console.log(`[MQTT ${pid}] Spool ${spoolId} in ${trayId} depleted and no takeover tray active; skipping deduction.`);
+          return;
         }
       }
 
@@ -322,7 +338,10 @@ const deductFilamentForTray = async (pid, state, trayId, grams, slotIdx = 0) => 
 
       // Route any overflow to the takeover roll
       if (overflow > 0) {
-        const takeoverTray = Object.keys(state.takeoverMap || {}).find(t => state.takeoverMap[t] === trayId);
+        let takeoverTray = Object.keys(state.takeoverMap || {}).find(t => state.takeoverMap[t] === trayId);
+        if (!takeoverTray && state.currentTrayId && state.currentTrayId !== trayId && !state.currentTrayId.includes('255')) {
+          takeoverTray = state.currentTrayId;
+        }
         if (takeoverTray && takeoverTray !== trayId) {
           await deductFilamentForTray(pid, state, takeoverTray, overflow, slotIdx);
         }
@@ -665,72 +684,62 @@ const handlePrintStatus = async (printer, printData) => {
   // --- Spool Takeover & Switch Detection ---
   const isValidTray = (t) => t && typeof t === 'string' && !t.includes('255');
 
-  if (state.status === 'RUNNING' && isValidTray(previousTrayId) && isValidTray(state.currentTrayId) && previousTrayId !== state.currentTrayId) {
-    console.log(`[MQTT ${pid}] Spool Switch detected: from tray ${previousTrayId} to ${state.currentTrayId} at ${state.progress}%`);
+  if (isValidTray(state.currentTrayId)) {
+    const previousFeedingTrayId = state.lastFeedingTrayId;
+    if (!state.lastFeedingTrayId) {
+      state.lastFeedingTrayId = state.currentTrayId;
+    } else if (state.status === 'RUNNING' && isValidTray(previousFeedingTrayId) && previousFeedingTrayId !== state.currentTrayId) {
+      console.log(`[MQTT ${pid}] Spool Switch detected: from tray ${previousFeedingTrayId} to ${state.currentTrayId} at ${state.progress}% (layer ${state.layerNum})`);
 
-    const isActivelyPrinting = (state.progress || 0) > 0 || (state.layerNum || 0) > 0;
+      const isActivelyPrinting = (state.progress || 0) > 0 || (state.layerNum || 0) > 0;
 
-    // If the new tray is already assigned to one of the print's slicer slots, this is a normal multi-colour/multi-tool swap
-    const mappedSlotTrays = Object.values(state.activeSlotTrays || {});
-    const isNormalSlotSwap = mappedSlotTrays.includes(state.currentTrayId) && mappedSlotTrays.includes(previousTrayId);
+      // If the new tray is already assigned to one of the print's slicer slots, this is a normal multi-colour/multi-tool swap
+      const mappedSlotTrays = Object.values(state.activeSlotTrays || {});
+      const isNormalSlotSwap = mappedSlotTrays.includes(state.currentTrayId) && mappedSlotTrays.includes(previousFeedingTrayId);
 
-    // Check if the previous tray physically became empty in amsDataMap (do NOT check t.remain === 0 as non-RFID spools always report 0)
-    const amsList = amsDataMap[pid] || [];
-    let isPrevPhysicallyEmpty = false;
-    for (const unit of amsList) {
-      if (unit.tray) {
-        for (const t of unit.tray) {
-          if (`${unit.id}-${t.id}` === previousTrayId && (!t.tray_type || t.tray_type === '' || t.id === 255)) {
-            isPrevPhysicallyEmpty = true;
-            break;
-          }
-        }
-      }
-    }
-
-    const hadRunoutPause = state.sawRunoutStage || printData.stg_cur === 6 || printData.stg_cur === "6";
-
-    if (!isNormalSlotSwap && isActivelyPrinting) {
-      db.get('SELECT aa.spool_id, s.total_weight, s.used_weight FROM ams_assignments aa LEFT JOIN spools s ON aa.spool_id = s.id WHERE aa.printer_id = ? AND aa.tray_id = ?', [pid, previousTrayId], (err, row) => {
-        const spoolRemaining = (row && row.total_weight && row.used_weight !== undefined) ? Math.max(0, row.total_weight - row.used_weight) : null;
-        // Confirm depletion only if Stage 6 runout occurred, or tray physically went empty while spool was low, or tracked weight reached 0g
-        const spoolDepleted = hadRunoutPause || (isPrevPhysicallyEmpty && (spoolRemaining === null || spoolRemaining <= 100)) || (spoolRemaining !== null && spoolRemaining <= 0.5);
-
-        if (spoolDepleted) {
-          state.sawRunoutStage = false;
-          const knownSpoolId = (row && row.spool_id) || state.initialAssignments?.[previousTrayId];
+      if (!isNormalSlotSwap && isActivelyPrinting) {
+        state.sawRunoutStage = false;
+        db.get('SELECT aa.spool_id, s.total_weight, s.used_weight FROM ams_assignments aa LEFT JOIN spools s ON aa.spool_id = s.id WHERE aa.printer_id = ? AND aa.tray_id = ?', [pid, previousFeedingTrayId], (err, row) => {
+          const knownSpoolId = (row && row.spool_id) || state.initialAssignments?.[previousFeedingTrayId];
           if (knownSpoolId) {
             if (!state.runoutSpools) state.runoutSpools = {};
-            state.runoutSpools[previousTrayId] = knownSpoolId;
-            console.log(`[MQTT ${pid}] Spool ${knownSpoolId} in tray ${previousTrayId} ran out during print (remaining tracked: ${spoolRemaining !== null ? spoolRemaining.toFixed(1) + 'g' : 'unknown'}).`);
+            state.runoutSpools[previousFeedingTrayId] = knownSpoolId;
+            console.log(`[MQTT ${pid}] Spool ${knownSpoolId} in tray ${previousFeedingTrayId} ran out during auto-refill (depleting spool).`);
+            
+            // Mark the depleted spool as completely used up (used_weight = total_weight)
+            db.run('UPDATE spools SET used_weight = total_weight, last_used_at = CURRENT_TIMESTAMP, last_print_name = ? WHERE id = ?',
+              [state.name, knownSpoolId], () => {
+                broadcastSpoolUpdated(knownSpoolId);
+              });
+
             if (ioInstance) {
               ioInstance.emit('spool_runout', {
                 printer_id: pid,
-                tray_id: previousTrayId,
+                tray_id: previousFeedingTrayId,
                 spool_id: knownSpoolId,
                 progress: state.progress
               });
             }
           }
 
-          console.log(`[MQTT ${pid}] Auto-refill takeover confirmed: from tray ${previousTrayId} to ${state.currentTrayId} at ${state.progress}%`);
+          console.log(`[MQTT ${pid}] Auto-refill takeover confirmed: from tray ${previousFeedingTrayId} to ${state.currentTrayId} at ${state.progress}%`);
           if (!state.takeovers) state.takeovers = [];
           state.takeovers.push({
-            fromTray: previousTrayId,
+            fromTray: previousFeedingTrayId,
             toTray: state.currentTrayId,
             progress: state.progress || 0,
             timestamp: new Date().toISOString()
           });
 
           if (!state.takeoverMap) state.takeoverMap = {};
-          state.takeoverMap[state.currentTrayId] = previousTrayId;
+          state.takeoverMap[state.currentTrayId] = previousFeedingTrayId;
 
           // Update activeSlotTrays for any slot that was using the previous tray
           if (state.activeSlotTrays) {
             for (const [slot, tId] of Object.entries(state.activeSlotTrays)) {
-              if (tId === previousTrayId) {
+              if (tId === previousFeedingTrayId) {
                 state.activeSlotTrays[slot] = state.currentTrayId;
-                console.log(`[MQTT ${pid}] Auto-refill takeover: slot ${slot} (${previousTrayId}) taken over by ${state.currentTrayId}`);
+                console.log(`[MQTT ${pid}] Auto-refill takeover: slot ${slot} (${previousFeedingTrayId}) taken over by ${state.currentTrayId}`);
               }
             }
           }
@@ -738,13 +747,15 @@ const handlePrintStatus = async (printer, printData) => {
           if (ioInstance) {
             ioInstance.emit('spool_takeover', {
               printer_id: pid,
-              from_tray: previousTrayId,
+              from_tray: previousFeedingTrayId,
               to_tray: state.currentTrayId,
               progress: state.progress
             });
           }
-        }
-      });
+        });
+      }
+
+      state.lastFeedingTrayId = state.currentTrayId;
     }
   }
 
@@ -823,6 +834,7 @@ const handlePrintStatus = async (printer, printData) => {
       state.lastTrackedProgress = 0;
       state.takeovers = [];
       state.sawRunoutStage = false;
+      state.lastFeedingTrayId = null;
 
       // Snapshot current tray -> spool assignments at print start so they are never lost if a spool runs out
       try {

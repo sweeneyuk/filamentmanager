@@ -18,6 +18,9 @@ let ioClient = null;
 let serverUrl = "http://localhost:3000";
 let apiUsername = "";
 let apiPassword = "";
+let currentToken = null;
+let isPolling = false;
+let elgatoConnectParams = null;
 let activeContexts = {}; // uuid -> { action, context, settings }
 let printStates = {}; // printer_id -> state
 let amsData = {}; // printer_id -> ams
@@ -29,6 +32,7 @@ canvas.height = 144;
 const ctx = canvas.getContext("2d");
 
 function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info, actionInfo) {
+  elgatoConnectParams = { port, uuid, registerEvent, info, actionInfo };
   pluginUUID = uuid;
   websocket = new WebSocket("ws://127.0.0.1:" + port);
 
@@ -42,6 +46,25 @@ function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info, actionIn
       event: "getGlobalSettings",
       context: pluginUUID
     }));
+  };
+
+  websocket.onclose = function() {
+    console.warn("Elgato StreamDeck websocket closed. Retrying in 2s...");
+    setTimeout(() => {
+      if (elgatoConnectParams) {
+        connectElgatoStreamDeckSocket(
+          elgatoConnectParams.port,
+          elgatoConnectParams.uuid,
+          elgatoConnectParams.registerEvent,
+          elgatoConnectParams.info,
+          elgatoConnectParams.actionInfo
+        );
+      }
+    }, 2000);
+  };
+
+  websocket.onerror = function(err) {
+    console.error("Elgato StreamDeck websocket error:", err);
   };
 
   websocket.onmessage = function(evt) {
@@ -75,57 +98,171 @@ function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info, actionIn
   };
 }
 
+async function loginAndGetToken() {
+  if (!serverUrl) return null;
+  if (!serverUrl.startsWith("http")) {
+    serverUrl = "http://" + serverUrl;
+  }
+  if (!apiUsername || !apiPassword) return null;
+
+  try {
+    const response = await fetch(serverUrl + '/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: apiUsername, password: apiPassword })
+    });
+    const data = await response.json();
+    if (data.success && data.token) {
+      currentToken = data.token;
+      return currentToken;
+    } else {
+      console.error("StreamDeck login failed:", data.error);
+    }
+  } catch (e) {
+    console.error("StreamDeck login fetch error:", e);
+  }
+  return null;
+}
+
+async function pollState() {
+  if (!serverUrl || isPolling) return;
+  if (!serverUrl.startsWith("http")) {
+    serverUrl = "http://" + serverUrl;
+  }
+
+  isPolling = true;
+  try {
+    const headers = {};
+    if (currentToken) {
+      headers['Authorization'] = `Bearer ${currentToken}`;
+    }
+
+    const res = await fetch(serverUrl + '/api/print_status', { headers });
+    if (res.status === 401 || res.status === 403) {
+      const newToken = await loginAndGetToken();
+      if (newToken && ioClient) {
+        ioClient.auth = { token: newToken };
+      }
+      isPolling = false;
+      return;
+    }
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data === 'object') {
+        printStates = data;
+        updateAllKeys();
+      }
+    }
+
+    const amsRes = await fetch(serverUrl + '/api/ams', { headers });
+    if (amsRes.ok) {
+      const ams = await amsRes.json();
+      if (ams && typeof ams === 'object') {
+        amsData = ams;
+        updateAllKeys();
+      }
+    }
+  } catch (err) {
+    // Network or server temporarily unavailable
+  } finally {
+    isPolling = false;
+  }
+}
+
 async function connectSocketIO() {
   if (ioClient) {
-    ioClient.disconnect();
+    try {
+      ioClient.removeAllListeners();
+      ioClient.disconnect();
+    } catch (_) {}
+    ioClient = null;
   }
   
   if (!serverUrl.startsWith("http")) {
     serverUrl = "http://" + serverUrl;
   }
   
-  let token = null;
+  await loginAndGetToken();
 
-  // Try to login if username and password are provided
-  if (apiUsername && apiPassword) {
-    try {
-      const response = await fetch(serverUrl + '/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: apiUsername, password: apiPassword })
-      });
-      const data = await response.json();
-      if (data.success && data.token) {
-        token = data.token;
-      } else {
-        console.error("Login failed:", data.error);
-      }
-    } catch (e) {
-      console.error("Login fetch error:", e);
-    }
-  }
-
-  const ioOptions = {};
-  if (token) {
-    ioOptions.auth = { token: token };
+  const ioOptions = {
+    reconnection: true,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    reconnectionAttempts: Infinity,
+    timeout: 10000
+  };
+  if (currentToken) {
+    ioOptions.auth = { token: currentToken };
   }
 
   ioClient = io(serverUrl, ioOptions);
 
   ioClient.on("connect", () => {
     console.log("Connected to Filament Manager Socket.IO");
+    pollState();
+  });
+
+  ioClient.on("connect_error", async (err) => {
+    console.warn("Socket.IO connect_error:", err.message);
+    if (err.message && err.message.toLowerCase().includes("auth")) {
+      const newToken = await loginAndGetToken();
+      if (newToken && ioClient) {
+        ioClient.auth = { token: newToken };
+      }
+    }
+  });
+
+  ioClient.on("disconnect", (reason) => {
+    console.warn("Socket.IO disconnected:", reason);
   });
 
   ioClient.on("print_state_update", (data) => {
-    printStates[data.printer_id] = data.state;
-    updateAllKeys();
+    if (data && data.printer_id) {
+      printStates[data.printer_id] = data.state;
+      updateAllKeys();
+    }
   });
 
   ioClient.on("ams_update", (data) => {
-    amsData[data.printer_id] = data.ams;
-    updateAllKeys();
+    if (data && data.printer_id) {
+      amsData[data.printer_id] = data.ams;
+      updateAllKeys();
+    }
   });
+
+  pollState();
 }
+
+// Sleep / Wake detection via timer drift
+let lastHeartbeat = Date.now();
+setInterval(() => {
+  const now = Date.now();
+  const diff = now - lastHeartbeat;
+  lastHeartbeat = now;
+  if (diff > 4000) {
+    console.log(`[StreamDeck] System wake detected (time jump ${diff}ms). Refreshing connection...`);
+    if (websocket && websocket.readyState !== WebSocket.OPEN && elgatoConnectParams) {
+      connectElgatoStreamDeckSocket(
+        elgatoConnectParams.port,
+        elgatoConnectParams.uuid,
+        elgatoConnectParams.registerEvent,
+        elgatoConnectParams.info,
+        elgatoConnectParams.actionInfo
+      );
+    }
+    if (!ioClient || !ioClient.connected) {
+      connectSocketIO();
+    } else {
+      pollState();
+    }
+  }
+}, 1500);
+
+// Fallback HTTP polling heartbeat every 8 seconds
+setInterval(() => {
+  pollState();
+}, 8000);
 
 function getActivePrinterState() {
   const ids = Object.keys(printStates);
@@ -154,7 +291,7 @@ function updateAllKeys() {
 }
 
 function sendImageToContext(context, dataUrl) {
-  if (websocket) {
+  if (websocket && websocket.readyState === WebSocket.OPEN) {
     websocket.send(JSON.stringify({
       event: "setImage",
       context: context,
@@ -167,7 +304,7 @@ function sendImageToContext(context, dataUrl) {
 }
 
 function sendTitleToContext(context, title) {
-  if (websocket) {
+  if (websocket && websocket.readyState === WebSocket.OPEN) {
     websocket.send(JSON.stringify({
       event: "setTitle",
       context: context,
