@@ -94,6 +94,12 @@ const downloadLatestTimelapse = async (printer, printName, archiveId) => {
   }
 };
 
+const normalizePrintName = (str) => (str || '')
+  .toLowerCase()
+  .replace(/\.gcode\.3mf$|\.3mf$|\.gcode$/i, '')
+  .replace(/[^a-z0-9]+/g, ' ')
+  .trim();
+
 const findRemotePrintFile = async (client, gcodeFile, subtaskName) => {
   // Build a prioritised list of explicit paths to try
   const pathsToTry = new Set();
@@ -109,15 +115,19 @@ const findRemotePrintFile = async (client, gcodeFile, subtaskName) => {
   // 2. Build candidates from subtask_name (matching Bambuddy naming conventions)
   const buildNameVariants = (base) => {
     const variants = [];
-    for (const name of [`${base}.gcode.3mf`, `${base}.3mf`]) {
-      for (const dir of ['/', '/cache', '/model', '/data', '/data/Metadata']) {
-        variants.push(dir === '/' ? `/${name}` : `${dir}/${name}`);
-      }
-      // Also try with spaces replaced by underscores
-      if (name.includes(' ')) {
-        const normalized = name.replace(/ /g, '_');
-        for (const dir of ['/', '/cache', '/model', '/data']) {
-          variants.push(dir === '/' ? `/${normalized}` : `${dir}/${normalized}`);
+    const stripped = base.replace(/[^a-zA-Z0-9._ -]/g, '').trim();
+    const bases = stripped && stripped !== base ? [base, stripped] : [base];
+    for (const b of bases) {
+      for (const name of [`${b}.gcode.3mf`, `${b}.3mf`]) {
+        for (const dir of ['/', '/cache', '/model', '/data', '/data/Metadata']) {
+          variants.push(dir === '/' ? `/${name}` : `${dir}/${name}`);
+        }
+        // Also try with spaces replaced by underscores
+        if (name.includes(' ')) {
+          const normalized = name.replace(/ /g, '_');
+          for (const dir of ['/', '/cache', '/model', '/data']) {
+            variants.push(dir === '/' ? `/${normalized}` : `${dir}/${normalized}`);
+          }
         }
       }
     }
@@ -137,8 +147,8 @@ const findRemotePrintFile = async (client, gcodeFile, subtaskName) => {
     } catch(e) {}
   }
 
-  // 4. Fuzzy directory scan across all common locations
-  console.log(`[FTP] Explicit paths failed, scanning directories for 3MF...`);
+  // 4. Fuzzy directory scan across all common locations (strictly matched by name)
+  console.log(`[FTP] Explicit paths failed, scanning directories for matching 3MF...`);
   try {
     const allCandidates = [];
     const dirsToScan = ['/', '/cache', '/model', '/data', '/data/Metadata', '/tasks'];
@@ -157,22 +167,22 @@ const findRemotePrintFile = async (client, gcodeFile, subtaskName) => {
       } catch(e) {}
     }
 
-    if (subtaskName) {
-      const subClean = subtaskName.trim().toLowerCase().replace(/ /g, '_');
-      // Exact-ish name match first (spaces → underscores normalised)
-      const bestMatch = allCandidates.find(f => f.name.toLowerCase().replace(/ /g, '_').includes(subClean));
-      if (bestMatch) {
-        console.log(`[FTP] Fuzzy name match: ${bestMatch.path}`);
-        return bestMatch.path;
+    if (subtaskName && allCandidates.length > 0) {
+      const normSub = normalizePrintName(subtaskName);
+      if (normSub.length >= 3) {
+        const matches = allCandidates.filter(f => {
+          const normFile = normalizePrintName(f.name);
+          return normFile === normSub || normFile.includes(normSub) || (normFile.length >= 4 && normSub.includes(normFile));
+        });
+        if (matches.length > 0) {
+          matches.sort((a, b) => b.modifiedAt - a.modifiedAt);
+          console.log(`[FTP] Fuzzy name match: ${matches[0].path}`);
+          return matches[0].path;
+        }
       }
     }
 
-    // Fall back to the most recently modified .3mf file
-    if (allCandidates.length > 0) {
-      allCandidates.sort((a, b) => b.modifiedAt - a.modifiedAt);
-      console.log(`[FTP] Falling back to most-recent 3MF: ${allCandidates[0].path}`);
-      return allCandidates[0].path;
-    }
+    console.log(`[FTP] No matching 3MF found for subtask="${subtaskName || ''}", gcode_file="${gcodeFile || ''}" (scanned ${allCandidates.length} files).`);
   } catch (e) {
     console.error('[FTP] Fallback directory scan failed:', e.message);
   }
@@ -225,10 +235,9 @@ const extractThumbnailFrom3mf = async (printer, gcodeFile, prefix, subtaskName =
     const zip = new AdmZip(localTemp3mf);
     const { extract3mfThumbnailBuffer } = require('./3mfUtils');
 
-    // Detect plate number: first from subtask_name, then from gcode_file path
+    // Detect plate number: check gcode_file path first (e.g. /data/Metadata/plate_3.gcode), then subtask_name
     let plateNumber = null;
-    const plateSource = subtaskName || gcodeFile || '';
-    const plateMatch = plateSource.match(/(?:plate[_ ]?)(\d+)/i);
+    const plateMatch = (gcodeFile || '').match(/(?:plate[_ ]?)(\d+)/i) || (subtaskName || '').match(/(?:plate[_ ]?)(\d+)/i);
     if (plateMatch) {
       plateNumber = parseInt(plateMatch[1], 10);
       console.log(`[FTP] Detected plate number ${plateNumber} for thumbnail extraction`);
@@ -263,9 +272,8 @@ const extractWeightsFrom3mf = async (client, remoteFile, subtaskName = null, gco
     const zip = new AdmZip(localTemp);
     const zipEntries = zip.getEntries();
 
-    // Detect plate number: first from subtask_name, then from gcode_file path
-    const plateSource = subtaskName || gcodeFile || '';
-    const plateMatch = plateSource.match(/(?:plate[_ ]?)(\d+)/i);
+    // Detect plate number: check gcode_file path first (e.g. /data/Metadata/plate_3.gcode), then subtask_name
+    const plateMatch = (gcodeFile || '').match(/(?:plate[_ ]?)(\d+)/i) || (subtaskName || '').match(/(?:plate[_ ]?)(\d+)/i);
     const plateNumber = plateMatch ? parseInt(plateMatch[1], 10) : 1;
 
     // Prioritize slice_info.config which contains plate configs, filament lists, and layer mappings

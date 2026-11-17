@@ -866,50 +866,63 @@ const handlePrintStatus = async (printer, printData) => {
         state.lastFetchedGcode = printData.gcode_file;
         const { getPredictedWeights, extractThumbnailFrom3mf } = require('./ftp');
         
-        getPredictedWeights(printer, printData.gcode_file, printData.subtask_name).then(async (res) => {
-          if (res && res.weights && Array.isArray(res.weights)) {
-            state.predictedWeights = res.weights;
-            state.slicerFilaments = res.filaments || [];
-            state.layerFilamentMap = res.layerMap || null;
-            state.layerCounts = res.layerCounts || null;
-            if (res.path) state.activeGcodeFile = res.path;
-            syncSlotTrays(pid, state);
-            console.log(`[MQTT ${pid}] Successfully extracted predicted weights:`, res.weights, 'Slot trays:', state.activeSlotTrays);
+        const attemptWeights = (attempt) => {
+          if (state.status !== 'RUNNING' && state.status !== 'PAUSE') return;
+          getPredictedWeights(printer, printData.gcode_file, printData.subtask_name).then(async (res) => {
+            if (res && res.weights && Array.isArray(res.weights)) {
+              state.predictedWeights = res.weights;
+              state.slicerFilaments = res.filaments || [];
+              state.layerFilamentMap = res.layerMap || null;
+              state.layerCounts = res.layerCounts || null;
+              if (res.path) state.activeGcodeFile = res.path;
+              syncSlotTrays(pid, state);
+              console.log(`[MQTT ${pid}] Successfully extracted predicted weights (attempt ${attempt}):`, res.weights, 'Slot trays:', state.activeSlotTrays);
 
-            if (isMidPrintRecovery && state.layerNum > 0 && state.lastDeductedLayer === 0) {
-              // On server restart mid-print, pre-populate slotDeductedGrams and spoolDeductedGrams for already-completed layers
-              // without re-deducting from SQLite spools (which were already deducted prior to restart).
-              const completedLayer = state.layerNum - 1;
-              state.lastDeductedLayer = completedLayer + 1;
-              for (let l = 0; l <= completedLayer; l++) {
-                const activeFils = (state.layerFilamentMap && state.layerFilamentMap[l]) ? state.layerFilamentMap[l] : [0];
-                for (const fIdx of activeFils) {
-                  const fw = state.predictedWeights[fIdx] || 0;
-                  const cnt = (state.layerCounts && state.layerCounts[fIdx]) || Math.max(1, state.totalLayerNum || 100);
-                  const lg = cnt > 0 ? (fw / cnt) : 0;
-                  if (lg > 0) {
-                    state.slotDeductedGrams[fIdx] = (state.slotDeductedGrams[fIdx] || 0) + lg;
-                    state.totalGramsDeducted = (state.totalGramsDeducted || 0) + lg;
-                    const tId = state.activeSlotTrays?.[fIdx] || state.activeTrays?.[fIdx] || state.currentTrayId;
-                    const spId = tId ? state.initialAssignments?.[tId] : null;
-                    if (spId) {
-                      state.spoolDeductedGrams[spId] = (state.spoolDeductedGrams[spId] || 0) + lg;
+              if (isMidPrintRecovery && state.layerNum > 0 && state.lastDeductedLayer === 0) {
+                // On server restart mid-print, pre-populate slotDeductedGrams and spoolDeductedGrams for already-completed layers
+                // without re-deducting from SQLite spools (which were already deducted prior to restart).
+                const completedLayer = state.layerNum - 1;
+                state.lastDeductedLayer = completedLayer + 1;
+                for (let l = 0; l <= completedLayer; l++) {
+                  const activeFils = (state.layerFilamentMap && state.layerFilamentMap[l]) ? state.layerFilamentMap[l] : [0];
+                  for (const fIdx of activeFils) {
+                    const fw = state.predictedWeights[fIdx] || 0;
+                    const cnt = (state.layerCounts && state.layerCounts[fIdx]) || Math.max(1, state.totalLayerNum || 100);
+                    const lg = cnt > 0 ? (fw / cnt) : 0;
+                    if (lg > 0) {
+                      state.slotDeductedGrams[fIdx] = (state.slotDeductedGrams[fIdx] || 0) + lg;
+                      state.totalGramsDeducted = (state.totalGramsDeducted || 0) + lg;
+                      const tId = state.activeSlotTrays?.[fIdx] || state.activeTrays?.[fIdx] || state.currentTrayId;
+                      const spId = tId ? state.initialAssignments?.[tId] : null;
+                      if (spId) {
+                        state.spoolDeductedGrams[spId] = (state.spoolDeductedGrams[spId] || 0) + lg;
+                      }
                     }
                   }
                 }
+                console.log(`[MQTT ${pid}] Mid-print recovery: restored tracking up to layer ${completedLayer} (${state.totalGramsDeducted.toFixed(1)}g)`);
+              } else if (state.layerNum > 0 && state.lastDeductedLayer === 0) {
+                // Fresh print that progressed a few layers while FTP was downloading
+                const targetCompleted = state.layerNum - 1;
+                if (targetCompleted >= 0) {
+                  console.log(`[MQTT ${pid}] Catching up initial layer deductions 0 to ${targetCompleted}`);
+                  state.lastDeductedLayer = targetCompleted + 1;
+                  processLayerDeductions(pid, state, 0, targetCompleted);
+                }
               }
-              console.log(`[MQTT ${pid}] Mid-print recovery: restored tracking up to layer ${completedLayer} (${state.totalGramsDeducted.toFixed(1)}g)`);
-            } else if (state.layerNum > 0 && state.lastDeductedLayer === 0) {
-              // Fresh print that progressed a few layers while FTP was downloading
-              const targetCompleted = state.layerNum - 1;
-              if (targetCompleted >= 0) {
-                console.log(`[MQTT ${pid}] Catching up initial layer deductions 0 to ${targetCompleted}`);
-                state.lastDeductedLayer = targetCompleted + 1;
-                processLayerDeductions(pid, state, 0, targetCompleted);
-              }
+            } else if (attempt < 3) {
+              const delay = attempt * 15000;
+              console.log(`[MQTT ${pid}] Weight extraction attempt ${attempt} found no matching 3MF, retrying in ${delay / 1000}s...`);
+              setTimeout(() => attemptWeights(attempt + 1), delay);
+            } else {
+              console.log(`[MQTT ${pid}] No matching 3MF weights found after ${attempt} attempts; leaving blank.`);
             }
-          }
-        }).catch(err => console.log(`[MQTT ${pid}] Failed to fetch weights via FTP:`, err.message));
+          }).catch(err => {
+            console.log(`[MQTT ${pid}] Failed to fetch weights via FTP (attempt ${attempt}):`, err.message);
+            if (attempt < 3) setTimeout(() => attemptWeights(attempt + 1), attempt * 15000);
+          });
+        };
+        attemptWeights(1);
         
         const attemptThumbnail = (attempt) => {
           const thumbPrefix = `${Date.now()}`;

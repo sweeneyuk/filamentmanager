@@ -281,7 +281,10 @@ function Archive() {
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
                   />
                 ) : (
-                  <div style={{ display: 'flex', justifyContent: 'center', opacity: 0.2 }}><Printer size={48} /></div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', opacity: 0.4 }}>
+                    <Printer size={40} />
+                    <span style={{ fontSize: '0.8rem', fontWeight: 500, letterSpacing: '0.02em' }}>No data found</span>
+                  </div>
                 )}
                 
                 {/* Media Overlay Buttons */}
