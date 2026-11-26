@@ -2,7 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import FilamentManager from './screens/spools';
 import Archive from './screens/history';
 import Analytics from './screens/analytics';
-import Settings from './components/Settings';
+import Settings from './screens/settings';
 import PrintStatus from './screens/print-status';
 import ScrapSaver from './screens/scrap-saver';
 import Profile from './components/Profile';
