@@ -54,7 +54,11 @@ def test_keyboard_file_choice(open_app, mock, tmp_path):
     page = open_app("/calculator")
     f = tmp_path / "plate.gcode.3mf"
     f.write_bytes(b"PK")
-    page.get_by_role("button", name="Choose a .3mf file").focus()
+    choose = page.get_by_role("button", name="Choose a .3mf file")
+    expect(choose).to_be_visible()
+    page.wait_for_load_state("networkidle")
+    choose.focus()
+    expect(choose).to_be_focused()
     with page.expect_file_chooser() as fc:
         page.keyboard.press("Enter")
     fc.value.set_files(str(f))
