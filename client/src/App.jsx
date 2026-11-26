@@ -9,7 +9,7 @@ import Profile from './components/Profile';
 import Login from './components/Login';
 import AppShell from './ui/shell/AppShell';
 import AssistantProvider from './ui/shell/AssistantProvider';
-import Calculator from './components/Calculator';
+import Calculator from './screens/calculator';
 import Jobs from './components/Jobs';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AlertProvider } from './contexts/AlertContext';

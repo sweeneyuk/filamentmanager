@@ -1,0 +1,58 @@
+.ca-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (min-width: 1100px) {
+  .ca-layout { grid-template-columns: minmax(0, 1fr) 340px; }
+  .ca-summary { position: sticky; top: 24px; }
+}
+.ca-steps { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.ca-step { display: flex; flex-direction: column; gap: 16px; padding: 24px; }
+.ca-step h2, .ca-summary h2 { margin: 0; display: flex; align-items: center; gap: 12px; font-size: var(--fs-card); font-weight: 700; }
+.ca-step > p { margin: 0; font-size: var(--fs-small); }
+.ca-num { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-text); font-size: var(--fs-small); }
+
+.ca-drop-wrap { display: flex; flex-direction: column; gap: 12px; align-items: stretch; }
+.ca-drop {
+  display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 28px 16px;
+  border: 2px dashed var(--line); border-radius: var(--r-tile); background: var(--raised); color: var(--muted);
+  transition: border-color var(--fast) ease, background var(--fast) ease;
+}
+.ca-drop.is-dragging { border-color: var(--accent); background: var(--accent-surface); }
+.ca-drop .ui-btn { max-width: 100%; }
+.ca-drop .ui-btn__text { overflow: hidden; text-overflow: ellipsis; }
+.ca-drop-wrap > .ui-btn { align-self: flex-start; }
+
+.ca-print { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; }
+.ca-thumb { width: 120px; height: 120px; border-radius: var(--r-tile); background: var(--raised); overflow: hidden; display: grid; place-items: center; font-size: var(--fs-small); }
+.ca-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.ca-print dl { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.ca-print dl div { display: flex; gap: 8px; }
+.ca-print dt { color: var(--muted); }
+.ca-print dd { margin: 0; font-weight: 600; }
+.ca-warn { display: flex; gap: 10px; padding: 12px 16px; border-radius: var(--r-tile); background: var(--warning-soft); color: var(--warning); font-size: var(--fs-small); }
+
+.ca-slots { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ca-slots li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 8px 8px 8px 16px; border-radius: var(--r-tile); background: var(--raised); }
+.ca-slot__label { font-weight: 700; min-width: 52px; }
+.ca-slot__weight { display: inline-flex; align-items: center; gap: 8px; min-width: 80px; color: var(--muted); }
+.ca-slot__pick {
+  flex: 1 1 220px; display: flex; align-items: center; gap: 10px; min-height: var(--target); padding: 0 12px;
+  border: 1px solid var(--line); border-radius: var(--r-input); background: var(--surface); color: var(--text);
+  font: inherit; font-size: var(--fs-small); text-align: left; cursor: pointer; min-width: 0;
+}
+.ca-slot__pick:hover { border-color: var(--accent); }
+.ca-slot__pick > span:nth-of-type(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ca-slot__pick svg { margin-left: auto; color: var(--muted); flex: none; }
+
+.ca-inputs { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px 16px; }
+
+.ca-summary { display: flex; flex-direction: column; gap: 16px; padding: 24px; }
+.ca-summary__rows { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.ca-summary__rows div { display: flex; justify-content: space-between; gap: 12px; }
+.ca-summary__rows dt { color: var(--muted); }
+.ca-summary__rows dd { margin: 0; font-weight: 600; }
+.ca-summary__rows .is-sub { padding-top: 10px; border-top: 1px solid var(--track); }
+.ca-summary__rows .is-sub dd { color: var(--warning); }
+.ca-summary__rows .is-final { padding-top: 10px; border-top: 1px solid var(--track); font-size: 22px; }
+.ca-summary__rows .is-final dt { color: var(--text); font-weight: 700; }
+.ca-summary__rows .is-final dd { color: var(--accent); font-weight: 700; }
+.ca-summary__note { margin: 0; font-size: var(--fs-caption); }
+.ca-save { display: flex; flex-direction: column; gap: 14px; }
