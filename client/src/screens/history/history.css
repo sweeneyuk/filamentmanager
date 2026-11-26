@@ -1,0 +1,55 @@
+.hi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+.hi-card {
+  position: relative; display: flex; flex-direction: column; min-width: 0;
+  border-radius: var(--r-card); background: var(--surface); overflow: hidden;
+  border: 1px solid transparent; transition: border-color var(--fast) ease, background var(--fast) ease;
+}
+.hi-card:hover { background: var(--raised); }
+.hi-card.is-selected { border-color: var(--accent); }
+.hi-card__media { position: relative; aspect-ratio: 16 / 10; background: var(--raised); display: grid; place-items: center; }
+.hi-card__media img { width: 100%; height: 100%; object-fit: cover; }
+.hi-card__none { color: var(--muted); font-size: var(--fs-small); }
+.hi-card__check {
+  position: absolute; top: 8px; left: 8px; z-index: 2; display: grid; place-items: center;
+  width: var(--target); height: var(--target); border-radius: var(--r-input); background: var(--scrim); cursor: pointer;
+}
+.hi-card__check input { width: 20px; height: 20px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.hi-card__media-actions { position: absolute; right: 8px; bottom: 8px; z-index: 2; display: flex; gap: 6px; }
+.hi-card__body { display: flex; flex-direction: column; gap: 10px; padding: 14px 12px 16px 18px; }
+.hi-card__top { display: flex; align-items: flex-start; gap: 4px; }
+.hi-card__open {
+  flex: 1; min-width: 0; min-height: var(--target); padding: 0; border: 0; background: transparent; color: var(--text);
+  font: inherit; text-align: left; cursor: pointer;
+}
+/* The whole card opens the details; checkbox, media buttons and menu sit above. */
+.hi-card__open::after { content: ''; position: absolute; inset: 0; z-index: 1; border-radius: inherit; }
+.hi-card__open:focus-visible { outline: none; }
+.hi-card:has(.hi-card__open:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hi-card__top .ui-btn { position: relative; z-index: 2; }
+.hi-card__name { font-size: var(--fs-card); font-weight: 600; overflow-wrap: anywhere; }
+.hi-card__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; color: var(--muted); font-size: var(--fs-caption); }
+.hi-card__spools, .hi-details__spools { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-small); }
+.hi-card__spools li, .hi-details__spools li { display: flex; align-items: center; gap: 8px; }
+.hi-card__spools li .ui-muted, .hi-details__spools li .ui-muted { margin-left: auto; }
+.hi-card__cost { font-size: var(--fs-card); font-weight: 700; }
+
+.hi-bulk {
+  position: sticky; top: 8px; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 12px 16px 12px 20px; border-radius: var(--r-card); background: var(--accent-surface); box-shadow: 0 0 0 1px var(--accent);
+}
+@media (max-width: 767px) { .hi-bulk { top: auto; bottom: calc(84px + env(safe-area-inset-bottom)); } }
+.hi-bulk__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.hi-media { display: block; width: 100%; max-height: 70dvh; border-radius: var(--r-tile); background: var(--raised); object-fit: contain; }
+.hi-details { display: flex; flex-direction: column; gap: 22px; }
+.hi-details h3 { margin: 0 0 10px; font-size: var(--fs-small); font-weight: 700; }
+.hi-details__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; color: var(--muted); font-size: var(--fs-small); }
+.hi-details__media { margin: 0; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.hi-details__media img, .hi-details__media video { width: 100%; border-radius: var(--r-tile); background: var(--raised); }
+.hi-details__reason { margin: 8px 0 0; color: var(--muted); }
+.hi-details__costs { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.hi-details__costs div { display: flex; justify-content: space-between; gap: 12px; }
+.hi-details__costs dt { color: var(--muted); }
+.hi-details__costs dd { margin: 0; font-weight: 600; }
+.hi-details__costs .is-total { padding-top: 8px; border-top: 1px solid var(--track); }
+.hi-details__costs .is-total dt { color: var(--text); font-weight: 700; }

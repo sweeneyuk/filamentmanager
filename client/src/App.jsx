@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import FilamentManager from './screens/spools';
-import Archive from './components/Archive';
+import Archive from './screens/history';
 import Analytics from './components/Analytics';
 import Settings from './components/Settings';
 import PrintStatus from './screens/print-status';
