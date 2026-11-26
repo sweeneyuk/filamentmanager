@@ -7,9 +7,8 @@ def _open_add_spool(page):
 
 
 def _deduct(page, spool_id):
-    # Old screen: row button titled "Manual Deduct". Task 7 moves it into the row menu.
-    row = page.locator("tbody tr").filter(has=page.get_by_role("cell", name=str(spool_id), exact=True))
-    row.get_by_role("button", name="Manual Deduct").click()
+    page.get_by_role("button", name=f"More actions for spool {spool_id}").click()
+    page.get_by_role("menuitem", name="Deduct").click()
 
 
 def test_followup_prompt_stays_open(open_app, mock):

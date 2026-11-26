@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import FilamentManager from './components/FilamentManager';
+import FilamentManager from './screens/spools';
 import Archive from './components/Archive';
 import Analytics from './components/Analytics';
 import Settings from './components/Settings';

@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import './Tabs.css';
 
-export default function Tabs({ label, items, value, onChange, idPrefix = 'tab' }) {
+export default function Tabs({ label, items, value, onChange, idPrefix = 'tab', panelId }) {
   const refs = useRef({});
   const onKeyDown = (e) => {
     const i = items.findIndex((it) => it.id === value);
@@ -26,7 +26,7 @@ export default function Tabs({ label, items, value, onChange, idPrefix = 'tab' }
           role="tab"
           id={`${idPrefix}-${it.id}`}
           aria-selected={it.id === value}
-          aria-controls={`${idPrefix}-${it.id}-panel`}
+          aria-controls={panelId || `${idPrefix}-${it.id}-panel`}
           tabIndex={it.id === value ? 0 : -1}
           className={`ui-tab ${it.id === value ? 'is-active' : ''}`}
           onClick={() => onChange(it.id)}
