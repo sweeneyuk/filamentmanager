@@ -5,8 +5,8 @@ import Analytics from './screens/analytics';
 import Settings from './screens/settings';
 import PrintStatus from './screens/print-status';
 import ScrapSaver from './screens/scrap-saver';
-import Profile from './components/Profile';
-import Login from './components/Login';
+import Profile from './screens/profile';
+import Login from './screens/login';
 import AppShell from './ui/shell/AppShell';
 import AssistantProvider from './ui/shell/AssistantProvider';
 import Calculator from './screens/calculator';
@@ -19,7 +19,7 @@ import { SocketProvider } from './contexts/SocketContext';
 const PrivateRoute = ({ children }) => {
   const { user, loading, setupRequired } = useAuth();
 
-  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--text-color)' }}>Loading...</div>;
+  if (loading) return <div className="au-loading" role="status">Loading...</div>;
   if (!user || setupRequired) return <Login />;
 
   return children;
