@@ -10,7 +10,7 @@ NAV = [("Print status", "/"), ("Spools", "/inventory"), ("Print history", "/arch
 
 ROUTES = ["/", "/inventory", "/archive", "/scrap-saver", "/analytics", "/calculator", "/jobs", "/profile", "/settings"]
 # Screens rebuilt in later tasks still scroll sideways on a phone; each task removes its mark.
-OLD_SCREENS = {"/jobs"}
+OLD_SCREENS = set()
 
 
 def test_side_menu(open_app):

@@ -10,7 +10,7 @@ import Login from './components/Login';
 import AppShell from './ui/shell/AppShell';
 import AssistantProvider from './ui/shell/AssistantProvider';
 import Calculator from './screens/calculator';
-import Jobs from './components/Jobs';
+import Jobs from './screens/jobs';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AlertProvider } from './contexts/AlertContext';
 import { ToastProvider } from './ui/Toast';

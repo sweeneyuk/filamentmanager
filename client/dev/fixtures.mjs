@@ -151,6 +151,7 @@ export function buildScenario(name = 'default') {
         analytics: [], jobs: [], scrapModels: [], backups: [] });
       break;
     case 'fail': data.fail = true; break;
+    case 'usd': data.settings.currency = 'USD'; break;
     case 'sso': data.ssoConfigured = true; break;
     case 'setup': data.setupRequired = true; break;
     default: throw new Error(`Unknown scenario ${name}`);
@@ -158,4 +159,4 @@ export function buildScenario(name = 'default') {
   return data;
 }
 
-export const SCENARIOS = ['default', 'runout', 'idle', 'finished', 'two-printers', 'no-state', 'sparse', 'empty', 'fail', 'sso', 'setup'];
+export const SCENARIOS = ['default', 'runout', 'idle', 'finished', 'two-printers', 'no-state', 'sparse', 'empty', 'fail', 'usd', 'sso', 'setup'];
