@@ -3,7 +3,7 @@ from playwright.sync_api import expect
 
 
 def _open_add_spool(page):
-    page.get_by_role("button", name="Add spool").click()
+    page.locator("header").get_by_role("button", name="Add spool").click()
 
 
 def _deduct(page, spool_id):
@@ -14,7 +14,7 @@ def _deduct(page, spool_id):
 def test_followup_prompt_stays_open(open_app, mock):
     page = open_app("/inventory")
     _open_add_spool(page)
-    page.get_by_text("+ Add New").first.click()
+    page.get_by_role("dialog", name="Add spool").get_by_role("button", name="Add brand").click()
     prompt = page.get_by_role("dialog", name="Add Brand")
     prompt.get_by_role("textbox").fill("Acme")
     prompt.get_by_role("button", name="Confirm").click()

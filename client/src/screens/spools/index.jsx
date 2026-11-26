@@ -7,7 +7,7 @@ import Tabs from '../../ui/Tabs';
 import EmptyState from '../../ui/EmptyState';
 import Skeleton from '../../ui/Skeleton';
 import LoadError from '../../ui/LoadError';
-import SpoolModal from '../../components/SpoolModal';
+import SpoolForm from './SpoolForm';
 import useMediaQuery, { PHONE } from '../../hooks/useMediaQuery';
 import { formatMoney } from '../../lib/format.js';
 import { filterSpools, sortSpools, loadSortConfig, loadViewMode, lowStockThreshold } from '../../lib/spools.js';
@@ -136,14 +136,15 @@ export default function Spools() {
         </>
       )}
 
-      <SpoolModal
-        isOpen={modal.open}
-        onClose={() => setModal({ open: false, spool: null })}
-        editingSpool={modal.spool}
+      <SpoolForm
+        open={modal.open}
+        spool={modal.spool}
         brands={data?.brands || []}
         materials={data?.materials || []}
-        brandKnowledge={data?.knowledge || []}
-        onSave={reload}
+        knowledge={data?.knowledge || []}
+        currency={settings.currency}
+        onClose={() => setModal({ open: false, spool: null })}
+        onSaved={reload}
       />
     </>
   );
