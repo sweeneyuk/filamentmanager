@@ -1,0 +1,42 @@
+.ui-menu {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  min-width: 200px;
+  max-width: calc(100vw - 16px);
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-tile);
+  background: var(--raised);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font-family: var(--font);
+  opacity: 1;
+  transform: none;
+  transition: opacity var(--med) var(--ease), transform var(--med) var(--ease), overlay var(--med) allow-discrete, display var(--med) allow-discrete;
+}
+.ui-menu:not(:popover-open) { opacity: 0; transform: translateY(-4px); }
+@starting-style {
+  .ui-menu:popover-open { opacity: 0; transform: translateY(-4px); }
+}
+.ui-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: var(--target);
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--r-input);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-small);
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.ui-menu__item:hover, .ui-menu__item:focus-visible { background: var(--hover); outline: none; }
+.ui-menu__item:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.ui-menu__item.is-danger { color: var(--danger); }
+.ui-menu__item:disabled { opacity: .5; cursor: not-allowed; }

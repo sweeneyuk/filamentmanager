@@ -1,0 +1,117 @@
+/* Orbit design tokens (spec section 6). The only place hex colours live. */
+
+@property --ring-fraction {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+
+:root {
+  color-scheme: dark;
+
+  --bg: #131a26;
+  --nav: #172030;
+  --surface: #1b2638;
+  --raised: #223048;
+  --selected: #233248;
+  --track: #2b3a54;
+  --line: #3a4d6e;
+  --text: #eef2f8;
+  --muted: #a9b6ca;
+  --accent: #35d98b;
+  --on-accent: #08140f;
+  --accent-soft: #17392f;
+  --accent-text: #6ff0b3;
+  --accent-surface: #223a45;
+  --warning: #ffb454;
+  --warning-soft: #3a3020;
+  --danger: #ff7b7f;
+  --danger-soft: #3c2330;
+  --info: #6cb6ff;
+  --info-soft: #1e3150;
+  --hover: #2a3a55;
+  --pressed: #31435f;
+  --filament-outline: rgba(255, 255, 255, .28);
+  --scrim: rgba(6, 10, 18, .6);
+  --shadow: 0 16px 48px rgba(0, 0, 0, .45);
+
+  --chart-1: #35d98b;
+  --chart-2: #6cb6ff;
+  --chart-3: #ffb454;
+  --chart-4: #c49bff;
+  --chart-5: #ff7b7f;
+
+  --font: 'Figtree Variable', Figtree, system-ui, sans-serif;
+  --fs-ring: 56px;
+  --fs-title: 32px;
+  --fs-stat: 30px;
+  --fs-print: 26px;
+  --fs-reading: 20px;
+  --fs-card: 17px;
+  --fs-body: 15px;
+  --fs-small: 14px;
+  --fs-caption: 13px;
+  --fs-tiny: 12px;
+
+  --r-hero: 28px;
+  --r-card: 24px;
+  --r-tile: 16px;
+  --r-item: 14px;
+  --r-input: 12px;
+  --r-pill: 99px;
+
+  --gap: 24px;
+  --pad-x: 36px;
+  --pad-y: 32px;
+  --target: 44px;
+
+  --fast: 150ms;
+  --med: 250ms;
+  --slow: 500ms;
+  --ease: cubic-bezier(.2, .8, .2, 1);
+}
+
+@media (max-width: 767px) {
+  :root {
+    --pad-x: 16px;
+    --pad-y: 16px;
+    --fs-title: 26px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --fast: 0s;
+    --med: 0s;
+    --slow: 0s;
+  }
+  *, *::before, *::after {
+    animation-duration: 0s !important;
+    transition-duration: 0s !important;
+  }
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.ui-visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.ui-muted { color: var(--muted); }

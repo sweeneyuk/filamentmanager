@@ -1,0 +1,36 @@
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--target);
+  min-width: var(--target);
+  padding: 0 20px;
+  border-radius: var(--r-pill);
+  border: 1px solid transparent;
+  font: inherit;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  color: var(--text);
+  background: var(--selected);
+  transition: background var(--fast) ease, border-color var(--fast) ease, transform var(--fast) ease, opacity var(--fast) ease;
+}
+.ui-btn:hover { background: var(--hover); }
+.ui-btn:active { transform: scale(.97); }
+.ui-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+.ui-btn.is-busy { cursor: progress; }
+.ui-btn--icon { padding: 0; width: var(--target); }
+.ui-btn__icon { flex: none; }
+
+.ui-btn--primary { background: var(--accent); color: var(--on-accent); }
+.ui-btn--primary:hover { background: var(--accent-text); }
+.ui-btn--outline { background: transparent; border-color: var(--line); }
+.ui-btn--outline:hover { background: var(--selected); }
+.ui-btn--danger { background: var(--danger-soft); color: var(--danger); border-color: transparent; }
+.ui-btn--danger:hover { background: var(--danger); color: var(--on-accent); }
+.ui-btn--ghost { background: transparent; color: var(--muted); }
+.ui-btn--ghost:hover { background: var(--selected); color: var(--text); }

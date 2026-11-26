@@ -12,6 +12,7 @@
     "mock": "node dev/mock-server.mjs"
   },
   "dependencies": {
+    "@fontsource-variable/figtree": "^5.3.0",
     "axios": "^1.18.1",
     "color-namer": "^1.4.0",
     "lucide-react": "^1.21.0",

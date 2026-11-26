@@ -80,6 +80,7 @@ def browser():
 def page(browser, servers):
     context = browser.new_context()
     pg = context.new_page()
+    pg.set_default_timeout(5000)
     yield pg
     context.close()
 

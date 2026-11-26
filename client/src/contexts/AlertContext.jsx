@@ -1,110 +1,108 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useCallback, useContext, useId, useRef, useState } from 'react';
+import Dialog from '../ui/Dialog';
+import Button from '../ui/Button';
+import { useToast } from '../ui/toastContext';
 
 const AlertContext = createContext(null);
 
 export const useAlert = () => useContext(AlertContext);
 
-export const AlertProvider = ({ children }) => {
-  const [modal, setModal] = useState({
-    isOpen: false,
-    title: '',
-    message: '',
-    type: 'alert', // 'alert', 'confirm', or 'prompt'
-    onConfirm: null,
-    isError: false,
-    defaultValue: '',
-    inputValue: ''
-  });
+let nextId = 1;
 
-  const showAlert = useCallback((title, message, isError = false) => {
-    setModal({
-      isOpen: true,
-      title,
-      message,
-      type: 'alert',
-      onConfirm: null,
-      isError
-    });
-  }, []);
+/**
+ * showAlert(title, message, isError = false, options): errors and options.dialog open a dialog,
+ * other messages become a toast. showConfirm and showPrompt keep their old signatures.
+ */
+export const AlertProvider = ({ children }) => {
+  const toast = useToast();
+  const [modal, setModal] = useState(null);
+  const modalRef = useRef(null);
+  modalRef.current = modal;
+
+  const open = useCallback((next) => setModal({ id: nextId++, ...next }), []);
+
+  const showAlert = useCallback((title, message, isError = false, options = {}) => {
+    if (isError || options.dialog) {
+      open({ type: 'alert', title, message, isError });
+    } else {
+      toast({ title, message });
+    }
+  }, [open, toast]);
 
   const showConfirm = useCallback((title, message, onConfirm, isError = false) => {
-    setModal({
-      isOpen: true,
-      title,
-      message,
-      type: 'confirm',
-      onConfirm,
-      isError,
-      defaultValue: '',
-      inputValue: ''
-    });
-  }, []);
+    open({ type: 'confirm', title, message, onConfirm, isError });
+  }, [open]);
 
   const showPrompt = useCallback((title, message, defaultValue, onConfirm) => {
-    setModal({
-      isOpen: true,
-      title,
-      message,
-      type: 'prompt',
-      onConfirm,
-      isError: false,
-      defaultValue: defaultValue || '',
-      inputValue: defaultValue || ''
-    });
-  }, []);
+    open({ type: 'prompt', title, message, onConfirm, isError: false, inputValue: defaultValue || '' });
+  }, [open]);
 
-  const closeModal = useCallback(() => {
-    setModal(prev => ({ ...prev, isOpen: false }));
-  }, []);
+  const closeModal = useCallback(() => setModal(null), []);
 
+  // Close first, then run the action, so a dialog opened by the action stays open.
   const handleConfirm = useCallback(() => {
-    if (modal.onConfirm) {
-      if (modal.type === 'prompt') {
-        modal.onConfirm(modal.inputValue);
-      } else {
-        modal.onConfirm();
-      }
+    const current = modalRef.current;
+    if (!current) return;
+    setModal(null);
+    if (current.onConfirm) {
+      if (current.type === 'prompt') current.onConfirm(current.inputValue);
+      else current.onConfirm();
     }
-    closeModal();
-  }, [modal, closeModal]);
+  }, []);
 
   return (
     <AlertContext.Provider value={{ showAlert, showConfirm, showPrompt }}>
       {children}
-      {modal.isOpen && (
-        <div className="modal-overlay" onClick={closeModal} style={{ zIndex: 9999 }}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px', margin: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-              <h3 style={{ margin: 0, color: modal.isError ? '#f87171' : 'var(--text-color)' }}>{modal.title}</h3>
-            </div>
-            <div style={{ padding: '10px 0 20px 0' }}>
-              <p style={{ lineHeight: '1.5', margin: 0 }}>{modal.message}</p>
-              {modal.type === 'prompt' && (
-                <input 
-                  type="text" 
-                  value={modal.inputValue} 
-                  onChange={(e) => setModal(prev => ({...prev, inputValue: e.target.value}))}
-                  style={{ width: '100%', padding: '8px', marginTop: '15px', boxSizing: 'border-box' }}
-                  autoFocus
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleConfirm(); }}
-                />
-              )}
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              {(modal.type === 'confirm' || modal.type === 'prompt') && (
-                <button className="btn-secondary" onClick={closeModal}>Cancel</button>
-              )}
-              <button 
-                className={modal.isError ? "btn-secondary" : "btn-primary"} 
-                style={modal.isError && modal.type === 'confirm' ? { backgroundColor: '#f87171', color: 'white' } : {}}
-                onClick={(modal.type === 'confirm' || modal.type === 'prompt') ? handleConfirm : closeModal}
-              >
-                {(modal.type === 'confirm' || modal.type === 'prompt') ? 'Confirm' : 'OK'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AlertDialog modal={modal} onClose={closeModal} onConfirm={handleConfirm} setModal={setModal} />
     </AlertContext.Provider>
   );
 };
+
+function AlertDialog({ modal, onClose, onConfirm, setModal }) {
+  const inputId = useId();
+  const asks = modal && (modal.type === 'confirm' || modal.type === 'prompt');
+  const footer = modal && (
+    <>
+      {asks && <Button variant="outline" onClick={onClose}>Cancel</Button>}
+      <Button
+        variant={modal.isError && modal.type === 'confirm' ? 'danger' : asks ? 'primary' : 'secondary'}
+        type={modal.type === 'prompt' ? 'submit' : 'button'}
+        form={modal.type === 'prompt' ? `${inputId}-form` : undefined}
+        onClick={modal.type === 'prompt' ? undefined : asks ? onConfirm : onClose}
+      >
+        {asks ? 'Confirm' : 'OK'}
+      </Button>
+    </>
+  );
+  return (
+    <Dialog
+      key={modal?.id}
+      open={Boolean(modal)}
+      title={modal?.title}
+      onClose={onClose}
+      footer={footer}
+      className={modal?.isError ? 'ui-dialog--error' : ''}
+    >
+      {modal && (
+        <>
+          {modal.message && <p id={`${inputId}-msg`}>{modal.message}</p>}
+          {modal.type === 'prompt' && (
+            <form id={`${inputId}-form`} onSubmit={(e) => { e.preventDefault(); onConfirm(); }}>
+              <input
+                className="ui-input"
+                type="text"
+                aria-labelledby={`${inputId}-msg`}
+                value={modal.inputValue}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setModal((m) => (m ? { ...m, inputValue: value } : m));
+                }}
+                autoFocus
+              />
+            </form>
+          )}
+        </>
+      )}
+    </Dialog>
+  );
+}

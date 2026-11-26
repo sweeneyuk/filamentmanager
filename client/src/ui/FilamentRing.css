@@ -1,0 +1,22 @@
+.ui-ring {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--ring-size);
+  height: var(--ring-size);
+  border-radius: 50%;
+  background: conic-gradient(var(--ring-color) calc(var(--ring-fraction) * 1turn), var(--track) 0);
+  box-shadow: 0 0 0 1px var(--filament-outline);
+  transition: --ring-fraction var(--slow) var(--ease);
+}
+.ui-ring__hole {
+  width: var(--ring-hole);
+  height: var(--ring-hole);
+  border-radius: 50%;
+  background: var(--ring-bg, var(--surface));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}

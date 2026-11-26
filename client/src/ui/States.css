@@ -1,0 +1,14 @@
+.ui-empty, .ui-error {
+  display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center;
+  padding: 48px 24px; border-radius: var(--r-card); background: var(--surface);
+}
+.ui-empty__title, .ui-error p { margin: 0; color: var(--muted); font-size: var(--fs-body); }
+.ui-error p { color: var(--text); }
+.ui-skeletons { display: flex; flex-direction: column; gap: 16px; }
+.ui-skeleton {
+  border-radius: var(--r-card);
+  background: linear-gradient(90deg, var(--surface) 0%, var(--raised) 50%, var(--surface) 100%);
+  background-size: 200% 100%;
+  animation: ui-shimmer 1.4s linear infinite;
+}
+@keyframes ui-shimmer { to { background-position: -200% 0; } }

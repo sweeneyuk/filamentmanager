@@ -1,0 +1,9 @@
+.ui-stat {
+  background: var(--raised);
+  border-radius: var(--r-tile);
+  padding: 14px 16px;
+  min-width: 0;
+}
+.ui-stat__label { color: var(--muted); font-size: var(--fs-caption); }
+.ui-stat__value { margin-top: 4px; font-size: var(--fs-reading); font-weight: 600; overflow-wrap: anywhere; }
+.ui-stat__sub { margin-top: 2px; color: var(--muted); font-size: var(--fs-caption); }

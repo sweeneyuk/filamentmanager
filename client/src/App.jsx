@@ -14,6 +14,7 @@ import Calculator from './components/Calculator';
 import Jobs from './components/Jobs';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AlertProvider } from './contexts/AlertContext';
+import { ToastProvider } from './ui/Toast';
 import { SocketProvider } from './contexts/SocketContext';
 
 const PrivateRoute = ({ children }) => {
@@ -108,13 +109,15 @@ function MainApp() {
 
 function App() {
   return (
-    <AlertProvider>
-      <AuthProvider>
-        <SocketProvider>
-          <MainApp />
-        </SocketProvider>
-      </AuthProvider>
-    </AlertProvider>
+    <ToastProvider>
+      <AlertProvider>
+        <AuthProvider>
+          <SocketProvider>
+            <MainApp />
+          </SocketProvider>
+        </AuthProvider>
+      </AlertProvider>
+    </ToastProvider>
   );
 }
 
