@@ -116,4 +116,4 @@ def test_auto_detect_needs_colour_name(open_app):
 def test_phone_full_screen(open_app):
     page = open_app("/inventory", width=390, height=844)
     form = open_add(page)
-    assert round(form.bounding_box()["width"]) == 390
+    assert form.evaluate("el => el.offsetWidth") == 390  # layout width, unaffected by the opening scale
