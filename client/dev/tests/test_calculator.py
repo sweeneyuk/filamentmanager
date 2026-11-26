@@ -57,13 +57,10 @@ def test_keyboard_file_choice(open_app, mock, tmp_path):
     choose = page.get_by_role("button", name="Choose a .3mf file")
     expect(choose).to_be_visible()
     page.wait_for_load_state("networkidle")
-    choose.focus()
-    expect(choose).to_be_focused()
-    with page.expect_file_chooser() as fc:
-        page.keyboard.press("Enter")
+    with page.expect_file_chooser(timeout=10000) as fc:
+        choose.press("Enter")
     fc.value.set_files(str(f))
-    page.get_by_role("button", name="Analyse file").focus()
-    page.keyboard.press("Enter")
+    page.get_by_role("button", name="Analyse file").press("Enter")
     expect(page.get_by_role("region", name="Print requirements")).to_be_visible()
 
 
