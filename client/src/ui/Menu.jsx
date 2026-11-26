@@ -32,12 +32,13 @@ export default function Menu({ label, items, icon = MoreHorizontal, trigger, ali
       if (!m.matches(':popover-open')) m.showPopover();
       place();
       m.querySelector('[role="menuitem"]:not([disabled])')?.focus();
-      const onScroll = () => setOpen(false);
-      window.addEventListener('resize', onScroll);
-      document.addEventListener('scroll', onScroll, true);
+      // Follow the trigger when the page or a scrolling table moves.
+      const follow = () => place();
+      window.addEventListener('resize', follow);
+      document.addEventListener('scroll', follow, true);
       return () => {
-        window.removeEventListener('resize', onScroll);
-        document.removeEventListener('scroll', onScroll, true);
+        window.removeEventListener('resize', follow);
+        document.removeEventListener('scroll', follow, true);
       };
     }
     if (m.matches(':popover-open')) m.hidePopover();
