@@ -8,3 +8,4 @@ uploads/
 server/raw_mqtt_dump.json
 server/testModels.js
 server/ftp-test.js
+.superpowers/

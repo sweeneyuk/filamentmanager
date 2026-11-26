@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# dev harness output
+dev/logs/
+dev/shots/
+__pycache__/
+.pytest_cache/
