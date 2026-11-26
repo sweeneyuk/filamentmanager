@@ -1,0 +1,34 @@
+.an-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.an-tiles .ui-stat { padding: 18px 20px; }
+.an-tiles .ui-stat__value { font-size: var(--fs-stat); }
+.an-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+.an-card { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+.an-card h2 { margin: 0; font-size: var(--fs-card); font-weight: 700; }
+.an-card > p { margin: 0; }
+
+.an-bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.an-bar { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; font-size: var(--fs-small); }
+.an-bar .ui-bar { grid-column: 1 / -1; height: 10px; }
+.an-bar__value { color: var(--muted); }
+.an-series-1 { --bar-color: var(--chart-1); }
+.an-series-2 { --bar-color: var(--chart-2); }
+.an-series-3 { --bar-color: var(--chart-3); }
+.an-series-4 { --bar-color: var(--chart-4); }
+.an-series-5 { --bar-color: var(--chart-5); }
+.an-bar .ui-bar__fill { background: var(--bar-color); }
+
+.an-donut { display: flex; flex-wrap: wrap; align-items: center; gap: 20px; }
+.an-donut__chart { position: relative; width: 160px; height: 160px; flex: none; }
+.an-donut__pct { position: absolute; inset: 0; display: grid; place-items: center; font-size: 30px; font-weight: 700; }
+.an-slice--ok { fill: var(--chart-1); }
+.an-slice--fail { fill: var(--chart-5); }
+.an-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: var(--fs-small); }
+.an-legend li { display: flex; align-items: center; gap: 8px; }
+.an-key { width: 12px; height: 12px; border-radius: 50%; }
+.an-key--ok { background: var(--chart-1); }
+.an-key--fail { background: var(--chart-5); }
+
+.an-problems { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.an-problems li { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: var(--r-tile); background: var(--raised); font-size: var(--fs-small); }
+.an-problems__name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.an-problems__rate { color: var(--danger); font-weight: 700; white-space: nowrap; }
