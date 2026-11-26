@@ -3,7 +3,7 @@ import FilamentManager from './components/FilamentManager';
 import Archive from './components/Archive';
 import Analytics from './components/Analytics';
 import Settings from './components/Settings';
-import PrintStatus from './components/PrintStatus';
+import PrintStatus from './screens/print-status';
 import ScrapSaver from './components/ScrapSaver';
 import Profile from './components/Profile';
 import Login from './components/Login';
