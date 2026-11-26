@@ -1,16 +1,8 @@
 import StatTile from '../../ui/StatTile';
-import { nozzleReadings, chamberReading, fanReadings } from '../../lib/temperature.js';
+import { nozzleReadings, chamberReading } from '../../lib/temperature.js';
+import { fanLine } from './text';
 
 const deg = (n) => `${Math.round(Number(n) || 0)}°`;
-
-export function fanLine(state) {
-  const parts = fanReadings(state?.raw).map((f, i) => {
-    const name = `${i === 0 ? f.label : f.label.toLowerCase()} fan`;
-    return `${name} ${f.percent ? `${f.percent}%` : 'off'}`;
-  });
-  parts.push(`light ${state?.light ? 'on' : 'off'}`);
-  return parts.join(', ');
-}
 
 export default function Readings({ state }) {
   const chamber = chamberReading(state);

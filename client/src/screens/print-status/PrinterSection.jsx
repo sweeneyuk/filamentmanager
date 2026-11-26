@@ -2,7 +2,7 @@ import Card from '../../ui/Card';
 import StatusPill from '../../ui/StatusPill';
 import PrintHero from './PrintHero';
 import IdleCard from './IdleCard';
-import AmsLegacy from './AmsLegacy';
+import AmsSection from './AmsSection';
 import { phaseOf } from './phase';
 
 export default function PrinterSection({ printer, data, showHeading }) {
@@ -34,10 +34,10 @@ export default function PrinterSection({ printer, data, showHeading }) {
         />
       )}
       {state && !phase.active && <IdleCard state={state} phase={phase} />}
-      <AmsLegacy
+      <AmsSection
         printer={printer}
         state={state}
-        amsData={amsByPrinter[printer.id]}
+        ams={amsByPrinter[printer.id]}
         assignments={printerAssignments}
         spools={spools}
         settings={settings}

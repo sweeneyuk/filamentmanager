@@ -3,24 +3,9 @@ import FilamentRing from '../../ui/FilamentRing';
 import Readings from './Readings';
 import { formatMinutes, finishTime } from '../../lib/format.js';
 import { predictedTotal, latestTakeover } from '../../lib/printState.js';
-import { colorName } from '../../lib/colors.js';
-import { unitName, slotNumber } from '../../lib/ams.js';
+import { materialLine } from './text';
 
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
-
-export function materialLine({ state, printerId, assignments, spools, settings }) {
-  const trayId = state?.currentTrayId;
-  if (!trayId || typeof trayId !== 'string' || !trayId.includes('-')) return null;
-  const [unitId, index] = trayId.split('-');
-  const spoolId = assignments?.[trayId];
-  const spool = spoolId != null ? spools.find((s) => s.id == spoolId) : null; // eslint-disable-line eqeqeq
-  const where = `from ${unitName(settings, printerId, unitId)} slot ${slotNumber(unitId, parseInt(index, 10) || 0)}`;
-  if (!spool) return where.charAt(0).toUpperCase() + where.slice(1);
-  const name = [spool.brand_name, spool.material_name, spool.subtype && spool.subtype.toLowerCase() !== 'basic' ? spool.subtype : null]
-    .filter(Boolean).join(' ');
-  const colour = colorName(spool);
-  return [name, colour !== 'Unknown' ? colour.toLowerCase() : null, where].filter(Boolean).join(', ');
-}
 
 export default function PrintHero({ state, printerId, assignments, spools, settings, headingLevel = 2 }) {
   const Title = `h${headingLevel}`;
