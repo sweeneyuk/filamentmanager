@@ -4,11 +4,13 @@ import EmptyHolders from './EmptyHolders';
 import SlotPanel from './SlotPanel';
 import { isEmptyHolder, slotView, unitName } from '../../lib/ams.js';
 import { lowStockThreshold } from '../../lib/spools.js';
+import { printPhase } from '../../lib/printState.js';
 
 export default function AmsSection({ printer, state, ams, assignments, spools, settings, assign, renameUnit }) {
   const [open, setOpen] = useState(null); // { unitId, index }
   const threshold = lowStockThreshold(settings);
-  const ctx = { assignments, spools, state, threshold };
+  // Feeding and in-use marks only mean something while a print is under way.
+  const ctx = { assignments, spools, state: printPhase(state).active ? state : null, threshold };
 
   if (!ams || Object.keys(ams).length === 0) {
     return <p className="ps-ams-note">No AMS data received yet. Ensure your Bambu printer is connected via MQTT in Settings.</p>;

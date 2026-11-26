@@ -103,3 +103,11 @@ def test_no_sideways_scroll(open_app):
     page = open_app("/", width=390, height=844)
     expect(page.get_by_text("64%")).to_be_visible()
     assert_no_sideways_scroll(page)
+
+
+def test_finished_without_name(open_app):
+    page = open_app("/", scenario="finished")
+    expect(page.locator("header .ui-pill")).to_have_text("Finished")
+    expect(page.get_by_text("Bed", exact=True)).to_be_visible()
+    expect(page.get_by_text("No print yet")).to_have_count(0)
+    expect(page.get_by_text("Last print")).to_have_count(0)

@@ -136,6 +136,9 @@ export function buildScenario(name = 'default') {
       });
       break;
     case 'idle': data.states = { 1: idleState() }; break;
+    case 'finished':
+      data.states = { 1: { ...idleState(), status: 'FINISH', stage: 'Idle', name: '', currentTrayId: '0-3', activeTrays: ['0-3', '0-0'] } };
+      break;
     case 'two-printers':
       data.printers.push({ id: 2, name: 'P1S', ip: '192.168.1.51', serial: 'SERIAL2', access_code: '********' });
       data.states[2] = idleState();
@@ -155,4 +158,4 @@ export function buildScenario(name = 'default') {
   return data;
 }
 
-export const SCENARIOS = ['default', 'runout', 'idle', 'two-printers', 'no-state', 'sparse', 'empty', 'fail', 'sso', 'setup'];
+export const SCENARIOS = ['default', 'runout', 'idle', 'finished', 'two-printers', 'no-state', 'sparse', 'empty', 'fail', 'sso', 'setup'];

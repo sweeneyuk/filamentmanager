@@ -104,3 +104,10 @@ def test_phone(open_app):
     page = open_app("/", width=390, height=844)
     expect(slot(page, "Slot 4, PLA, 691 grams left, feeding")).to_be_visible()
     assert_no_sideways_scroll(page)
+
+
+def test_finished_print_has_no_feeding_marks(open_app):
+    page = open_app("/", scenario="finished")
+    expect(page.locator("header .ui-pill")).to_have_text("Finished")
+    expect(slot(page, "Slot 4, PLA, 691 grams left")).to_be_visible()
+    expect(page.locator(".ps-slot.is-feeding, .ps-slot.is-in-use")).to_have_count(0)
