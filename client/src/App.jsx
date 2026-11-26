@@ -4,7 +4,7 @@ import Archive from './screens/history';
 import Analytics from './components/Analytics';
 import Settings from './components/Settings';
 import PrintStatus from './screens/print-status';
-import ScrapSaver from './components/ScrapSaver';
+import ScrapSaver from './screens/scrap-saver';
 import Profile from './components/Profile';
 import Login from './components/Login';
 import AppShell from './ui/shell/AppShell';
