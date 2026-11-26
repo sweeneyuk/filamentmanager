@@ -40,7 +40,7 @@
 .sp-table .sp-check { width: 52px; text-align: center; padding: 0 4px; }
 .sp-right { text-align: right; }
 .sp-sort {
-  display: inline-flex; align-items: center; gap: 4px; min-height: var(--target); padding: 0 6px; margin: 0 -6px;
+  display: inline-flex; align-items: center; gap: 4px; min-height: var(--target); min-width: var(--target); padding: 0 6px; margin: 0 -6px;
   border: 0; border-radius: var(--r-input); background: transparent; color: inherit; font: inherit; cursor: pointer;
 }
 .sp-sort:hover { color: var(--text); background: var(--raised); }

@@ -16,8 +16,8 @@ export default defineConfig({
         name: 'Filament Manager',
         short_name: 'Filament Manager',
         description: 'Track your 3D printing filament usage, cost, and print history.',
-        theme_color: '#1a1a2e',
-        background_color: '#1a1a2e',
+        theme_color: '#131a26',
+        background_color: '#131a26',
         display: 'standalone',
         orientation: 'portrait-primary',
         icons: [
