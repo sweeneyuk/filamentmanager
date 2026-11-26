@@ -1,20 +1,14 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { User, LogOut, Shield } from 'lucide-react';
+import PageHeader from '../ui/shell/PageHeader';
 
 function Profile() {
   const { user, logout } = useAuth();
 
   return (
     <div>
-      <div className="card title-card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--primary-color)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h2 style={{ margin: '0 0 5px 0', color: 'var(--primary-color)' }}>User Profile</h2>
-            <div style={{ fontSize: '0.85rem', color: '#888' }}>Manage your account and session</div>
-          </div>
-        </div>
-      </div>
+      <PageHeader title="Profile" />
 
       <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
         <div className="card" style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>

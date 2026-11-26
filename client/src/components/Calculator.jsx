@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Upload, Calculator as CalcIcon, Clock, Zap, Banknote, Scissors, Package, Settings, RefreshCw, ChevronDown, Save, X } from 'lucide-react';
 import { useAlert } from '../contexts/AlertContext';
+import PageHeader from '../ui/shell/PageHeader';
 
 const CustomSpoolSelect = ({ spools, value, onChange, formatCurrency }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -283,16 +284,7 @@ function Calculator() {
 
   return (
     <div style={{ paddingBottom: '40px' }}>
-      <div className="card title-card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--primary-color)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h2 style={{ margin: '0 0 5px 0', color: 'var(--primary-color)' }}>Quote Calculator</h2>
-            <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Print Pricing</div>
-            <div style={{ fontSize: '0.85rem', color: '#888' }}>Upload a .3mf file to instantly calculate the cost and sale price.</div>
-          </div>
-          <CalcIcon size={40} style={{ color: 'var(--primary-color)', opacity: 0.8 }} />
-        </div>
-      </div>
+      <PageHeader title="Calculator" />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '20px' }}>
         

@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useSocket } from '../contexts/SocketContext';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { PartyPopper, AlertTriangle } from 'lucide-react';
+import PageHeader from '../ui/shell/PageHeader';
 
 function Analytics() {
   const socket = useSocket();
@@ -134,15 +135,7 @@ function Analytics() {
 
   return (
     <div>
-      <div className="card title-card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--primary-color)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h2 style={{ margin: '0 0 5px 0', color: 'var(--primary-color)' }}>Analytics & Insights</h2>
-            <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Dashboard</div>
-            <div style={{ fontSize: '0.85rem', color: '#888' }}>Visualize your filament consumption and printing costs.</div>
-          </div>
-        </div>
-      </div>
+      <PageHeader title="Analytics" />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
         

@@ -1,0 +1,126 @@
+:where(body) { height: auto; overflow: auto; }
+body { min-height: 100dvh; }
+
+.ui-app { display: flex; min-height: 100dvh; }
+.ui-main {
+  flex: 1;
+  min-width: 0;
+  padding: var(--pad-y) var(--pad-x) 48px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+/* Side menu, 1100 px and up */
+.ui-nav {
+  position: sticky;
+  top: 0;
+  flex: none;
+  width: 232px;
+  height: 100dvh;
+  box-sizing: border-box;
+  padding: 28px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--nav);
+  overflow-y: auto;
+}
+.ui-nav__brand { display: flex; align-items: center; gap: 10px; padding: 0 6px 28px; font-size: var(--fs-card); font-weight: 700; }
+.ui-nav__logo { width: 30px; height: 30px; border-radius: 50%; border: 8px solid var(--accent); flex: none; box-sizing: border-box; }
+.ui-nav__link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--target);
+  padding: 0 14px;
+  border-radius: var(--r-item);
+  color: var(--muted);
+  text-decoration: none;
+  font-size: var(--fs-body);
+  font-weight: 500;
+  transition: background var(--fast) ease, color var(--fast) ease;
+}
+.ui-nav__link:hover { color: var(--text); background: var(--surface); }
+.ui-nav__link.active { background: var(--selected); color: var(--text); font-weight: 600; }
+.ui-nav__link.active svg { color: var(--accent); }
+.ui-nav__spacer { flex: 1; min-height: 24px; }
+.ui-nav__tip { display: none; }
+.ui-nav__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Icon rail, 768 to 1099 px */
+@media (max-width: 1099px) {
+  .ui-nav { width: 84px; padding: 24px 12px; align-items: center; overflow: visible; }
+  .ui-nav__brand { padding: 0 0 24px; }
+  .ui-nav__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .ui-nav__link { width: 56px; height: 48px; padding: 0; justify-content: center; }
+  .ui-nav__tip {
+    display: block;
+    position: absolute;
+    left: calc(100% + 12px);
+    top: 50%;
+    z-index: 20;
+    padding: 6px 12px;
+    border-radius: var(--r-input);
+    background: var(--raised);
+    color: var(--text);
+    box-shadow: var(--shadow);
+    font-size: var(--fs-small);
+    font-weight: 600;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform: translate(-4px, -50%);
+    transition: opacity var(--fast) ease, transform var(--fast) ease;
+  }
+  .ui-nav__link:hover .ui-nav__tip, .ui-nav__link:focus-visible .ui-nav__tip { opacity: 1; transform: translate(0, -50%); }
+}
+
+/* Bottom bar, under 768 px */
+.ui-bottom { display: none; }
+@media (max-width: 767px) {
+  .ui-nav { display: none; }
+  .ui-main { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+  .ui-bottom {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 30;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+    background: var(--nav);
+    border-top: 1px solid var(--selected);
+  }
+  .ui-bottom__item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 56px;
+    border: 0;
+    border-radius: var(--r-item);
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: var(--fs-tiny);
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .ui-bottom__item .ui-nav__label { position: static; width: auto; height: auto; clip-path: none; }
+  .ui-bottom__item .ui-nav__tip { display: none; }
+  .ui-bottom__item.active { color: var(--text); }
+  .ui-bottom__item.active svg { color: var(--accent); }
+}
+
+.ui-more { display: flex; flex-direction: column; gap: 4px; }
+.ui-more__link {
+  display: flex; align-items: center; gap: 14px; min-height: 52px; padding: 0 14px;
+  border-radius: var(--r-item); color: var(--text); text-decoration: none; font-weight: 500;
+}
+.ui-more__link:hover { background: var(--raised); }
+.ui-more__link.active { background: var(--selected); }
+.ui-more__link.active svg { color: var(--accent); }
+.ui-more__link .ui-nav__tip { display: none; }

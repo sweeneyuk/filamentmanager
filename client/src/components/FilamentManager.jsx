@@ -4,6 +4,7 @@ import SpoolModal from './SpoolModal';
 import { useSocket } from '../contexts/SocketContext';
 import { useAlert } from '../contexts/AlertContext';
 import { Edit2, Scissors, Archive as ArchiveIcon, ShoppingCart, Trash2, Disc, ChevronDown, ChevronUp, List, LayoutGrid } from 'lucide-react';
+import PageHeader from '../ui/shell/PageHeader';
 
 function FilamentManager() {
   const socket = useSocket();
@@ -354,13 +355,9 @@ function FilamentManager() {
 
   return (
     <div className="filament-manager">
-      <div className="card title-card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--primary-color)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h2 style={{ margin: '0 0 5px 0', color: 'var(--primary-color)' }}>Spool Inventory</h2>
-            <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Filament Manager</div>
-            <div style={{ fontSize: '0.85rem', color: '#888' }}>Track your spools, costs, and weights.</div>
-          </div>
+      <PageHeader
+        title="Spools"
+        actions={(
           <div className="fm-actions">
             <button className="btn-secondary" onClick={() => setShowStats(!showStats)} style={{ marginRight: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
               {showStats ? <><ChevronUp size={16} /> Hide Stats</> : <><ChevronDown size={16} /> Show Stats</>}
@@ -374,8 +371,8 @@ function FilamentManager() {
             <button className="btn-secondary" onClick={handleExportCSV}>Export CSV</button>
             <button className="btn-primary" onClick={() => { setEditingSpool(null); setIsModalOpen(true); }}>+ Add Spool</button>
           </div>
-        </div>
-      </div>
+        )}
+      />
 
       {selectedSpoolIds.length > 0 && (
         <div className="card bulk-actions-bar">

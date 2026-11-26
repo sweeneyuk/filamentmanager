@@ -1,0 +1,10 @@
+.ui-assistant__log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.ui-assistant__msg {
+  max-width: 85%; padding: 10px 14px; border-radius: var(--r-tile); line-height: 1.5;
+  white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--fs-small);
+}
+.ui-assistant__msg.is-assistant { align-self: flex-start; background: var(--raised); }
+.ui-assistant__msg.is-user { align-self: flex-end; background: var(--accent-soft); color: var(--accent-text); }
+.ui-assistant__msg.is-typing { color: var(--muted); }
+.ui-assistant__form { display: flex; gap: 8px; width: 100%; }
+.ui-assistant__form .ui-input { flex: 1; }

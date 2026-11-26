@@ -1,0 +1,8 @@
+.ui-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 16px; }
+.ui-header__title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-width: 0; }
+.ui-header__title h1 { margin: 0; font-size: var(--fs-title); font-weight: 700; line-height: 1.15; overflow-wrap: anywhere; }
+.ui-header__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+@media (max-width: 767px) {
+  .ui-header__assistant { width: var(--target); padding: 0; }
+  .ui-header__assistant .ui-btn__text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+}

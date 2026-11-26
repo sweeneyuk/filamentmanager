@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useSocket } from '../contexts/SocketContext';
 import { useAlert } from '../contexts/AlertContext';
 import { MoreVertical, Camera, Video, Trash2, Clock, Scale, Banknote, FileText, Sparkles, AlertTriangle, Zap, Disc, Printer, X, Download, Upload } from 'lucide-react';
+import PageHeader from '../ui/shell/PageHeader';
 
 function Archive() {
   const socket = useSocket();
@@ -208,15 +209,7 @@ function Archive() {
         style={{ display: 'none' }} 
         onChange={handleFileChange} 
       />
-      <div className="card title-card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--primary-color)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h2 style={{ margin: '0 0 5px 0', color: 'var(--primary-color)' }}>Print Archive</h2>
-            <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>History & Logs</div>
-            <div style={{ fontSize: '0.85rem', color: '#888' }}>View past prints, costs, and timelapse media.</div>
-          </div>
-        </div>
-      </div>
+      <PageHeader title="Print history" />
       
       {selectedArchives.length > 0 && (
         <div className="bulk-actions-bar" style={{

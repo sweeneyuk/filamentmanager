@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAlert } from '../contexts/AlertContext';
 
 import PrintersManagement from './PrintersManagement';
+import PageHeader from '../ui/shell/PageHeader';
 
 function Settings() {
   const [settings, setSettings] = useState({
@@ -141,15 +142,7 @@ function Settings() {
 
   return (
     <div>
-      <div className="card title-card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--primary-color)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h2 style={{ margin: '0 0 5px 0', color: 'var(--primary-color)' }}>Settings</h2>
-            <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Configuration</div>
-            <div style={{ fontSize: '0.85rem', color: '#888' }}>Configure Integrations and App Behavior.</div>
-          </div>
-        </div>
-      </div>
+      <PageHeader title="Settings" />
 
       <div className="settings-layout">
         {/* Sidebar Tabs */}

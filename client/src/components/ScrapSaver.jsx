@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Trash2, Plus, ExternalLink, RefreshCw } from 'lucide-react';
+import PageHeader from '../ui/shell/PageHeader';
 
 function ScrapSaver() {
   const [spools, setSpools] = useState([]);
@@ -57,15 +58,7 @@ function ScrapSaver() {
     <div style={{ paddingBottom: '20px' }}>
       
       {/* Title Card */}
-      <div className="card title-card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--primary-color)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h2 style={{ margin: '0 0 5px 0', color: 'var(--primary-color)' }}>Scrap Saver</h2>
-            <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Dashboard</div>
-            <div style={{ fontSize: '0.85rem', color: '#888' }}>Find tiny prints to use up your near-empty spools.</div>
-          </div>
-        </div>
-      </div>
+      <PageHeader title="Scrap saver" />
 
       <div style={{ display: 'flex', gap: '20px', flexDirection: 'row', flexWrap: 'wrap' }}>
         {/* Left: Scrap Spools */}

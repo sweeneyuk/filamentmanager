@@ -3,7 +3,9 @@ import axios from 'axios';
 import namer from 'color-namer';
 import { useSocket } from '../contexts/SocketContext';
 import { useAlert } from '../contexts/AlertContext';
-import { Thermometer, Box, Lightbulb, Fan, Layers, Droplets, Edit2, Scale } from 'lucide-react';
+import { RefreshCw, Thermometer, Box, Lightbulb, Fan, Layers, Droplets, Edit2, Scale } from 'lucide-react';
+import PageHeader from '../ui/shell/PageHeader';
+import Button from '../ui/Button';
 
 function PrintStatus() {
   const socket = useSocket();
@@ -151,16 +153,7 @@ function PrintStatus() {
 
   return (
     <div>
-      <div className="card title-card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--primary-color)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h2 style={{ margin: '0 0 5px 0', color: 'var(--primary-color)' }}>Print Status</h2>
-            <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Live Dashboards</div>
-            <div style={{ fontSize: '0.85rem', color: '#888' }}>Real-time telemetry and AMS tracking for all active printers.</div>
-          </div>
-          <button onClick={fetchData} style={{ padding: '8px 16px' }}>Refresh All</button>
-        </div>
-      </div>
+      <PageHeader title="Print status" actions={<Button variant="outline" icon={RefreshCw} label="Refresh" onClick={fetchData} />} />
 
       {printers.length === 0 && (
         <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
