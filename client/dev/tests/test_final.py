@@ -144,6 +144,8 @@ def _open_calculator_dialogs(page):
 def _open_save_quote(page):
     _open_calculator_dialogs(page)
     page.get_by_role("dialog", name="Spool for slot 1").get_by_role("button", name="Spool 1").click()
+    for dismiss in page.get_by_role("button", name="Dismiss").all():
+        dismiss.click()  # the "File parsed" toast can sit over the button on a phone
     page.get_by_role("button", name="Save quote").click()
 
 

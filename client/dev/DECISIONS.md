@@ -24,5 +24,5 @@ Every call I made on your behalf while building, in order, with what it costs if
 - Task 15: Ruling: test_keyboard_file_choice flaked again only under full-suite load; now uses locator.press('Enter') with a 10 s chooser wait — still keyboard only. Two full runs green. Cost if wrong: a rare flake remains in the test, not the app.
 - Task 16: Ruling: Docker image not built — no Docker daemon in this session. Ruling: lint 4 warnings (baseline 38), all in unchanged context files. Ruling: test_final audits page-level controls only (not inside dialogs); dialog controls use the same Button/Field components. Ruling: CHECKLIST.md maps each spec action to the test that exercises it rather than a manual keyboard walk.
 - Final review: self-review (no subagent tool used in this session). Review Focus 1-5 each covered by a test (test_sparse_data, test_missing_spool_can_be_cleared, test_bad_storage, test_double_submit, format.test.js invalid currency). server/, streamdeck-plugin/, .github/ unchanged. No findings above minor.
-- Final: minor (deferred): JS bundle 855 kB (was 924 kB) still over Vite's 500 kB warning; code splitting per screen would help.
-- Final: minor (deferred): test_final does not audit controls inside open dialogs.
+- Final: fixed (27 Nov): screens load on demand; largest script 285 kB (was 855 kB) — test_bundle.py RED→GREEN.
+- Final: fixed (27 Nov): test_controls_inside_dialogs audits 16 dialogs, panels and menus at 1440 and 390; all already met 44 px and naming. Probe confirmed the audit catches a shrunk button.
